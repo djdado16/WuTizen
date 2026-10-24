@@ -1,9 +1,10 @@
 /**
  * data/mock.js — placeholder catalogue for the WuPlay-style layout.
  *
- * Every title, synopsis, duration, rating and episode is invented. The artwork
- * is public-domain NASA material (see app/assets/sample/CREDITS.md). Nothing
- * here comes from a WuPlay profile, add-on or private export.
+ * Every title, synopsis, duration, rating and episode is invented. Artwork is a
+ * neutral, procedurally generated dark placeholder (app/assets/ph, produced by
+ * scripts/make-placeholders.mjs) so the layout reads correctly without pretending
+ * to be real poster art. Nothing here comes from a WuPlay profile or export.
  */
 
 var CAST = ['Marta Kovač', 'Luka Novak', 'Ivana Radić'];
@@ -19,7 +20,7 @@ function make(id, kind, hr, en, year, minutes, rating, genreHr, genreEn, descHr,
     genres: { hr: genreHr, en: genreEn },
     description: { hr: descHr, en: descEn },
     cast: CAST,
-    image: 'assets/sample/space-' + img + '.jpg'
+    image: 'assets/ph/ph-0' + (Number(img) % 6 + 1) + '.png'
   };
 }
 

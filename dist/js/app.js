@@ -605,7 +605,7 @@
       genres: { hr: genreHr, en: genreEn },
       description: { hr: descHr, en: descEn },
       cast: CAST,
-      image: "assets/sample/space-" + img + ".jpg"
+      image: "assets/ph/ph-0" + (Number(img) % 6 + 1) + ".png"
     };
   }
   var MOVIES = [
@@ -1507,21 +1507,32 @@
       show: function() {
         details.el.classList.add("is-open");
         focusManager.setScope(details.el);
-        focusManager.focus(details.buttons[0].el);
+        if (!focusManager.focus(details.buttons[0].el)) {
+          focusManager.focusFirst();
+        }
       },
       hide: function() {
         details.el.classList.remove("is-open");
         focusManager.setScope(null);
-        if (previousFocus) {
-          focusManager.focus(previousFocus);
-          previousFocus = null;
+        var restored = previousFocus ? focusManager.focus(previousFocus) : false;
+        previousFocus = null;
+        if (!restored) {
+          focusManager.focusFirst();
         }
       }
     };
     function openDetails(item) {
+      if (details.isOpen() || router.depth() > 0) {
+        return;
+      }
       previousFocus = focusManager.getCurrent();
       details.setItem(item, getLanguage());
       router.push(detailsScreen);
+    }
+    function closeDetails() {
+      while (router.depth() > 0) {
+        router.pop();
+      }
     }
     function onRailSelect(id) {
       if (id === "language") {
@@ -1572,18 +1583,41 @@
         focusManager.remember(shelves[sn].cards[0].el);
       }
     }
+    var pressed = {};
+    var inputBound = false;
+    function keyIdOf(event) {
+      return event.keyCode || event.which || event.key || "unknown";
+    }
+    function clearPressed() {
+      pressed = {};
+    }
+    function handleBack() {
+      if (details.isOpen() || router.depth() > 0) {
+        closeDetails();
+        return;
+      }
+      platform.exitApp();
+    }
     function onKeyDown(event) {
       var action = actionFromEvent(event);
       if (!action) {
         return;
       }
       event.preventDefault();
-      if (action === "back") {
-        if (router.depth() > 0) {
-          router.pop();
-        } else {
-          platform.exitApp();
+      var isTransition = action === "back" || action === "enter" || action === "exit";
+      if (isTransition) {
+        if (event.repeat) {
+          return;
         }
+        var id = keyIdOf(event);
+        if (pressed[id]) {
+          return;
+        }
+        clearPressed();
+        pressed[id] = true;
+      }
+      if (action === "back") {
+        handleBack();
         return;
       }
       if (action === "exit") {
@@ -1600,7 +1634,20 @@
       }
       focusManager.move(action);
     }
-    window.addEventListener("keydown", onKeyDown, false);
+    function onKeyUp() {
+      clearPressed();
+    }
+    function bindInput() {
+      if (inputBound) {
+        return;
+      }
+      inputBound = true;
+      document.addEventListener("keydown", onKeyDown, true);
+      document.addEventListener("keyup", onKeyUp, true);
+      window.addEventListener("blur", clearPressed, false);
+      document.addEventListener("visibilitychange", clearPressed, false);
+    }
+    bindInput();
     function renderLanguage() {
       var lang = getLanguage();
       applyStaticText(document);
@@ -1684,9 +1731,17 @@
     };
     logInfo("boot complete", { cards: document.querySelectorAll(".card").length });
   }
-  try {
-    boot();
-  } catch (err) {
-    logError("boot failed", err && err.stack ? err.stack : err);
+  var booted = false;
+  function start() {
+    if (booted) {
+      return;
+    }
+    booted = true;
+    try {
+      boot();
+    } catch (err) {
+      logError("boot failed", err && err.stack ? err.stack : err);
+    }
   }
+  start();
 })();

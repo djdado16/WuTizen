@@ -1,6 +1,6 @@
 {
   "name": "wutizen",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "WuTizen — WuPlay-inspired Samsung Tizen TV client (Tizen 5.0 / Chromium M63)",
   "author": "djdado16",
@@ -31,6 +31,7 @@
     "verify": "node scripts/verify.mjs",
     "smoke": "node scripts/browser-smoke.mjs",
     "icon": "node scripts/make-icon.mjs",
+    "placeholders": "node scripts/make-placeholders.mjs",
     "module": "node scripts/tizenbrew-module.mjs"
   },
   "devDependencies": {

@@ -138,7 +138,37 @@ async function press(client, key, keyCode) {
     keyCode +
     ',bubbles:true,cancelable:true});document.body.dispatchEvent(e);return true;})()';
   await evaluate(client, expression);
-  await sleep(90); // let the 120-200ms CSS transitions settle
+  await sleep(60);
+  // Real remotes send the matching keyup; transitions rely on it to re-arm.
+  await evaluate(
+    client,
+    "(function(){var e=new KeyboardEvent('keyup',{key:" +
+      JSON.stringify(key) +
+      ',keyCode:' +
+      keyCode +
+      ',which:' +
+      keyCode +
+      ',bubbles:true,cancelable:true});document.body.dispatchEvent(e);return true;})()'
+  );
+  await sleep(50); // let the 110-180ms CSS transitions settle
+}
+
+/** keydown/keyup only — used to reproduce held keys and duplicate key echo. */
+async function rawKey(client, type, key, keyCode, repeat) {
+  const expression =
+    "(function(){var e=new KeyboardEvent(" +
+    JSON.stringify(type === 'down' ? 'keydown' : 'keyup') +
+    ',{key:' +
+    JSON.stringify(key) +
+    ',keyCode:' +
+    keyCode +
+    ',which:' +
+    keyCode +
+    ',repeat:' +
+    (repeat ? 'true' : 'false') +
+    ',bubbles:true,cancelable:true});document.body.dispatchEvent(e);return true;})()';
+  await evaluate(client, expression);
+  await sleep(60);
 }
 
 async function capture(client, name) {
@@ -355,6 +385,52 @@ try {
     'Array.prototype.map.call(document.querySelectorAll(".row__track"), function (t) { return t.style.transform || "none"; })'
   );
   check('row pages horizontally', transforms.some((v) => /translate3d\(-\d/.test(v)), transforms.join(' | '));
+
+  // ---- regressions: key echo, held BACK, repeated navigation --------------
+  await press(client, 'Enter', 13);
+  s = await snapshot();
+  check('OK opens details after paging', s.detailsOpen === true, s.screen);
+
+  await rawKey(client, 'down', 'Unidentified', 10009, true); // held BACK
+  s = await snapshot();
+  check('held BACK auto-repeat is ignored', s.detailsOpen === true, 'open=' + s.detailsOpen);
+  await rawKey(client, 'up', 'Unidentified', 10009, false);
+
+  await rawKey(client, 'down', 'Unidentified', 10009, false);
+  s = await snapshot();
+  check('single BACK press dismisses details', s.detailsOpen === false && s.screen === 'home', s.screen);
+  await rawKey(client, 'down', 'Unidentified', 10009, false); // duplicate, no keyup
+  s = await snapshot();
+  check('duplicate BACK keydown does not reach the app', s.screen === 'home', s.screen);
+  await rawKey(client, 'up', 'Unidentified', 10009, false);
+
+  await press(client, 'Enter', 13);
+  await press(client, 'Enter', 13); // two complete presses (echo-like)
+  s = await snapshot();
+  check('repeated OK opens a single layer', s.detailsOpen === true, s.screen);
+  await press(client, 'Unidentified', 10009);
+  s = await snapshot();
+  check(
+    'one BACK closes the layer opened by repeated OK',
+    s.detailsOpen === false && s.screen === 'home',
+    s.screen
+  );
+
+  for (let i = 0; i < 12; i++) {
+    await press(client, i % 2 === 0 ? 'ArrowRight' : 'ArrowLeft', i % 2 === 0 ? 39 : 37);
+  }
+  for (let i = 0; i < 3; i++) {
+    await press(client, 'ArrowDown', 40);
+  }
+  for (let i = 0; i < 3; i++) {
+    await press(client, 'ArrowUp', 38);
+  }
+  s = await snapshot();
+  check(
+    'repeated navigation keeps a valid focus target',
+    s.focusedZone === 'content' && /^(mv|sr)\d+$/.test(String(s.focusedId)),
+    String(s.focusedId) + '/' + s.focusedZone
+  );
 
   const lazy = await evaluate(client, 'window.WuTizenDebug.snapshot().images');
   check('lazy loader bounds live images', lazy.attached > 0 && lazy.live <= 18, JSON.stringify(lazy));

@@ -30,7 +30,7 @@ picker, search screen, catalogs screen, settings screen, loading/empty states.
 | Area | File | Current placeholder |
 |---|---|---|
 | Typeface | `reset.css` font stack | `Segoe UI`/`SamsungOneUI` stack (reference uses a Roboto-like face) |
-| Artwork | `app/assets/sample/` | public-domain NASA/JPL images (see `CREDITS.md`) |
+| Artwork | `app/assets/ph/` | procedural neutral dark placeholders (self-authored, no third-party licence) |
 | Titles, synopses, ratings, episodes | `app/js/data/mock.js` | invented, Croatian + English |
 
 

@@ -142,22 +142,39 @@ function boot() {
     show: function () {
       details.el.classList.add('is-open');
       focusManager.setScope(details.el);
-      focusManager.focus(details.buttons[0].el);
+      if (!focusManager.focus(details.buttons[0].el)) {
+        focusManager.focusFirst();
+      }
     },
     hide: function () {
       details.el.classList.remove('is-open');
       focusManager.setScope(null);
-      if (previousFocus) {
-        focusManager.focus(previousFocus);
-        previousFocus = null;
+      // Never leave the app without a focused element: a null cursor makes OK
+      // do nothing and the remote feel dead.
+      var restored = previousFocus ? focusManager.focus(previousFocus) : false;
+      previousFocus = null;
+      if (!restored) {
+        focusManager.focusFirst();
       }
     }
   };
 
   function openDetails(item) {
+    // One overlay at a time: an echoed/duplicated OK must not stack layers,
+    // which is what forced several BACK presses to get back to the home screen.
+    if (details.isOpen() || router.depth() > 0) {
+      return;
+    }
     previousFocus = focusManager.getCurrent();
     details.setItem(item, getLanguage());
     router.push(detailsScreen);
+  }
+
+  /** Dismiss the top layer in one call, whatever the stack depth grew to. */
+  function closeDetails() {
+    while (router.depth() > 0) {
+      router.pop();
+    }
   }
 
   function onRailSelect(id) {
@@ -218,19 +235,63 @@ function boot() {
     }
   }
 
-  /* ---- keys ------------------------------------------------------------ */
+  /* ---- remote input -----------------------------------------------------
+     Single capture-phase listener on the document.
+
+     Why capture: the app can run inside a host shell (TizenBrew). Any bubble
+     phase listener in that shell that calls stopPropagation() would hide remote
+     keys from a window-level bubble listener, which shows up on the TV as
+     "the remote sometimes does not respond". Capture runs before those handlers.
+
+     Why a press guard: TV remotes deliver repeat/echo keydown events for one
+     physical press. Acting on every echo is what stacked overlays and moved
+     focus twice. Transitions (BACK / OK / EXIT) therefore fire once per press:
+     an event is ignored while its key is still held (`event.repeat` or a
+     keydown without the matching keyup), and the guard clears on keyup, on
+     window blur and on visibility change so it can never stick.
+     ------------------------------------------------------------------------ */
+  var pressed = {};
+  var inputBound = false;
+
+  function keyIdOf(event) {
+    return event.keyCode || event.which || event.key || 'unknown';
+  }
+
+  function clearPressed() {
+    pressed = {};
+  }
+
+  function handleBack() {
+    // Exactly one BACK press must dismiss the details view.
+    if (details.isOpen() || router.depth() > 0) {
+      closeDetails();
+      return;
+    }
+    platform.exitApp();
+  }
+
   function onKeyDown(event) {
     var action = actionFromEvent(event);
     if (!action) {
       return;
     }
-    event.preventDefault();
-    if (action === 'back') {
-      if (router.depth() > 0) {
-        router.pop();
-      } else {
-        platform.exitApp();
+    event.preventDefault(); // never let the page scroll on arrow keys
+
+    var isTransition = action === 'back' || action === 'enter' || action === 'exit';
+    if (isTransition) {
+      if (event.repeat) {
+        return; // auto-repeat of BACK/OK is the same press
       }
+      var id = keyIdOf(event);
+      if (pressed[id]) {
+        return; // duplicate keydown for a press we already handled
+      }
+      clearPressed();
+      pressed[id] = true;
+    }
+
+    if (action === 'back') {
+      handleBack();
       return;
     }
     if (action === 'exit') {
@@ -248,7 +309,22 @@ function boot() {
     focusManager.move(action);
   }
 
-  window.addEventListener('keydown', onKeyDown, false);
+  function onKeyUp() {
+    clearPressed();
+  }
+
+  function bindInput() {
+    if (inputBound) {
+      return; // a re-executed bundle must not attach a second listener
+    }
+    inputBound = true;
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('blur', clearPressed, false);
+    document.addEventListener('visibilitychange', clearPressed, false);
+  }
+
+  bindInput();
 
   /* ---- language -------------------------------------------------------- */
   function renderLanguage() {
@@ -347,8 +423,18 @@ function boot() {
   logInfo('boot complete', { cards: document.querySelectorAll('.card').length });
 }
 
-try {
-  boot();
-} catch (err) {
-  logError('boot failed', err && err.stack ? err.stack : err);
+var booted = false;
+
+function start() {
+  if (booted) {
+    return; // a re-executed bundle must never create a second app instance
+  }
+  booted = true;
+  try {
+    boot();
+  } catch (err) {
+    logError('boot failed', err && err.stack ? err.stack : err);
+  }
 }
+
+start();

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.1 — 2026-10-24 — Q60R hotfix
+
+### Fixed
+- **BACK needed 5–6 presses** to close the details view: overlay layers could stack, and BACK popped only one layer per press. BACK now dismisses by state (pops the whole stack), and duplicate/held BACK key events are ignored, so one press always closes it.
+- **Remote keys were occasionally ignored**: input is now bound once in the capture phase on `document`, so a host shell (TizenBrew) that stops event propagation can no longer hide keys.
+- **Focus could be left unset** after closing details (OK appeared dead): restoration now falls back to the first focusable element.
+- Guarded against a second boot of the bundle, which would have attached duplicate listeners.
+
+### Changed
+- NASA space imagery removed. Cards, hero and details now use **neutral dark procedural placeholders** (`app/assets/ph`, `npm run placeholders`); the WuPlay-inspired layout is unchanged.
+
+### Tests
+- 7 regression checks added (held BACK, duplicate BACK keydown, repeated OK, repeated navigation): `npm run smoke` now runs 37 checks.
+
 ## v0.2.0 — 2026-10-24 — WuPlay-style visual redesign (Milestone 2)
 
 ### Added

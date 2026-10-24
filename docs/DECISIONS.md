@@ -99,8 +99,31 @@ rail, cinematic hero, poster rows, full-bleed details view, pink focus accent.
 The rail expands by sliding a translucent panel and pushing the content layer with
 a single `translate3d` (no width animation, nothing gets covered). Rows render in
 windows of 8 cards. Images load through `IntersectionObserver` with a bounded
-live-bitmap budget that never evicts an on-screen image. Sample artwork is
-public-domain NASA/JPL material (credits shipped with it).
+live-bitmap budget that never evicts an on-screen image.
+**Superseded:** the NASA imagery shipped in v0.2.0 was removed after on-TV review
+(it looked nothing like WuPlay); artwork is now neutral procedural placeholders.
 **Consequences:** 22 of 24 cards in the DOM at boot, ~13-18 live bitmaps, all
 motion is transform/opacity only; artwork and metadata are clearly marked
 placeholders and are replaced by add-on data in Milestone 3.
+
+## D15 — Remote input reliability + neutral placeholders (Q60R bugfix)
+**Context:** on the Q60R, BACK needed five or six presses to leave the details
+view, and remote keys were occasionally ignored altogether.
+**Decision:**
+- input is bound exactly once, in the **capture phase on `document`** — a host
+  shell that calls `stopPropagation()` in the bubble phase (TizenBrew) can no
+  longer hide keys from the app;
+- **transitions (BACK / OK / EXIT) fire once per physical press**: `event.repeat`
+  and a duplicate keydown without the matching keyup are ignored, and the guard is
+  cleared on keyup, `blur` and `visibilitychange` so it can never stick;
+- **BACK dismisses by state** — `closeDetails()` pops the whole stack, so one
+  press is always enough regardless of how the stack grew;
+- `openDetails()` refuses to stack a second layer, and focus restoration falls
+  back to `focusFirst()` so the cursor is never left unset (an unset cursor made
+  OK look dead);
+- `start()` guards against a second boot of the same bundle (duplicate listeners).
+- placeholder artwork is now neutral and procedural (`app/assets/ph`, six 640×360
+  gradients, ~20 kB); the NASA imagery was removed because it made the UI read
+  nothing like WuPlay.
+**Consequences:** seven regression checks were added to `npm run smoke` (held
+BACK, duplicate BACK keydown, repeated OK, repeated navigation); total 37.
