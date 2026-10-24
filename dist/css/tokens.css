@@ -1,0 +1,58 @@
+/* ---------------------------------------------------------------------------
+   tokens.css — design tokens.
+
+   PLACEHOLDER VALUES. These are neutral dark-theme values chosen so Milestone 0
+   is readable and consistent. They are NOT the final WuPlay palette: the real
+   colors, radii, spacing and type scale must be measured from the WuPlay
+   screenshots (see docs/DESIGN_TARGETS.md) before any fidelity work.
+
+   Kept as CSS custom properties (supported since Chromium 49) so re-theming is
+   a single-file change.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Surfaces */
+  --bg-base: #0a0a0f;
+  --bg-stage: #0c0c12;
+  --bg-rail: #09090e;
+  --bg-elevated: #16161f;
+  --bg-poster: #1d1d28;
+
+  /* Text */
+  --text-primary: #f4f4f8;
+  --text-secondary: #a2a2b4;
+  --text-muted: #6d6d80;
+
+  /* Accent (placeholder — WuPlay brand color to be measured) */
+  --accent: #7c5cff;
+  --accent-strong: #9a82ff;
+  --accent-dim: rgba(124, 92, 255, 0.16);
+  --accent-line: rgba(124, 92, 255, 0.55);
+
+  /* Focus */
+  --ring: #ffffff;
+  --ring-width: 4px;
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  /* Metrics — must stay in sync with the layout decisions in layout.css */
+  --rail-width: 300px;
+  --topbar-height: 108px;
+  --gutter: 60px;
+
+  /* Type scale (1920x1080 stage) */
+  --fs-rail: 22px;
+  --fs-shelf-title: 28px;
+  --fs-card-title: 19px;
+  --fs-meta: 16px;
+  --fs-body: 20px;
+  --fs-hint: 17px;
+
+  /* Motion — short, GPU-friendly transforms only */
+  --t-fast: 120ms;
+  --t-mid: 200ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+}

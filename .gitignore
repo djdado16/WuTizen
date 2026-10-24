@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# WuTizen — files that must never be committed
+# ---------------------------------------------------------------------------
+
+# Dependencies
+node_modules/
+
+# Build intermediates. NOTE: dist/ is intentionally NOT ignored — TizenBrew
+# serves a module straight from this repository through jsDelivr, so the built
+# payload (dist/) must be committed. Tizen packaging artefacts stay ignored.
+.buildResult/
+*.wgt
+*.wgt.sig
+
+# ---- SECRETS -------------------------------------------------------------
+# Tizen signing material. Certificates must also live OUTSIDE OneDrive.
+*.p12
+*.pem
+*.key
+*.jks
+*.cert
+*.csr
+certs/
+.author-signature
+tizen-security-profiles.xml
+
+# WuPlay profile export (contains private add-on URLs / credentials).
+# The original export must never be copied into this repository.
+profile-data.json
+profile-data*.json
+*.wuplay-export*
+
+# Local environment
+.env
+.env.*
+
+# Private reference material (WuPlay screenshots are third-party assets)
+docs/reference/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+*.log

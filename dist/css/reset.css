@@ -1,0 +1,58 @@
+/* ---------------------------------------------------------------------------
+   reset.css — minimal normalization for the Tizen web runtime (Chromium M63).
+   Deliberately avoids modern CSS (no flex/grid gap, no logical properties,
+   no min()/max()/clamp(), no :focus-visible) so the output stays M63-safe.
+   --------------------------------------------------------------------------- */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+body {
+  font-family: "Segoe UI", "SamsungOneUI", Tahoma, Verdana, sans-serif;
+  color: #f4f4f8;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* TV input has no pointer; the focus ring is drawn manually via .is-focused. */
+:focus {
+  outline: none;
+}
+
+img,
+svg {
+  display: block;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  text-align: left;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  font-size: inherit;
+}

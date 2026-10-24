@@ -1,0 +1,40 @@
+{
+  "name": "wutizen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WuTizen — WuPlay-inspired Samsung Tizen TV client (Tizen 5.0 / Chromium M63)",
+  "author": "djdado16",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/djdado16/WuTizen.git"
+  },
+  "packageType": "app",
+  "appName": "WuTizen",
+  "appPath": "dist/index.html",
+  "keys": [
+    "MediaPlayPause",
+    "MediaPlay",
+    "MediaPause",
+    "MediaFastForward",
+    "MediaRewind"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:prod": "node scripts/build.mjs --minify",
+    "watch": "node scripts/build.mjs --watch",
+    "serve": "node scripts/serve.mjs",
+    "dev": "node scripts/build.mjs && node scripts/serve.mjs",
+    "verify": "node scripts/verify.mjs",
+    "smoke": "node scripts/browser-smoke.mjs",
+    "icon": "node scripts/make-icon.mjs",
+    "module": "node scripts/tizenbrew-module.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
+

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <!-- Samsung Tizen TV applications are rendered at 1920x1080 CSS pixels.
+       The panel is 3840x2160 physical pixels; the TV scales the stage itself. -->
+  <meta name="viewport" content="width=1920">
+  <meta name="description" content="WuTizen — Samsung Tizen TV client">
+  <title>WuTizen</title>
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+  <!-- Fixed 1920x1080 stage. On a Tizen TV this fills the screen exactly.
+       In a desktop browser preview it is scaled to fit (see app/js/main.js). -->
+  <div class="stage" id="stage">
+    <div class="app" id="app" role="application" aria-label="WuTizen" data-i18n-aria="app.name"></div>
+  </div>
+
+  <noscript>
+    <p style="color:#fff;font:20px sans-serif;padding:40px">WuTizen zahtijeva JavaScript.</p>
+  </noscript>
+
+  <!-- Single classic script. esbuild bundles app/js/main.js into an IIFE so the
+       app never relies on native ES modules (unsupported from the file:// origin
+       that Tizen uses to serve packaged applications). -->
+  <script src="js/app.js"></script>
+</body>
+</html>

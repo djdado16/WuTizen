@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WuTizen Tizen application manifest (standalone .wgt build).
+
+  Target device: Samsung QE65Q60RATXXH (2019, Tizen 5.0, Chromium M63).
+
+  required_version="5.0" is deliberate: the Samsung TV SDK in use at build time
+  may be newer than the target platform, and an app that declares a newer
+  required_version will refuse to install on a 2019 TV. Validation on the real
+  device is required before this value is considered confirmed.
+
+  This file is only used for the standalone package (tizen build-web/package).
+  TizenBrew loads the app from dist/index.html via the module manifest in
+  package.json — see docs/TIZENBREW.md.
+
+  Privileges are declared up front but unused in Milestone 0:
+    - internet ........ needed for Stremio-compatible add-on requests (M2+)
+    - tv.inputdevice .. needed to register and receive media remote keys
+-->
+<widget xmlns="http://www.w3.org/ns/widgets"
+        xmlns:tizen="http://tizen.org/ns/widgets"
+        id="http://wutizen.local/tizen"
+        version="0.1.0"
+        viewmodes="maximized">
+
+  <tizen:application id="WuTizen.WuTizen" package="WuTizen" required_version="5.0"/>
+
+  <content src="index.html"/>
+  <icon src="assets/icon.png"/>
+  <name>WuTizen</name>
+  <author>djdado16</author>
+
+  <!-- Samsung TV profile: mandatory for TV applications. -->
+  <tizen:profile name="tv-samsung"/>
+
+  <feature name="http://tizen.org/feature/screen.size.all"/>
+
+  <!-- Network access policy for the web runtime. -->
+  <access origin="*" subdomains="true"/>
+
+  <tizen:privilege name="http://tizen.org/privilege/internet"/>
+  <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+
+  <!-- hwkey-event="enable" is required to receive hardware/media keys. -->
+  <tizen:setting screen-orientation="landscape"
+                 context-menu="disable"
+                 background-support="disable"
+                 encryption="disable"
+                 install-location="auto"
+                 hwkey-event="enable"/>
+</widget>

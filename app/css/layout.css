@@ -1,0 +1,135 @@
+/* ---------------------------------------------------------------------------
+   layout.css — the 1920x1080 TV stage and its three regions
+   (rail | topbar, content).
+
+   Absolute positioning is used instead of grid/flex rows so that geometry is
+   fully predictable for the spatial focus manager. No `gap`, no `inset`, no
+   `min()/max()/clamp()` — all unsupported or unsafe on Chromium M63.
+   --------------------------------------------------------------------------- */
+
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background-color: var(--bg-stage);
+  background-image: radial-gradient(
+    circle at 16% -10%,
+    rgba(124, 92, 255, 0.12) 0%,
+    rgba(0, 0, 0, 0) 58%
+  );
+  /* Browser preview only: main.js scales the stage to fit the window.
+     On a Tizen TV the stage maps 1:1 onto the 1920x1080 CSS viewport. */
+  transform-origin: 0 0;
+}
+
+.app {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- left navigation rail ------------------------------------------------- */
+
+.rail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--rail-width);
+  padding: 44px 26px;
+  background-color: var(--bg-rail);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.rail__nav {
+  margin-top: 34px;
+}
+
+.rail__hint {
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 36px;
+  font-size: var(--fs-hint);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* --- top bar -------------------------------------------------------------- */
+
+.topbar {
+  position: absolute;
+  top: 0;
+  left: var(--rail-width);
+  right: 0;
+  height: var(--topbar-height);
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* --- content -------------------------------------------------------------- */
+
+.content {
+  position: absolute;
+  top: var(--topbar-height);
+  left: var(--rail-width);
+  right: 0;
+  bottom: 0;
+  padding: 6px var(--gutter) 0 var(--gutter);
+  overflow: hidden;
+}
+
+.shelf {
+  margin-bottom: 40px;
+}
+
+.shelf__head {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.shelf__title {
+  font-size: var(--fs-shelf-title);
+  color: var(--text-primary);
+}
+
+.shelf__count {
+  margin-left: 14px;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+}
+
+/* Clips horizontally scrolled cards. The padding + equal negative margin keep
+   the cards aligned with the row title while giving the focused (scaled) card
+   room so its ring and title are never cut off by the clip. */
+.shelf__viewport {
+  overflow: hidden;
+  padding: 12px;
+  margin: -12px;
+}
+
+.shelf__track {
+  display: flex;
+  flex-wrap: nowrap;
+  transition: transform var(--t-mid) var(--ease-out);
+  will-change: transform;
+}
+
+/* --- footer hint ---------------------------------------------------------- */
+
+.hintbar {
+  position: absolute;
+  left: 360px; /* rail (300) + gutter (60) */
+  bottom: 34px;
+  font-size: var(--fs-hint);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
