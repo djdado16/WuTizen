@@ -23,6 +23,12 @@ var ICONS = {
   bookmark:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">' +
     '<path d="M6.5 4.2h11v16l-5.5-4-5.5 4z"/></svg>',
+  addons:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">' +
+    '<rect x="3.8" y="3.8" width="7.2" height="7.2" rx="1.6"/>' +
+    '<rect x="13" y="3.8" width="7.2" height="7.2" rx="1.6"/>' +
+    '<rect x="3.8" y="13" width="7.2" height="7.2" rx="1.6"/>' +
+    '<path d="M16.6 13.2v6.8M13.2 16.6h6.8"/></svg>',
   globe:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
     '<circle cx="12" cy="12" r="8.2"/><path d="M3.9 12h16.2"/>' +

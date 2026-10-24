@@ -8,15 +8,16 @@
 
 import { t } from '../../i18n/index.js';
 
-export function createHero(item, lang) {
+export function createHero(initialItem, lang) {
   var current = lang || 'hr';
+  var data = initialItem;
 
   var el = document.createElement('section');
   el.className = 'hero';
 
   var bg = document.createElement('div');
   bg.className = 'hero__bg';
-  bg.style.backgroundImage = 'url("' + item.image + '")';
+  bg.style.backgroundImage = 'url("' + data.image + '")';
 
   var scrim = document.createElement('div');
   scrim.className = 'hero__scrim';
@@ -63,20 +64,29 @@ export function createHero(item, lang) {
   el.appendChild(content);
 
   function render() {
-    title.textContent = item.title[current] || item.title.hr;
-    duration.textContent = item.minutes + ' ' + t('unit.min');
-    year.textContent = String(item.year);
-    rating.textContent = item.rating.toFixed(1);
-    genres.textContent = item.genres[current] || item.genres.hr;
-    desc.textContent = item.description[current] || item.description.hr;
-    cast.textContent = item.cast.join(', ');
+    title.textContent = data.title[current] || data.title.hr;
+    duration.textContent = data.minutes + ' ' + t('unit.min');
+    year.textContent = String(data.year);
+    rating.textContent = (data.rating || 0).toFixed(1);
+    genres.textContent = data.genres[current] || data.genres.hr;
+    desc.textContent = data.description[current] || data.description.hr;
+    cast.textContent = (data.cast || []).join(', ');
   }
 
   render();
 
   return {
     el: el,
-    item: item,
+    item: data,
+    setItem: function (next) {
+      if (!next) {
+        return;
+      }
+      data = next;
+      el.__item = next;
+      bg.style.backgroundImage = 'url("' + (next.image || '') + '")';
+      render();
+    },
     updateLanguage: function (next) {
       current = next;
       render();

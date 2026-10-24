@@ -22,7 +22,7 @@ export function createCard(entry, variant, lang) {
 
   var img = document.createElement('img');
   img.className = 'card__img';
-  img.setAttribute('data-src', item.image);
+  img.setAttribute('data-src', item.poster || item.image);
   img.setAttribute('alt', '');
   img.setAttribute('draggable', 'false');
   frame.appendChild(img);

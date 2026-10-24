@@ -13,6 +13,8 @@ function make(id, kind, hr, en, year, minutes, rating, genreHr, genreEn, descHr,
   return {
     id: id,
     kind: kind,
+    mock: true,
+    poster: 'assets/ph/ph-0' + (Number(img) % 6 + 1) + '.png',
     title: { hr: hr, en: en },
     year: year,
     minutes: minutes,
@@ -139,7 +141,7 @@ export function getHero() {
 
 /** Episodes exist only for series; generated deterministically (placeholder). */
 export function getEpisodes(item) {
-  if (!item || item.kind !== 'series') {
+  if (!item || item.mock !== true || item.kind !== 'series') {
     return [];
   }
   var list = [];

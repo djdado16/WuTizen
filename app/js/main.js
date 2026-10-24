@@ -28,6 +28,16 @@ import { createShelf } from './ui/components/shelf.js';
 import { createHero } from './ui/components/hero.js';
 import { createToast } from './ui/components/toast.js';
 import { createDetails } from './ui/views/detail.js';
+import { createAddonsView } from './ui/views/addons.js';
+import { addonClient } from './data/addonClient.js';
+import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
+import {
+  listAddons,
+  addAddon,
+  removeAddon,
+  addAddonAsync,
+  removeAddonAsync
+} from './state/addons.js';
 
 var STAGE_WIDTH = 1920;
 var STAGE_HEIGHT = 1080;
@@ -41,6 +51,7 @@ var RAIL_ITEMS = [
   { id: 'home', labelKey: 'nav.home', icon: 'home', active: true },
   { id: 'catalog', labelKey: 'nav.catalog', icon: 'compass' },
   { id: 'lists', labelKey: 'nav.lists', icon: 'bookmark' },
+  { id: 'addons', labelKey: 'nav.addons', icon: 'addons' },
   { id: 'language', labelKey: 'nav.language', icon: 'globe', dynamic: 'language', bottom: true },
   { id: 'settings', labelKey: 'nav.settings', icon: 'settings', bottom: true }
 ];
@@ -74,21 +85,17 @@ function boot() {
 
   var rowsEl = document.createElement('div');
   rowsEl.className = 'rows';
-  for (var i = 0; i < ROWS.length; i++) {
-    var shelf = createShelf({
-      row: ROWS[i],
-      language: getLanguage(),
-      onCard: registerCard
-    });
-    shelves.push(shelf);
-    rowsEl.appendChild(shelf.el);
-  }
   scroller.appendChild(rowsEl);
   appEl.appendChild(scroller);
+  buildMockRows();
 
   /* ---- details view + toast -------------------------------------------- */
   var details = createDetails();
   appEl.appendChild(details.el);
+
+  var addonsView = createAddonsView();
+  appEl.appendChild(addonsView.el);
+
   appEl.appendChild(toast.el);
 
   /* ---- focus behaviour ------------------------------------------------- */
@@ -130,6 +137,13 @@ function boot() {
     if (typeof el.__reveal === 'function') {
       el.__reveal();
     }
+    if (el.tagName === 'INPUT') {
+      try {
+        el.focus(); // let the TV IME attach to the add-on URL field
+      } catch (err) {
+        /* ignored */
+      }
+    }
     var row = el.closest('.row');
     if (row) {
       scrollToRow(row);
@@ -167,7 +181,24 @@ function boot() {
     }
     previousFocus = focusManager.getCurrent();
     details.setItem(item, getLanguage());
+    details.setStreams([]);
     router.push(detailsScreen);
+
+    if (!item.addonUrl) {
+      return;
+    }
+    var type = item.kind || 'movie';
+    // Full metadata and stream list come from the add-on (read-only).
+    addonClient.meta(item.addonUrl, type, item.id, function (err, data) {
+      if (!err && data && data.meta && details.isOpen()) {
+        details.setItem(normalizeMeta(data.meta, item.addonUrl), getLanguage());
+      }
+    });
+    addonClient.streams(item.addonUrl, type, item.id, function (err, data) {
+      if (details.isOpen()) {
+        details.setStreams(!err && data && data.streams ? data.streams : []);
+      }
+    });
   }
 
   /** Dismiss the top layer in one call, whatever the stack depth grew to. */
@@ -177,10 +208,212 @@ function boot() {
     }
   }
 
+  /* ---- add-on manager screen -------------------------------------------- */
+  var addonsReturnFocus = null;
+  var addonFocusables = [];
+
+  function unregisterAddonFocusables() {
+    for (var i = 0; i < addonFocusables.length; i++) {
+      focusManager.unregister(addonFocusables[i]);
+    }
+    addonFocusables = [];
+  }
+
+  function registerAddonFocusables() {
+    unregisterAddonFocusables();
+    var list = addonsView.focusables();
+    for (var i = 0; i < list.length; i++) {
+      addonFocusables.push(list[i].el);
+      focusManager.register(list[i].el, list[i].activate);
+    }
+  }
+
+  function refocusAddons() {
+    registerAddonFocusables();
+    var list = addonsView.focusables();
+    if (list.length) {
+      focusManager.focus(list[0].el);
+    }
+  }
+
+  addonsView.setHandlers({
+    onAdd: function (url) {
+      addonsView.setStatus(t('common.loading'));
+      addAddon(url, function (err, entry, already) {
+        if (err) {
+          addonsView.setStatus(t('addons.unreachable') + ' · ' + err.message, true);
+          return;
+        }
+        addonsView.setStatus(already ? t('addons.installedTag') : t('addons.added'));
+        addonsView.render();
+        refocusAddons();
+        loadAddonCatalogs();
+      });
+    },
+    onRemove: function (url) {
+      removeAddon(url);
+      addonsView.setStatus(t('addons.removed'));
+      addonsView.render();
+      refocusAddons();
+      loadAddonCatalogs();
+    }
+  });
+
+  var addonsScreen = {
+    name: 'addons',
+    show: function () {
+      addonsView.el.classList.add('is-open');
+      addonsView.render();
+      addonsView.setStatus('');
+      focusManager.setScope(addonsView.el);
+      registerAddonFocusables();
+      var list = addonsView.focusables();
+      if (list.length) {
+        focusManager.focus(list[0].el);
+      } else {
+        focusManager.focusFirst();
+      }
+    },
+    hide: function () {
+      addonsView.el.classList.remove('is-open');
+      unregisterAddonFocusables();
+      focusManager.setScope(null);
+      var restored = addonsReturnFocus ? focusManager.focus(addonsReturnFocus) : false;
+      addonsReturnFocus = null;
+      if (!restored) {
+        focusManager.focusFirst();
+      }
+    }
+  };
+
+  /* ---- add-on catalog rows ---------------------------------------------- */
+  var catalogLoading = false;
+
+  function clearShelves() {
+    for (var i = 0; i < shelves.length; i++) {
+      var cards = shelves[i].cards;
+      for (var c = 0; c < cards.length; c++) {
+        focusManager.unregister(cards[c].el);
+      }
+      if (shelves[i].el.parentNode === rowsEl) {
+        rowsEl.removeChild(shelves[i].el);
+      }
+    }
+    shelves = [];
+  }
+
+  /** Fetches the next catalog page when focus reaches the end of a row. */
+  function makePager(rowDef, source) {
+    var loading = false;
+    var exhausted = false;
+    return function (shelfApi) {
+      if (loading || exhausted) {
+        return;
+      }
+      loading = true;
+      fetchCatalogPage(source.addon, source.catalog, rowDef.items.length, function (err, items) {
+        loading = false;
+        if (err || !items.length) {
+          exhausted = true;
+          return;
+        }
+        shelfApi.appendItems(items);
+      });
+    };
+  }
+
+  function renderAddonRows(rows) {
+    clearShelves();
+    for (var i = 0; i < rows.length; i++) {
+      (function (source, index) {
+        var rowDef = {
+          id: 'addon-' + index,
+          titleText: source.catalog.name,
+          variant: 'poster',
+          items: source.items
+        };
+        var shelf = createShelf({
+          row: rowDef,
+          language: getLanguage(),
+          onCard: registerCard,
+          onEndReached: makePager(rowDef, source)
+        });
+        shelves.push(shelf);
+        rowsEl.appendChild(shelf.el);
+        shelf.measure();
+      })(rows[i], i);
+    }
+    if (rows.length && rows[0].items.length) {
+      hero.setItem(rows[0].items[0]);
+    }
+    scrollY = 0;
+    applyScroller();
+
+    // The previous focus target was just removed with the mock rows.
+    var focused = focusManager.getCurrent();
+    if (!focused || !focused.parentNode) {
+      if (shelves.length && shelves[0].cards.length) {
+        focusManager.focus(shelves[0].cards[0].el);
+      } else {
+        focusManager.focusFirst();
+      }
+    }
+  }
+
+  function loadAddonCatalogs() {
+    var addons = listAddons();
+    if (!addons.length) {
+      // Nothing installed: keep the placeholder catalogue on screen.
+      buildMockRows();
+      return;
+    }
+    if (catalogLoading) {
+      return;
+    }
+    catalogLoading = true;
+    loadCatalogRows(addons, 3, 2, function (rows) {
+      catalogLoading = false;
+      if (!rows.length) {
+        toast.show(t('addons.unreachable'));
+        return;
+      }
+      renderAddonRows(rows);
+    });
+  }
+
+  /** Placeholder catalogue (also used after the last add-on is removed). */
+  function buildMockRows() {
+    clearShelves();
+    for (var i = 0; i < ROWS.length; i++) {
+      var shelf = createShelf({
+        row: ROWS[i],
+        language: getLanguage(),
+        onCard: registerCard
+      });
+      shelves.push(shelf);
+      rowsEl.appendChild(shelf.el);
+      shelf.measure();
+    }
+    hero.setItem(getHero());
+    scrollY = 0;
+    applyScroller();
+    var focused = focusManager.getCurrent();
+    if (!focused || !focused.parentNode) {
+      if (shelves.length && shelves[0].cards.length) {
+        focusManager.focus(shelves[0].cards[0].el);
+      }
+    }
+  }
+
   function onRailSelect(id) {
     if (id === 'language') {
       toggleLanguage();
       toast.show(t('toast.language'));
+      return;
+    }
+    if (id === 'addons') {
+      addonsReturnFocus = focusManager.getCurrent();
+      router.push(addonsScreen);
       return;
     }
     if (id === 'home') {
@@ -374,8 +607,32 @@ function boot() {
     focusManager.focusFirst();
   }
 
+  // Real catalogs replace the placeholder rows once add-ons are installed.
+  loadAddonCatalogs();
+
   /* ---- debug surface (read-only; drives scripts/browser-smoke.mjs) ----- */
   window.WuTizenDebug = {
+    addon: {
+      add: function (url) {
+        return addAddonAsync(url);
+      },
+      remove: function (url) {
+        return removeAddonAsync(url);
+      },
+      list: function () {
+        return listAddons();
+      },
+      reload: function () {
+        loadAddonCatalogs();
+        return true;
+      },
+      focusFirstCard: function () {
+        if (shelves.length && shelves[0].cards.length) {
+          return focusManager.focus(shelves[0].cards[0].el);
+        }
+        return focusManager.focusFirst();
+      }
+    },
     snapshot: function () {
       var focused = focusManager.getCurrent();
       var zone = 'none';
@@ -402,7 +659,7 @@ function boot() {
       }
       return {
         language: getLanguage(),
-        screen: router.depth() > 0 ? 'details' : 'home',
+        screen: router.depth() > 0 ? (details.isOpen() ? 'details' : 'overlay') : 'home',
         rows: shelves.length,
         cards: document.querySelectorAll('.card').length,
         totalItems: total,
@@ -414,7 +671,13 @@ function boot() {
         detailsOpen: details.isOpen(),
         detailsTitle: detailsTitle ? detailsTitle.textContent : '',
         episodes: document.querySelectorAll('.ep').length,
+        sources: document.querySelectorAll('.source-row').length,
+        addons: listAddons().length,
+        rowTitles: Array.prototype.map.call(document.querySelectorAll('.row__title'), function (n) {
+          return n.textContent;
+        }),
         images: lazyStats(),
+        avplay: platform.probeAvPlay(),
         platform: platformInfo.label
       };
     }

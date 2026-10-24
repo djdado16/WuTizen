@@ -10,10 +10,9 @@ a **TizenBrew module** (loaded from GitHub, no Tizen Studio needed —
 see [docs/TIZENBREW.md](docs/TIZENBREW.md)) and a **standalone `.wgt`**
 (see [docs/TIZEN_DEPLOYMENT.md](docs/TIZEN_DEPLOYMENT.md)).
 
-> **Status: Milestone 2 complete** — WuPlay-style UI: icon rail that expands on
-> focus, cinematic hero, windowed content rows with progress/badges, full-screen
-> details view with an episode section, lazy artwork, Croatian + English.
-> No streaming, no playback, no profile data, no network yet.
+> **Status: Milestone 3 — Stremio add-on engine** (manifest/catalog/meta/stream),
+> add-on manager UI, real catalog rows with posters, pagination, local persistence.
+> Placeholder catalogue still used by default. No playback, no profile data.
 
 ---
 

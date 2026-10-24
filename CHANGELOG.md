@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.3.0 — 2026-10-24 — Add-on engine (Milestone 3)
+
+### Added
+- **Stremio add-on engine**: manifest validation, catalog rows with `skip` pagination, full `meta` in the details view and a `stream` source list. Subtitles resource client is in place.
+- **Add-ons screen** (rail → Dodaci): installed list with remove, one-tap public presets (Cinemeta, OpenSubtitles v3) and a custom-URL field.
+- Add-ons persist locally (`localStorage`); catalogs replace the placeholder rows when an add-on is installed and the placeholder catalogue returns when the last one is removed.
+- Error handling for unreachable add-ons, invalid manifests and non-HTTP addresses.
+- `platform.probeAvPlay()` — runtime AVPlay availability probe (exposed in the debug snapshot).
+- Docs: `docs/WUTIZEN_FEATURES.md` (verified WuPlay feature matrix + AVPlay findings).
+
+### Tests
+- 12 new checks (49 total): manifest accept/reject, catalog rendering, lazy posters, meta + streams in details, pagination, persistence across reload, add/remove round-trip.
+
 ## v0.2.1 — 2026-10-24 — Q60R hotfix
 
 ### Fixed

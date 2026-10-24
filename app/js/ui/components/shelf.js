@@ -102,6 +102,9 @@ export function createShelf(options) {
       return;
     }
     if (cards.length >= row.items.length) {
+      if (typeof options.onEndReached === 'function') {
+        options.onEndReached(api);
+      }
       return;
     }
     appendCards(CHUNK);
@@ -123,19 +126,31 @@ export function createShelf(options) {
   }
 
   function updateLanguage(current) {
-    title.textContent = t(row.titleKey);
+    title.textContent = row.titleText || (row.titleKey ? t(row.titleKey) : '');
     for (var i = 0; i < cards.length; i++) {
       cards[i].updateLanguage(current);
     }
   }
 
+  /** Append a further page of items (used by add-on pagination). */
+  function appendItems(items) {
+    if (!items || !items.length) {
+      return;
+    }
+    row.items = row.items.concat(items);
+    appendCards(CHUNK);
+    measure();
+  }
+
   var api = {
     el: el,
     id: row.id,
+    row: row,
     cards: cards,
     measure: measure,
     reveal: reveal,
-    updateLanguage: updateLanguage
+    updateLanguage: updateLanguage,
+    appendItems: appendItems
   };
 
   appendCards(INITIAL_CARDS);

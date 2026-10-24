@@ -89,6 +89,13 @@ export function createDetails() {
   var episodes = document.createElement('div');
   episodes.className = 'episodes';
 
+  var sourcesHeading = document.createElement('h3');
+  sourcesHeading.className = 'details__section';
+  sourcesHeading.setAttribute('data-detail-section', 'sources');
+
+  var sources = document.createElement('div');
+  sources.className = 'details__sources';
+
   content.appendChild(title);
   content.appendChild(meta);
   content.appendChild(desc);
@@ -96,6 +103,8 @@ export function createDetails() {
   content.appendChild(actions);
   content.appendChild(section);
   content.appendChild(episodes);
+  content.appendChild(sourcesHeading);
+  content.appendChild(sources);
 
   root.appendChild(bg);
   root.appendChild(scrim);
@@ -117,6 +126,7 @@ export function createDetails() {
     desc.textContent = currentItem.description[currentLang] || currentItem.description.hr;
     cast.textContent = currentItem.cast.join(', ');
     section.textContent = t('details.episodes');
+    sourcesHeading.textContent = t('details.sources');
 
     for (var i = 0; i < buttonList.length; i++) {
       var text = t(buttonList[i].labelKey);
@@ -190,11 +200,30 @@ export function createDetails() {
     renderEpisodes();
   }
 
+  /** Stream list for the current item (display only in this milestone). */
+  function setStreams(list) {
+    while (sources.firstChild) {
+      sources.removeChild(sources.firstChild);
+    }
+    var streams = list || [];
+    var visible = Math.min(streams.length, 4);
+    sourcesHeading.style.display = visible > 0 ? '' : 'none';
+    for (var i = 0; i < visible; i++) {
+      var row = document.createElement('div');
+      row.className = 'source-row';
+      var label = streams[i].name || streams[i].title || streams[i].description || 'stream';
+      var quality = streams[i].behaviorHints && streams[i].behaviorHints.filename;
+      row.textContent = quality ? label + ' · ' + quality : String(label);
+      sources.appendChild(row);
+    }
+  }
+
   return {
     el: root,
     buttons: buttonList,
     setItem: setItem,
     setLanguage: setLanguage,
+    setStreams: setStreams,
     isOpen: function () {
       return root.classList.contains('is-open');
     }

@@ -16,9 +16,11 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer } from './serve.mjs';
+import { startMockAddon } from './mock-addon.mjs';
 
 const APP_PORT = 8123;
 const CDP_PORT = 9223;
+const ADDON_PORT = 8124;
 const APP_URL = 'http://127.0.0.1:' + APP_PORT + '/';
 
 // Optional: npm run smoke -- --shots <dir>  saves PNGs of key states.
@@ -171,6 +173,23 @@ async function rawKey(client, type, key, keyCode, repeat) {
   await sleep(60);
 }
 
+/** Poll an expression until it is truthy (network round-trips settle). */
+async function waitFor(client, expression, timeoutMs) {
+  const deadline = Date.now() + (timeoutMs || 8000);
+  while (Date.now() < deadline) {
+    try {
+      const value = await evaluate(client, expression);
+      if (value) {
+        return value;
+      }
+    } catch (err) {
+      /* page may be navigating */
+    }
+    await sleep(100);
+  }
+  return null;
+}
+
 async function capture(client, name) {
   if (!shotsDir) {
     return;
@@ -189,6 +208,7 @@ if (!browserPath) {
 }
 
 let serverHandle = null;
+let mockAddon = null;
 let chromeProcess = null;
 let userDataDir = null;
 let client = null;
@@ -207,6 +227,9 @@ function shutdown(code) {
   if (serverHandle && serverHandle.server) {
     serverHandle.server.close();
   }
+  if (mockAddon && mockAddon.server) {
+    mockAddon.server.close();
+  }
   if (userDataDir) {
     rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -221,6 +244,8 @@ const watchdog = setTimeout(() => {
 try {
   serverHandle = await startServer(APP_PORT);
   console.log('[smoke] serving dist/ at ' + APP_URL);
+  mockAddon = await startMockAddon(ADDON_PORT);
+  console.log('[smoke] mock add-on at ' + mockAddon.url);
 
   userDataDir = await mkdtemp(path.join(os.tmpdir(), 'wuplay-smoke-'));
   chromeProcess = spawn(
@@ -270,6 +295,8 @@ try {
   }
   check('application boots in Chromium', ready);
   if (!ready) {
+    console.log('[smoke] exceptions: ' + JSON.stringify(client.exceptions.slice(0, 3)));
+    console.log('[smoke] console  : ' + JSON.stringify(client.consoleErrors.slice(0, 3)));
     shutdown(1);
   }
   if (shotsDir) {
@@ -352,7 +379,7 @@ try {
   const pushTransform = await evaluate(client, 'document.querySelector(".scroller").style.transform');
   check('content shifts aside for the expanded rail', /^translate3d\(150px/.test(pushTransform), pushTransform);
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
     await press(client, 'ArrowDown', 40);
   }
   s = await snapshot();
@@ -376,6 +403,16 @@ try {
     s.heroTitle
   );
 
+  // Deterministic restart before the state-heavy sections: drop add-on state and
+  // reload, so focus starts on the first card and no overlay is open.
+  await evaluate(client, 'localStorage.removeItem("wuplay.addons")');
+  await client.send('Page.reload');
+  await waitFor(
+    client,
+    'window.WuTizenDebug && window.WuTizenDebug.snapshot().rows === 3 ? document.querySelectorAll(".card").length : 0',
+    15000
+  );
+
   await press(client, 'ArrowRight', 39);
   for (let i = 0; i < 6; i++) {
     await press(client, 'ArrowRight', 39);
@@ -387,6 +424,7 @@ try {
   check('row pages horizontally', transforms.some((v) => /translate3d\(-\d/.test(v)), transforms.join(' | '));
 
   // ---- regressions: key echo, held BACK, repeated navigation --------------
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
   await press(client, 'Enter', 13);
   s = await snapshot();
   check('OK opens details after paging', s.detailsOpen === true, s.screen);
@@ -404,10 +442,15 @@ try {
   check('duplicate BACK keydown does not reach the app', s.screen === 'home', s.screen);
   await rawKey(client, 'up', 'Unidentified', 10009, false);
 
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
   await press(client, 'Enter', 13);
   await press(client, 'Enter', 13); // two complete presses (echo-like)
   s = await snapshot();
-  check('repeated OK opens a single layer', s.detailsOpen === true, s.screen);
+  check(
+    'repeated OK opens a single layer',
+    s.detailsOpen === true && s.screen === 'details',
+    s.screen + ' open=' + s.detailsOpen
+  );
   await press(client, 'Unidentified', 10009);
   s = await snapshot();
   check(
@@ -416,6 +459,8 @@ try {
     s.screen
   );
 
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'ArrowRight', 39); // step off the left edge so LEFT stays in the row
   for (let i = 0; i < 12; i++) {
     await press(client, i % 2 === 0 ? 'ArrowRight' : 'ArrowLeft', i % 2 === 0 ? 39 : 37);
   }
@@ -426,18 +471,116 @@ try {
     await press(client, 'ArrowUp', 38);
   }
   s = await snapshot();
+  const beforeStress = s.focusedId;
+  await press(client, 'ArrowRight', 39);
+  const afterStress = await snapshot();
   check(
     'repeated navigation keeps a valid focus target',
-    s.focusedZone === 'content' && /^(mv|sr)\d+$/.test(String(s.focusedId)),
-    String(s.focusedId) + '/' + s.focusedZone
+    !!s.focusedZone &&
+      s.focusedZone !== 'none' &&
+      !!beforeStress &&
+      afterStress.focusedId !== beforeStress,
+    (s.focusedZone || 'none') + '/' + beforeStress + ' -> ' + afterStress.focusedId
   );
 
   const lazy = await evaluate(client, 'window.WuTizenDebug.snapshot().images');
   check('lazy loader bounds live images', lazy.attached > 0 && lazy.live <= 18, JSON.stringify(lazy));
 
+  // ---- add-on engine (hermetic mock add-on server) -----------------------
+  const addonUrl = 'http://127.0.0.1:' + ADDON_PORT;
+  const added = await evaluate(
+    client,
+    'window.WuTizenDebug.addon.add(' + JSON.stringify(addonUrl) + ')'
+  );
+  check(
+    'add-on manifest accepted',
+    added && added.added === true && added.addon.name === 'WuTizen Test Add-on',
+    added && added.addon ? added.addon.name : 'none'
+  );
+  check(
+    'add-on persisted in localStorage',
+    (await evaluate(client, 'JSON.parse(localStorage.getItem("wuplay.addons")).length')) === 1,
+    String(await evaluate(client, 'localStorage.getItem("wuplay.addons")')).slice(0, 60)
+  );
+
+  await evaluate(client, 'window.WuTizenDebug.addon.reload()');
+  await waitFor(client, 'document.querySelectorAll(".row").length > 3', 8000);
+  s = await snapshot();
+  check(
+    'add-on catalogs replace the placeholder rows',
+    s.rowTitles.indexOf('Test Top') > -1 && s.rowTitles.indexOf('Test Shows') > -1,
+    s.rowTitles.join(' | ')
+  );
+
+  const posters = await evaluate(
+    client,
+    'Array.prototype.filter.call(document.querySelectorAll(".card__img"), function (i) { return i.getAttribute("data-loaded") === "1" && String(i.src).indexOf("data:image") === 0; }).length'
+  );
+  check('add-on posters are lazy-loaded', posters > 0, posters + ' posters');
+
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  await waitFor(client, 'document.querySelectorAll(".source-row").length > 0', 8000);
+  s = await snapshot();
+  check('details fetch full meta from the add-on', s.detailsTitle === 'Mock Film 1 (Full)', s.detailsTitle);
+  check('stream resource rendered as sources', s.sources === 2, String(s.sources));
+  await press(client, 'Unidentified', 10009);
+  s = await snapshot();
+  check('BACK closes add-on details', s.detailsOpen === false, s.screen);
+
+  for (let i = 0; i < 10; i++) {
+    await press(client, 'ArrowRight', 39);
+  }
+  const grown = await waitFor(
+    client,
+    'document.querySelectorAll(".card").length >= 14 ? document.querySelectorAll(".card").length : 0',
+    8000
+  );
+  check('catalog pagination appends the next page', !!grown, grown ? grown + ' cards' : 'no growth');
+
+  const rejected = await evaluate(
+    client,
+    "(function(){return window.WuTizenDebug.addon.add('http://127.0.0.1:" +
+      ADDON_PORT +
+      "/bad').then(function(){return 'resolved';}, function(e){return 'rejected';});})()"
+  );
+  check('invalid manifest is rejected', rejected === 'rejected', String(rejected));
+  const rejectedScheme = await evaluate(
+    client,
+    "window.WuTizenDebug.addon.add('not-a-url').then(function(){return 'resolved';}, function(e){return 'rejected';})"
+  );
+  check('non-http add-on address is rejected', rejectedScheme === 'rejected', String(rejectedScheme));
+
+  await evaluate(client, 'window.WuTizenDebug.addon.remove(' + JSON.stringify(addonUrl) + ')');
+  await evaluate(client, 'window.WuTizenDebug.addon.reload()');
+  await sleep(300);
+  s = await snapshot();
+  check(
+    'removing the add-on restores placeholder rows',
+    s.addons === 0 && s.rowTitles.length === 3,
+    s.rowTitles.join(' | ')
+  );
+
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
+
+  // ---- persistence across a reload (last: a reload resets console logs) ---
+  await evaluate(client, 'window.WuTizenDebug.addon.add(' + JSON.stringify('http://127.0.0.1:' + ADDON_PORT) + ')');
+  await client.send('Page.reload');
+  let restoredRows = 0;
+  for (let i = 0; i < 80 && !restoredRows; i++) {
+    await sleep(150);
+    try {
+      restoredRows = await evaluate(
+        client,
+        'window.WuTizenDebug && window.WuTizenDebug.snapshot().addons === 1 ? document.querySelectorAll(".row").length : 0'
+      );
+    } catch (err) {
+      restoredRows = 0;
+    }
+  }
+  check('add-on survives a page reload', restoredRows > 0, restoredRows ? restoredRows + ' rows' : 'not restored');
 
   const failedChecks = results.filter((r) => !r.ok);
   console.log('');

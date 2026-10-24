@@ -58,7 +58,7 @@ Supported and used deliberately: flexbox, CSS custom properties, `calc()`,
 
 | File | Size |
 |---|---|
-| `js/app.js` | 51.6 kB |
+| `js/app.js` | 76.8 kB |
 | `css/components.css` | 6.9 kB |
 | `css/layout.css` | 3.0 kB |
 | `css/tokens.css` | 1.7 kB |
@@ -67,22 +67,16 @@ Supported and used deliberately: flexbox, CSS custom properties, `calc()`,
 | `config.xml` | 1.8 kB |
 | `assets/icon.png` | 4.7 kB |
 | `assets/ph/*.png` (6 neutral placeholders) | 19.8 kB |
-| **total** | **95.4 kB** |
+| **total** | **122.4 kB** |
 
 `npm run verify` → 8/8 PASS (payload, IIFE, M63 syntax, M63 CSS, i18n parity,
 `t()` key coverage, TV declarations, XML well-formedness).
 
-`npm run smoke` (headless Chrome 149, 1920×1080 emulation) → 37/37 PASS:
-boot, 3 rows with windowed DOM (22 of 24 cards), Croatian default, cinematic hero,
-poster row navigation, DOWN into the landscape continue row (caption + progress +
-episode badge), OK opens the opaque details view scoped to its own focus region
-with Play focused, BACK (keycode 10009) restores the originating card, series
-details render the 6-episode section, LEFT returns to the rail at the remembered
-Home entry and expands it (content pushed aside), language switch re-renders hero
-and rows, row pages horizontally, lazy loader keeps live bitmaps bounded, zero
-console errors, zero uncaught exceptions — plus the Q60R regressions: held BACK
-auto-repeat ignored, duplicate BACK keydown ignored, one press dismisses details,
-repeated OK opens a single layer, repeated navigation keeps a valid focus target.
+`npm run smoke` (headless Chrome 149, 1920×1080 emulation) → 49/49 PASS:
+placeholder catalogue and navigation as before, plus the add-on engine against a
+hermetic mock add-on server: manifest accept/reject, catalog rows replacing
+placeholders, lazy posters, full `meta` + `stream` sources in details, `skip`
+pagination, add/remove round-trip, persistence across a page reload.
 
 ## 4. Performance plan for the Q60R
 

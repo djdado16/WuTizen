@@ -291,6 +291,7 @@
     "nav.home": "Početna",
     "nav.catalog": "Otkrij",
     "nav.lists": "Moje liste",
+    "nav.addons": "Dodaci",
     "nav.settings": "Postavke",
     "nav.language": "Jezik",
     "row.movies": "Najbolje od najboljeg – filmovi",
@@ -301,8 +302,27 @@
     "details.watchlist": "Na listi",
     "details.markWatched": "Označi kao gledano",
     "details.episodes": "Epizode",
+    "details.sources": "Izvori",
+    "addons.title": "Dodaci",
+    "addons.hint": "Stremio-kompatibilni dodaci. Adresa se pohranjuje samo na ovom televizoru.",
+    "addons.installed": "Instalirani dodaci",
+    "addons.presets": "Preporučeni javni dodaci",
+    "addons.custom": "Dodaj po adresi",
+    "addons.urlPlaceholder": "URL dodatka",
+    "addons.add": "Dodaj",
+    "addons.remove": "Ukloni",
+    "addons.empty": "Nema instaliranih dodataka.",
+    "addons.catalogs": "kataloga",
+    "addons.installedTag": "Instalirano",
+    "addons.presetCinemeta": "Cinemeta (katalog i detalji)",
+    "addons.presetSubs": "OpenSubtitles v3 (titlovi)",
+    "addons.added": "Dodatak je dodan.",
+    "addons.removed": "Dodatak je uklonjen.",
+    "addons.unreachable": "Dodatak nije dostupan.",
+    "addons.invalid": "Neispravna adresa dodatka.",
     "unit.min": "min",
     "common.wip": "Ova značajka još nije implementirana.",
+    "common.loading": "Učitavanje…",
     "common.media": "Reprodukcija nije dio ovog milestona.",
     "lang.hr": "Hrvatski",
     "lang.en": "English",
@@ -317,6 +337,7 @@
     "nav.home": "Home",
     "nav.catalog": "Discover",
     "nav.lists": "My Lists",
+    "nav.addons": "Add-ons",
     "nav.settings": "Settings",
     "nav.language": "Language",
     "row.movies": "Best of the Best – Movies",
@@ -327,8 +348,27 @@
     "details.watchlist": "In Watchlist",
     "details.markWatched": "Mark Watched",
     "details.episodes": "Episodes",
+    "details.sources": "Sources",
+    "addons.title": "Add-ons",
+    "addons.hint": "Stremio-compatible add-ons. The address is stored on this TV only.",
+    "addons.installed": "Installed add-ons",
+    "addons.presets": "Recommended public add-ons",
+    "addons.custom": "Add by address",
+    "addons.urlPlaceholder": "Add-on URL",
+    "addons.add": "Add",
+    "addons.remove": "Remove",
+    "addons.empty": "No add-ons installed.",
+    "addons.catalogs": "catalogs",
+    "addons.installedTag": "Installed",
+    "addons.presetCinemeta": "Cinemeta (catalog and details)",
+    "addons.presetSubs": "OpenSubtitles v3 (subtitles)",
+    "addons.added": "Add-on added.",
+    "addons.removed": "Add-on removed.",
+    "addons.unreachable": "Add-on is not reachable.",
+    "addons.invalid": "Invalid add-on address.",
     "unit.min": "min",
     "common.wip": "This feature is not implemented yet.",
+    "common.loading": "Loading…",
     "common.media": "Playback is not part of this milestone.",
     "lang.hr": "Hrvatski",
     "lang.en": "English",
@@ -474,6 +514,12 @@
       }
       return false;
     },
+    /** AVPlay availability probe (TizenBrew runs the module in its own app shell). */
+    probeAvPlay: function() {
+      var hasWebapis = typeof window !== "undefined" && !!window.webapis;
+      var hasAvplay = typeof window !== "undefined" && !!(window.avplay || window.webapis && window.webapis.avplay);
+      return { webapis: hasWebapis, avplay: hasAvplay };
+    },
     /** Called once at boot. */
     init: function() {
       if (onTizen) {
@@ -598,6 +644,8 @@
     return {
       id,
       kind,
+      mock: true,
+      poster: "assets/ph/ph-0" + (Number(img) % 6 + 1) + ".png",
       title: { hr, en },
       year,
       minutes,
@@ -895,7 +943,7 @@
     return getItem2(HERO_ID);
   }
   function getEpisodes(item) {
-    if (!item || item.kind !== "series") {
+    if (!item || item.mock !== true || item.kind !== "series") {
       return [];
     }
     var list = [];
@@ -917,6 +965,7 @@
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 11.4 12 3.9l8.4 7.5"/><path d="M6.2 10.2V20h11.6v-9.8"/></svg>',
     compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="8.3"/><path d="m9 15 1.9-4.1L15 9l-1.9 4.1z"/></svg>',
     bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6.5 4.2h11v16l-5.5-4-5.5 4z"/></svg>',
+    addons: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3.8" y="3.8" width="7.2" height="7.2" rx="1.6"/><rect x="13" y="3.8" width="7.2" height="7.2" rx="1.6"/><rect x="3.8" y="13" width="7.2" height="7.2" rx="1.6"/><path d="M16.6 13.2v6.8M13.2 16.6h6.8"/></svg>',
     globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><path d="M3.9 12h16.2"/><path d="M12 3.8c2.3 2.3 3.5 5.1 3.5 8.2s-1.2 5.9-3.5 8.2c-2.3-2.3-3.5-5.1-3.5-8.2S9.7 6.1 12 3.8Z"/></svg>',
     settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.6v2.1M12 18.3v2.1M3.6 12h2.1M18.3 12h2.1"/><path d="M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5"/></svg>'
   };
@@ -1024,7 +1073,7 @@
     frame.className = "card__frame";
     var img = document.createElement("img");
     img.className = "card__img";
-    img.setAttribute("data-src", item.image);
+    img.setAttribute("data-src", item.poster || item.image);
     img.setAttribute("alt", "");
     img.setAttribute("draggable", "false");
     frame.appendChild(img);
@@ -1140,6 +1189,9 @@
         return;
       }
       if (cards.length >= row.items.length) {
+        if (typeof options.onEndReached === "function") {
+          options.onEndReached(api);
+        }
         return;
       }
       appendCards(CHUNK);
@@ -1159,18 +1211,28 @@
       }
     }
     function updateLanguage(current2) {
-      title.textContent = t(row.titleKey);
+      title.textContent = row.titleText || (row.titleKey ? t(row.titleKey) : "");
       for (var i = 0; i < cards.length; i++) {
         cards[i].updateLanguage(current2);
       }
     }
+    function appendItems(items) {
+      if (!items || !items.length) {
+        return;
+      }
+      row.items = row.items.concat(items);
+      appendCards(CHUNK);
+      measure();
+    }
     var api = {
       el,
       id: row.id,
+      row,
       cards,
       measure,
       reveal,
-      updateLanguage
+      updateLanguage,
+      appendItems
     };
     appendCards(INITIAL_CARDS);
     updateLanguage(lang);
@@ -1178,13 +1240,14 @@
   }
 
   // app/js/ui/components/hero.js
-  function createHero(item, lang) {
+  function createHero(initialItem, lang) {
     var current2 = lang || "hr";
+    var data = initialItem;
     var el = document.createElement("section");
     el.className = "hero";
     var bg = document.createElement("div");
     bg.className = "hero__bg";
-    bg.style.backgroundImage = 'url("' + item.image + '")';
+    bg.style.backgroundImage = 'url("' + data.image + '")';
     var scrim = document.createElement("div");
     scrim.className = "hero__scrim";
     var content = document.createElement("div");
@@ -1217,18 +1280,27 @@
     el.appendChild(scrim);
     el.appendChild(content);
     function render() {
-      title.textContent = item.title[current2] || item.title.hr;
-      duration.textContent = item.minutes + " " + t("unit.min");
-      year.textContent = String(item.year);
-      rating.textContent = item.rating.toFixed(1);
-      genres.textContent = item.genres[current2] || item.genres.hr;
-      desc.textContent = item.description[current2] || item.description.hr;
-      cast.textContent = item.cast.join(", ");
+      title.textContent = data.title[current2] || data.title.hr;
+      duration.textContent = data.minutes + " " + t("unit.min");
+      year.textContent = String(data.year);
+      rating.textContent = (data.rating || 0).toFixed(1);
+      genres.textContent = data.genres[current2] || data.genres.hr;
+      desc.textContent = data.description[current2] || data.description.hr;
+      cast.textContent = (data.cast || []).join(", ");
     }
     render();
     return {
       el,
-      item,
+      item: data,
+      setItem: function(next) {
+        if (!next) {
+          return;
+        }
+        data = next;
+        el.__item = next;
+        bg.style.backgroundImage = 'url("' + (next.image || "") + '")';
+        render();
+      },
       updateLanguage: function(next) {
         current2 = next;
         render();
@@ -1319,6 +1391,11 @@
     section.className = "details__section";
     var episodes = document.createElement("div");
     episodes.className = "episodes";
+    var sourcesHeading = document.createElement("h3");
+    sourcesHeading.className = "details__section";
+    sourcesHeading.setAttribute("data-detail-section", "sources");
+    var sources = document.createElement("div");
+    sources.className = "details__sources";
     content.appendChild(title);
     content.appendChild(meta);
     content.appendChild(desc);
@@ -1326,6 +1403,8 @@
     content.appendChild(actions);
     content.appendChild(section);
     content.appendChild(episodes);
+    content.appendChild(sourcesHeading);
+    content.appendChild(sources);
     root.appendChild(bg);
     root.appendChild(scrim);
     root.appendChild(content);
@@ -1344,6 +1423,7 @@
       desc.textContent = currentItem.description[currentLang] || currentItem.description.hr;
       cast.textContent = currentItem.cast.join(", ");
       section.textContent = t("details.episodes");
+      sourcesHeading.textContent = t("details.sources");
       for (var i2 = 0; i2 < buttonList.length; i2++) {
         var text = t(buttonList[i2].labelKey);
         buttonList[i2].label.textContent = text;
@@ -1403,15 +1483,486 @@
       renderText();
       renderEpisodes();
     }
+    function setStreams(list) {
+      while (sources.firstChild) {
+        sources.removeChild(sources.firstChild);
+      }
+      var streams = list || [];
+      var visible2 = Math.min(streams.length, 4);
+      sourcesHeading.style.display = visible2 > 0 ? "" : "none";
+      for (var i2 = 0; i2 < visible2; i2++) {
+        var row = document.createElement("div");
+        row.className = "source-row";
+        var label2 = streams[i2].name || streams[i2].title || streams[i2].description || "stream";
+        var quality = streams[i2].behaviorHints && streams[i2].behaviorHints.filename;
+        row.textContent = quality ? label2 + " · " + quality : String(label2);
+        sources.appendChild(row);
+      }
+    }
     return {
       el: root,
       buttons: buttonList,
       setItem: setItem2,
       setLanguage: setLanguage2,
+      setStreams,
       isOpen: function() {
         return root.classList.contains("is-open");
       }
     };
+  }
+
+  // app/js/data/addonClient.js
+  var TIMEOUT = 9e3;
+  function normalizeBase(input) {
+    var url = String(input || "").trim();
+    if (!url) {
+      return null;
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      return null;
+    }
+    url = url.replace(/\/+$/, "");
+    url = url.replace(/\/manifest\.json$/i, "");
+    return url;
+  }
+  function requestJson(url, done) {
+    var xhr = new XMLHttpRequest();
+    var finished = false;
+    function finish(err, data) {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      done(err, data);
+    }
+    try {
+      xhr.open("GET", url, true);
+      xhr.timeout = TIMEOUT;
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          var data = null;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch (parseError) {
+            finish(new Error("invalid JSON"));
+            return;
+          }
+          finish(null, data);
+        } else if (xhr.status === 0) {
+          finish(new Error("network error"));
+        } else {
+          finish(new Error("HTTP " + xhr.status));
+        }
+      };
+      xhr.ontimeout = function() {
+        finish(new Error("timeout"));
+      };
+      xhr.onerror = function() {
+        finish(new Error("network error"));
+      };
+      xhr.send();
+    } catch (err) {
+      finish(new Error("request failed"));
+    }
+  }
+  function resourceUrl(base, resource, type, id, extra) {
+    var url = base + "/" + resource + "/" + encodeURIComponent(type) + "/" + encodeURIComponent(id);
+    if (extra) {
+      url += "/" + extra;
+    }
+    return url + ".json";
+  }
+  var addonClient = {
+    manifest: function(base, cb) {
+      var root = normalizeBase(base);
+      if (!root) {
+        cb(new Error("invalid add-on url"));
+        return;
+      }
+      requestJson(root + "/manifest.json", cb);
+    },
+    catalog: function(base, type, id, skip, cb) {
+      var root = normalizeBase(base);
+      if (!root) {
+        cb(new Error("invalid add-on url"));
+        return;
+      }
+      var extra = skip > 0 ? "skip=" + skip : "";
+      requestJson(resourceUrl(root, "catalog", type, id, extra), cb);
+    },
+    meta: function(base, type, id, cb) {
+      var root = normalizeBase(base);
+      if (!root) {
+        cb(new Error("invalid add-on url"));
+        return;
+      }
+      requestJson(resourceUrl(root, "meta", type, id, ""), cb);
+    },
+    streams: function(base, type, id, cb) {
+      var root = normalizeBase(base);
+      if (!root) {
+        cb(new Error("invalid add-on url"));
+        return;
+      }
+      requestJson(resourceUrl(root, "stream", type, id, ""), cb);
+    },
+    subtitles: function(base, type, id, extra, cb) {
+      var root = normalizeBase(base);
+      if (!root) {
+        cb(new Error("invalid add-on url"));
+        return;
+      }
+      requestJson(resourceUrl(root, "subtitles", type, id, extra), cb);
+    }
+  };
+
+  // app/js/state/addons.js
+  var KEY = "addons";
+  var PRESETS = [
+    { url: "https://v3-cinemeta.strem.io", labelKey: "addons.presetCinemeta" },
+    { url: "https://opensubtitles-v3.strem.io", labelKey: "addons.presetSubs" }
+  ];
+  function summarize(url, manifest) {
+    var resources = [];
+    var raw = manifest.resources || [];
+    for (var i = 0; i < raw.length; i++) {
+      if (typeof raw[i] === "string") {
+        resources.push(raw[i]);
+      }
+    }
+    var catalogs = [];
+    var rawCats = manifest.catalogs || [];
+    for (var c = 0; c < rawCats.length && c < 8; c++) {
+      catalogs.push({
+        type: rawCats[c].type,
+        id: rawCats[c].id,
+        name: rawCats[c].name || rawCats[c].id
+      });
+    }
+    return {
+      url,
+      id: String(manifest.id || url),
+      name: String(manifest.name || "Add-on"),
+      version: String(manifest.version || ""),
+      description: String(manifest.description || ""),
+      logo: manifest.logo ? String(manifest.logo) : "",
+      resources,
+      catalogs
+    };
+  }
+  function listAddons() {
+    var list = getItem(KEY, []);
+    return Object.prototype.toString.call(list) === "[object Array]" ? list : [];
+  }
+  function persist(list) {
+    setItem(KEY, list);
+  }
+  function hasAddon(url) {
+    var base = normalizeBase(url);
+    var list = listAddons();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url === base) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function addAddon(url, cb) {
+    var base = normalizeBase(url);
+    if (!base) {
+      cb(new Error("invalid add-on url"));
+      return;
+    }
+    if (hasAddon(base)) {
+      cb(null, null, true);
+      return;
+    }
+    addonClient.manifest(base, function(err, manifest) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      if (!manifest || !manifest.id || !manifest.resources) {
+        cb(new Error("not a Stremio add-on manifest"));
+        return;
+      }
+      var entry = summarize(base, manifest);
+      var list = listAddons();
+      list.push(entry);
+      persist(list);
+      cb(null, entry, false);
+    });
+  }
+  function removeAddon(url, cb) {
+    var base = normalizeBase(url);
+    var list = listAddons();
+    var kept = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url !== base) {
+        kept.push(list[i]);
+      }
+    }
+    persist(kept);
+    if (cb) {
+      cb(null, kept.length !== list.length);
+    }
+  }
+  function addAddonAsync(url) {
+    return new Promise(function(resolve, reject) {
+      addAddon(url, function(err, entry, already) {
+        if (err) {
+          reject(new Error(err.message));
+        } else {
+          resolve({ added: !already, addon: entry });
+        }
+      });
+    });
+  }
+  function removeAddonAsync(url) {
+    return new Promise(function(resolve) {
+      removeAddon(url, function(err, removed) {
+        resolve({ removed: !!removed });
+      });
+    });
+  }
+
+  // app/js/ui/views/addons.js
+  function createAddonsView() {
+    var root = document.createElement("div");
+    root.className = "details addons";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-focus-region", "overlay");
+    var scrim = document.createElement("div");
+    scrim.className = "details__scrim";
+    var content = document.createElement("div");
+    content.className = "details__content addons__content";
+    var title = document.createElement("h1");
+    title.className = "details__title addons__title";
+    var hint = document.createElement("p");
+    hint.className = "details__desc addons__hint";
+    var status = document.createElement("div");
+    status.className = "addons__status";
+    var installedSection = document.createElement("div");
+    var presetsSection = document.createElement("div");
+    var customSection = document.createElement("div");
+    var customInput = document.createElement("input");
+    customInput.className = "addon-input";
+    customInput.setAttribute("type", "text");
+    customInput.setAttribute("spellcheck", "false");
+    customInput.setAttribute("placeholder", t("addons.urlPlaceholder"));
+    content.appendChild(title);
+    content.appendChild(hint);
+    content.appendChild(status);
+    content.appendChild(installedSection);
+    content.appendChild(presetsSection);
+    content.appendChild(customSection);
+    root.appendChild(scrim);
+    root.appendChild(content);
+    var handlers = { onAdd: null, onRemove: null };
+    var focusables = [];
+    function sectionHeading(key) {
+      var heading = document.createElement("h3");
+      heading.className = "details__section addons__section";
+      heading.textContent = t(key);
+      return heading;
+    }
+    function actionButton(label, id, handler) {
+      var button = document.createElement("div");
+      button.className = "btn addons__action";
+      button.setAttribute("role", "button");
+      button.setAttribute("tabindex", "-1");
+      button.setAttribute("data-addon-action", id);
+      var text = document.createElement("span");
+      text.textContent = label;
+      button.appendChild(text);
+      button.addEventListener("click", handler);
+      focusables.push({ el: button, activate: handler });
+      return button;
+    }
+    function addonRow(nameText, metaText, action) {
+      var row = document.createElement("div");
+      row.className = "addon-row";
+      var name = document.createElement("span");
+      name.className = "addon-row__name";
+      name.textContent = nameText;
+      var meta = document.createElement("span");
+      meta.className = "addon-row__meta";
+      meta.textContent = metaText;
+      row.appendChild(name);
+      row.appendChild(meta);
+      if (action) {
+        row.appendChild(action);
+      }
+      return row;
+    }
+    function render() {
+      focusables = [];
+      installedSection.innerHTML = "";
+      presetsSection.innerHTML = "";
+      customSection.innerHTML = "";
+      title.textContent = t("addons.title");
+      hint.textContent = t("addons.hint");
+      installedSection.appendChild(sectionHeading("addons.installed"));
+      var installed = listAddons();
+      if (!installed.length) {
+        var empty = document.createElement("div");
+        empty.className = "addons__empty";
+        empty.textContent = t("addons.empty");
+        installedSection.appendChild(empty);
+      } else {
+        for (var i = 0; i < installed.length; i++) {
+          (function(addon) {
+            var resourceText = (addon.resources || []).join(", ");
+            var metaText = resourceText + " · " + (addon.catalogs || []).length + " " + t("addons.catalogs");
+            installedSection.appendChild(
+              addonRow(
+                addon.name + (addon.version ? "  v" + addon.version : ""),
+                metaText,
+                actionButton(t("addons.remove"), "remove:" + addon.url, function() {
+                  if (handlers.onRemove) {
+                    handlers.onRemove(addon.url);
+                  }
+                })
+              )
+            );
+          })(installed[i]);
+        }
+      }
+      presetsSection.appendChild(sectionHeading("addons.presets"));
+      for (var p = 0; p < PRESETS.length; p++) {
+        (function(preset) {
+          var action = null;
+          if (hasAddon(preset.url)) {
+            var tag = document.createElement("span");
+            tag.className = "addon-row__meta";
+            tag.textContent = t("addons.installedTag");
+            action = tag;
+          } else {
+            action = actionButton(t("addons.add"), "add:" + preset.url, function() {
+              if (handlers.onAdd) {
+                handlers.onAdd(preset.url);
+              }
+            });
+          }
+          presetsSection.appendChild(addonRow(t(preset.labelKey), preset.url, action));
+        })(PRESETS[p]);
+      }
+      customSection.appendChild(sectionHeading("addons.custom"));
+      var customRow = document.createElement("div");
+      customRow.className = "addon-row";
+      customRow.appendChild(customInput);
+      customRow.appendChild(
+        actionButton(t("addons.add"), "add:custom", function() {
+          var value = String(customInput.value || "").trim();
+          if (value && handlers.onAdd) {
+            handlers.onAdd(value);
+          }
+        })
+      );
+      customSection.appendChild(customRow);
+      focusables.push({ el: customInput, activate: function() {
+      } });
+    }
+    function setStatus(message, isError) {
+      status.textContent = message || "";
+      status.className = "addons__status" + (isError ? " is-error" : "");
+    }
+    return {
+      el: root,
+      input: customInput,
+      render,
+      setStatus,
+      focusables: function() {
+        return focusables;
+      },
+      setHandlers: function(next) {
+        handlers.onAdd = next.onAdd || null;
+        handlers.onRemove = next.onRemove || null;
+      },
+      isOpen: function() {
+        return root.classList.contains("is-open");
+      }
+    };
+  }
+
+  // app/js/data/catalogs.js
+  function normalizeMeta(meta, addonUrl) {
+    var source = meta || {};
+    var title = String(source.name || source.id || "Untitled");
+    var yearMatch = /(\d{4})/.exec(String(source.releaseInfo || source.year || ""));
+    var minutes = 0;
+    var runtimeMatch = /(\d+)/.exec(String(source.runtime || ""));
+    if (runtimeMatch) {
+      minutes = parseInt(runtimeMatch[1], 10);
+    }
+    var genres = "";
+    if (source.genres && source.genres.length) {
+      genres = source.genres.slice(0, 3).join(" | ");
+    } else if (source.genre) {
+      genres = String(source.genre);
+    }
+    var poster = source.poster ? String(source.poster) : "";
+    return {
+      id: String(source.id || title),
+      mock: false,
+      addonUrl: addonUrl || "",
+      kind: String(source.type || "movie"),
+      title: { hr: title, en: title },
+      year: yearMatch ? parseInt(yearMatch[1], 10) : 0,
+      minutes,
+      rating: parseFloat(source.imdbRating || source.rating || 0) || 0,
+      genres: { hr: genres, en: genres },
+      description: { hr: String(source.description || ""), en: String(source.description || "") },
+      cast: source.cast && source.cast.length ? source.cast.slice(0, 3) : [],
+      poster,
+      image: source.background ? String(source.background) : poster
+    };
+  }
+  function fetchCatalogPage(addon, catalog, skip, cb) {
+    addonClient.catalog(addon.url, catalog.type, catalog.id, skip || 0, function(err, data) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      var metas = data && data.metas ? data.metas : [];
+      var items = [];
+      for (var i = 0; i < metas.length; i++) {
+        if (metas[i] && metas[i].id) {
+          items.push(normalizeMeta(metas[i], addon.url));
+        }
+      }
+      cb(null, items);
+    });
+  }
+  function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
+    var rows = [];
+    var pending = 0;
+    var startCount = 0;
+    for (var a = 0; a < addons.length && a < maxAddons; a++) {
+      var catalogs = addons[a].catalogs || [];
+      for (var c = 0; c < catalogs.length && c < maxCatalogs; c++) {
+        startCount += 1;
+        pending += 1;
+        (function(addon, catalog) {
+          fetchCatalogPage(addon, catalog, 0, function(err, items) {
+            pending -= 1;
+            if (!err && items.length) {
+              rows.push({ addon, catalog, items });
+            }
+            if (pending === 0) {
+              done(rows, startCount);
+            }
+          });
+        })(addons[a], catalogs[c]);
+      }
+    }
+    if (startCount === 0) {
+      done(rows, 0);
+    }
   }
 
   // app/js/main.js
@@ -1425,6 +1976,7 @@
     { id: "home", labelKey: "nav.home", icon: "home", active: true },
     { id: "catalog", labelKey: "nav.catalog", icon: "compass" },
     { id: "lists", labelKey: "nav.lists", icon: "bookmark" },
+    { id: "addons", labelKey: "nav.addons", icon: "addons" },
     { id: "language", labelKey: "nav.language", icon: "globe", dynamic: "language", bottom: true },
     { id: "settings", labelKey: "nav.settings", icon: "settings", bottom: true }
   ];
@@ -1449,19 +2001,13 @@
     scroller.appendChild(hero.el);
     var rowsEl = document.createElement("div");
     rowsEl.className = "rows";
-    for (var i = 0; i < ROWS.length; i++) {
-      var shelf = createShelf({
-        row: ROWS[i],
-        language: getLanguage(),
-        onCard: registerCard
-      });
-      shelves.push(shelf);
-      rowsEl.appendChild(shelf.el);
-    }
     scroller.appendChild(rowsEl);
     appEl.appendChild(scroller);
+    buildMockRows();
     var details = createDetails();
     appEl.appendChild(details.el);
+    var addonsView = createAddonsView();
+    appEl.appendChild(addonsView.el);
     appEl.appendChild(toast.el);
     function applyScroller() {
       scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
@@ -1497,6 +2043,12 @@
       if (typeof el.__reveal === "function") {
         el.__reveal();
       }
+      if (el.tagName === "INPUT") {
+        try {
+          el.focus();
+        } catch (err) {
+        }
+      }
       var row = el.closest(".row");
       if (row) {
         scrollToRow(row);
@@ -1527,17 +2079,215 @@
       }
       previousFocus = focusManager.getCurrent();
       details.setItem(item, getLanguage());
+      details.setStreams([]);
       router.push(detailsScreen);
+      if (!item.addonUrl) {
+        return;
+      }
+      var type = item.kind || "movie";
+      addonClient.meta(item.addonUrl, type, item.id, function(err, data) {
+        if (!err && data && data.meta && details.isOpen()) {
+          details.setItem(normalizeMeta(data.meta, item.addonUrl), getLanguage());
+        }
+      });
+      addonClient.streams(item.addonUrl, type, item.id, function(err, data) {
+        if (details.isOpen()) {
+          details.setStreams(!err && data && data.streams ? data.streams : []);
+        }
+      });
     }
     function closeDetails() {
       while (router.depth() > 0) {
         router.pop();
       }
     }
+    var addonsReturnFocus = null;
+    var addonFocusables = [];
+    function unregisterAddonFocusables() {
+      for (var i = 0; i < addonFocusables.length; i++) {
+        focusManager.unregister(addonFocusables[i]);
+      }
+      addonFocusables = [];
+    }
+    function registerAddonFocusables() {
+      unregisterAddonFocusables();
+      var list = addonsView.focusables();
+      for (var i = 0; i < list.length; i++) {
+        addonFocusables.push(list[i].el);
+        focusManager.register(list[i].el, list[i].activate);
+      }
+    }
+    function refocusAddons() {
+      registerAddonFocusables();
+      var list = addonsView.focusables();
+      if (list.length) {
+        focusManager.focus(list[0].el);
+      }
+    }
+    addonsView.setHandlers({
+      onAdd: function(url) {
+        addonsView.setStatus(t("common.loading"));
+        addAddon(url, function(err, entry, already) {
+          if (err) {
+            addonsView.setStatus(t("addons.unreachable") + " · " + err.message, true);
+            return;
+          }
+          addonsView.setStatus(already ? t("addons.installedTag") : t("addons.added"));
+          addonsView.render();
+          refocusAddons();
+          loadAddonCatalogs();
+        });
+      },
+      onRemove: function(url) {
+        removeAddon(url);
+        addonsView.setStatus(t("addons.removed"));
+        addonsView.render();
+        refocusAddons();
+        loadAddonCatalogs();
+      }
+    });
+    var addonsScreen = {
+      name: "addons",
+      show: function() {
+        addonsView.el.classList.add("is-open");
+        addonsView.render();
+        addonsView.setStatus("");
+        focusManager.setScope(addonsView.el);
+        registerAddonFocusables();
+        var list = addonsView.focusables();
+        if (list.length) {
+          focusManager.focus(list[0].el);
+        } else {
+          focusManager.focusFirst();
+        }
+      },
+      hide: function() {
+        addonsView.el.classList.remove("is-open");
+        unregisterAddonFocusables();
+        focusManager.setScope(null);
+        var restored = addonsReturnFocus ? focusManager.focus(addonsReturnFocus) : false;
+        addonsReturnFocus = null;
+        if (!restored) {
+          focusManager.focusFirst();
+        }
+      }
+    };
+    var catalogLoading = false;
+    function clearShelves() {
+      for (var i = 0; i < shelves.length; i++) {
+        var cards = shelves[i].cards;
+        for (var c = 0; c < cards.length; c++) {
+          focusManager.unregister(cards[c].el);
+        }
+        if (shelves[i].el.parentNode === rowsEl) {
+          rowsEl.removeChild(shelves[i].el);
+        }
+      }
+      shelves = [];
+    }
+    function makePager(rowDef, source) {
+      var loading = false;
+      var exhausted = false;
+      return function(shelfApi) {
+        if (loading || exhausted) {
+          return;
+        }
+        loading = true;
+        fetchCatalogPage(source.addon, source.catalog, rowDef.items.length, function(err, items) {
+          loading = false;
+          if (err || !items.length) {
+            exhausted = true;
+            return;
+          }
+          shelfApi.appendItems(items);
+        });
+      };
+    }
+    function renderAddonRows(rows) {
+      clearShelves();
+      for (var i = 0; i < rows.length; i++) {
+        (function(source, index) {
+          var rowDef = {
+            id: "addon-" + index,
+            titleText: source.catalog.name,
+            variant: "poster",
+            items: source.items
+          };
+          var shelf = createShelf({
+            row: rowDef,
+            language: getLanguage(),
+            onCard: registerCard,
+            onEndReached: makePager(rowDef, source)
+          });
+          shelves.push(shelf);
+          rowsEl.appendChild(shelf.el);
+          shelf.measure();
+        })(rows[i], i);
+      }
+      if (rows.length && rows[0].items.length) {
+        hero.setItem(rows[0].items[0]);
+      }
+      scrollY = 0;
+      applyScroller();
+      var focused = focusManager.getCurrent();
+      if (!focused || !focused.parentNode) {
+        if (shelves.length && shelves[0].cards.length) {
+          focusManager.focus(shelves[0].cards[0].el);
+        } else {
+          focusManager.focusFirst();
+        }
+      }
+    }
+    function loadAddonCatalogs() {
+      var addons = listAddons();
+      if (!addons.length) {
+        buildMockRows();
+        return;
+      }
+      if (catalogLoading) {
+        return;
+      }
+      catalogLoading = true;
+      loadCatalogRows(addons, 3, 2, function(rows) {
+        catalogLoading = false;
+        if (!rows.length) {
+          toast.show(t("addons.unreachable"));
+          return;
+        }
+        renderAddonRows(rows);
+      });
+    }
+    function buildMockRows() {
+      clearShelves();
+      for (var i = 0; i < ROWS.length; i++) {
+        var shelf = createShelf({
+          row: ROWS[i],
+          language: getLanguage(),
+          onCard: registerCard
+        });
+        shelves.push(shelf);
+        rowsEl.appendChild(shelf.el);
+        shelf.measure();
+      }
+      hero.setItem(getHero());
+      scrollY = 0;
+      applyScroller();
+      var focused = focusManager.getCurrent();
+      if (!focused || !focused.parentNode) {
+        if (shelves.length && shelves[0].cards.length) {
+          focusManager.focus(shelves[0].cards[0].el);
+        }
+      }
+    }
     function onRailSelect(id) {
       if (id === "language") {
         toggleLanguage();
         toast.show(t("toast.language"));
+        return;
+      }
+      if (id === "addons") {
+        addonsReturnFocus = focusManager.getCurrent();
+        router.push(addonsScreen);
         return;
       }
       if (id === "home") {
@@ -1688,7 +2438,29 @@
     } else {
       focusManager.focusFirst();
     }
+    loadAddonCatalogs();
     window.WuTizenDebug = {
+      addon: {
+        add: function(url) {
+          return addAddonAsync(url);
+        },
+        remove: function(url) {
+          return removeAddonAsync(url);
+        },
+        list: function() {
+          return listAddons();
+        },
+        reload: function() {
+          loadAddonCatalogs();
+          return true;
+        },
+        focusFirstCard: function() {
+          if (shelves.length && shelves[0].cards.length) {
+            return focusManager.focus(shelves[0].cards[0].el);
+          }
+          return focusManager.focusFirst();
+        }
+      },
       snapshot: function() {
         var focused = focusManager.getCurrent();
         var zone = "none";
@@ -1707,12 +2479,12 @@
         var detailsTitle = document.querySelector(".details__title");
         var heroTitle = document.querySelector(".hero__title");
         var total = 0;
-        for (var i2 = 0; i2 < ROWS.length; i2++) {
-          total += ROWS[i2].items.length;
+        for (var i = 0; i < ROWS.length; i++) {
+          total += ROWS[i].items.length;
         }
         return {
           language: getLanguage(),
-          screen: router.depth() > 0 ? "details" : "home",
+          screen: router.depth() > 0 ? details.isOpen() ? "details" : "overlay" : "home",
           rows: shelves.length,
           cards: document.querySelectorAll(".card").length,
           totalItems: total,
@@ -1724,7 +2496,13 @@
           detailsOpen: details.isOpen(),
           detailsTitle: detailsTitle ? detailsTitle.textContent : "",
           episodes: document.querySelectorAll(".ep").length,
+          sources: document.querySelectorAll(".source-row").length,
+          addons: listAddons().length,
+          rowTitles: Array.prototype.map.call(document.querySelectorAll(".row__title"), function(n) {
+            return n.textContent;
+          }),
           images: lazyStats(),
+          avplay: platform.probeAvPlay(),
           platform: platformInfo.label
         };
       }

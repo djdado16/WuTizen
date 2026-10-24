@@ -11,6 +11,7 @@ export default {
   'nav.home': 'Home',
   'nav.catalog': 'Discover',
   'nav.lists': 'My Lists',
+  'nav.addons': 'Add-ons',
   'nav.settings': 'Settings',
   'nav.language': 'Language',
 
@@ -23,10 +24,30 @@ export default {
   'details.watchlist': 'In Watchlist',
   'details.markWatched': 'Mark Watched',
   'details.episodes': 'Episodes',
+  'details.sources': 'Sources',
+
+  'addons.title': 'Add-ons',
+  'addons.hint': 'Stremio-compatible add-ons. The address is stored on this TV only.',
+  'addons.installed': 'Installed add-ons',
+  'addons.presets': 'Recommended public add-ons',
+  'addons.custom': 'Add by address',
+  'addons.urlPlaceholder': 'Add-on URL',
+  'addons.add': 'Add',
+  'addons.remove': 'Remove',
+  'addons.empty': 'No add-ons installed.',
+  'addons.catalogs': 'catalogs',
+  'addons.installedTag': 'Installed',
+  'addons.presetCinemeta': 'Cinemeta (catalog and details)',
+  'addons.presetSubs': 'OpenSubtitles v3 (subtitles)',
+  'addons.added': 'Add-on added.',
+  'addons.removed': 'Add-on removed.',
+  'addons.unreachable': 'Add-on is not reachable.',
+  'addons.invalid': 'Invalid add-on address.',
 
   'unit.min': 'min',
 
   'common.wip': 'This feature is not implemented yet.',
+  'common.loading': 'Loading…',
   'common.media': 'Playback is not part of this milestone.',
 
   'lang.hr': 'Hrvatski',

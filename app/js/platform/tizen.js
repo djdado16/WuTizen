@@ -74,6 +74,15 @@ export var platform = {
     return false;
   },
 
+  /** AVPlay availability probe (TizenBrew runs the module in its own app shell). */
+  probeAvPlay: function () {
+    var hasWebapis = typeof window !== 'undefined' && !!window.webapis;
+    var hasAvplay =
+      typeof window !== 'undefined' &&
+      !!(window.avplay || (window.webapis && window.webapis.avplay));
+    return { webapis: hasWebapis, avplay: hasAvplay };
+  },
+
   /** Called once at boot. */
   init: function () {
     if (onTizen) {
