@@ -134,7 +134,7 @@ if (slug) {
   console.log('[module] entry    (jsDelivr): https://cdn.jsdelivr.net/' + moduleName + '/' + pkg.appPath);
   console.log('');
   console.log('[module] TizenBrew → Modules → Add GitHub Module → enter:  ' + slug);
-  console.log('[module] pinned release (needs a git tag):  ' + slug + '@' + pkg.version);
+  console.log('[module] pinned release (needs a git tag):  ' + slug + '@v' + pkg.version);
 } else {
   console.log('[module] repository URL missing in package.json — cannot derive the GitHub slug');
 }

@@ -1,10 +1,12 @@
 /* ---------------------------------------------------------------------------
-   layout.css — the 1920x1080 TV stage and its three regions
-   (rail | topbar, content).
+   layout.css — stage, icon rail, cinematic hero, row stack, details view.
 
-   Absolute positioning is used instead of grid/flex rows so that geometry is
-   fully predictable for the spatial focus manager. No `gap`, no `inset`, no
-   `min()/max()/clamp()` — all unsupported or unsafe on Chromium M63.
+   Geometry is measured from the WuPlay reference (1920x1080): rail 150 px,
+   content left 238 px, hero 430 px tall, poster rows below.
+
+   Motion budget: only transform/opacity transitions. The rail expands by
+   sliding a translucent panel (translate3d) instead of animating width, and the
+   whole content column scrolls vertically as one composited layer.
    --------------------------------------------------------------------------- */
 
 .stage {
@@ -14,14 +16,7 @@
   width: 1920px;
   height: 1080px;
   overflow: hidden;
-  background-color: var(--bg-stage);
-  background-image: radial-gradient(
-    circle at 16% -10%,
-    rgba(124, 92, 255, 0.12) 0%,
-    rgba(0, 0, 0, 0) 58%
-  );
-  /* Browser preview only: main.js scales the stage to fit the window.
-     On a Tizen TV the stage maps 1:1 onto the 1920x1080 CSS viewport. */
+  background-color: var(--bg);
   transform-origin: 0 0;
 }
 
@@ -31,9 +26,10 @@
   left: 0;
   width: 100%;
   height: 100%;
+  background-color: var(--bg-stage);
 }
 
-/* --- left navigation rail ------------------------------------------------- */
+/* --- icon rail ------------------------------------------------------------ */
 
 .rail {
   position: absolute;
@@ -41,95 +37,342 @@
   left: 0;
   bottom: 0;
   width: var(--rail-width);
-  padding: 44px 26px;
-  background-color: var(--bg-rail);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  z-index: 50;
 }
 
-.rail__nav {
-  margin-top: 34px;
-}
-
-.rail__hint {
-  position: absolute;
-  left: 26px;
-  right: 26px;
-  bottom: 36px;
-  font-size: var(--fs-hint);
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-
-/* --- top bar -------------------------------------------------------------- */
-
-.topbar {
+/* Translucent panel that slides in from the left when the rail has focus. */
+.rail__panel {
   position: absolute;
   top: 0;
-  left: var(--rail-width);
-  right: 0;
-  height: var(--topbar-height);
-  padding: 0 var(--gutter);
+  left: 0;
+  bottom: 0;
+  width: var(--rail-panel-width);
+  background-color: var(--panel);
+  transform: translate3d(-100%, 0, 0);
+  transition: transform var(--t-mid) var(--ease);
+}
+
+.rail.is-expanded .rail__panel {
+  transform: translate3d(0, 0, 0);
+}
+
+.rail__items {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--rail-panel-width);
+  padding: 34px 0 28px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.rail__spacer {
+  flex: 1 1 auto;
+}
+
+.rail__item {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex: 0 0 auto;
+  height: 56px;
+  margin: 0 0 22px 30px;
+  width: 240px;
 }
 
-/* --- content -------------------------------------------------------------- */
-
-.content {
+.rail__item::after {
+  content: "";
   position: absolute;
-  top: var(--topbar-height);
-  left: var(--rail-width);
+  top: -3px;
+  left: -6px;
+  right: -6px;
+  bottom: -3px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  transition: border-color var(--t-fast) linear;
+  pointer-events: none;
+}
+
+.rail__item.is-focused::after {
+  border-color: var(--accent);
+}
+
+.rail__item.is-focused {
+  background-color: var(--accent-soft);
+  border-radius: 12px;
+}
+
+.rail__icon {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color var(--t-fast) linear;
+}
+
+.rail__icon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.rail__item.is-active .rail__icon,
+.rail__item.is-focused .rail__icon {
+  color: var(--text);
+}
+
+.rail__avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background-image: linear-gradient(140deg, #4a90d9 0%, #1f5f9e 100%);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 46px;
+  text-align: center;
+}
+
+.rail__label {
+  margin-left: 16px;
+  font-size: var(--fs-nav);
+  color: var(--text-dim);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translate3d(-12px, 0, 0);
+  transition: opacity var(--t-fast) linear, transform var(--t-mid) var(--ease);
+}
+
+.rail.is-expanded .rail__label {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.rail__item.is-focused .rail__label {
+  color: var(--text);
+}
+
+/* --- content scroller (hero + rows move as one layer) --------------------- */
+
+.scroller {
+  position: absolute;
+  top: 0;
+  left: 0;
   right: 0;
   bottom: 0;
-  padding: 6px var(--gutter) 0 var(--gutter);
-  overflow: hidden;
-}
-
-.shelf {
-  margin-bottom: 40px;
-}
-
-.shelf__head {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 16px;
-}
-
-.shelf__title {
-  font-size: var(--fs-shelf-title);
-  color: var(--text-primary);
-}
-
-.shelf__count {
-  margin-left: 14px;
-  font-size: var(--fs-meta);
-  color: var(--text-muted);
-}
-
-/* Clips horizontally scrolled cards. The padding + equal negative margin keep
-   the cards aligned with the row title while giving the focused (scaled) card
-   room so its ring and title are never cut off by the clip. */
-.shelf__viewport {
-  overflow: hidden;
-  padding: 12px;
-  margin: -12px;
-}
-
-.shelf__track {
-  display: flex;
-  flex-wrap: nowrap;
-  transition: transform var(--t-mid) var(--ease-out);
+  transition: transform var(--t-mid) var(--ease);
   will-change: transform;
 }
 
-/* --- footer hint ---------------------------------------------------------- */
+/* --- cinematic hero ------------------------------------------------------- */
 
-.hintbar {
-  position: absolute;
-  left: 360px; /* rail (300) + gutter (60) */
-  bottom: 34px;
-  font-size: var(--fs-hint);
-  color: var(--text-muted);
-  letter-spacing: 0.3px;
+.hero {
+  position: relative;
+  height: var(--hero-height);
+  overflow: hidden;
 }
+
+.hero__bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #05060a;
+  background-size: cover;
+  background-position: center 30%;
+}
+
+.hero__scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.97) 0%,
+      rgba(0, 0, 0, 0.9) 34%,
+      rgba(0, 0, 0, 0.35) 68%,
+      rgba(0, 0, 0, 0.05) 100%
+    ),
+    linear-gradient(to top, #000000 0%, rgba(0, 0, 0, 0.55) 18%, rgba(0, 0, 0, 0) 46%);
+}
+
+.hero__content {
+  position: absolute;
+  left: var(--content-left);
+  top: 46px;
+  width: 760px;
+}
+
+.hero__title {
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -1px;
+  color: var(--text);
+}
+
+.hero__meta {
+  display: flex;
+  align-items: center;
+  margin-top: 24px;
+  font-size: var(--fs-hero-meta);
+  color: var(--text-dim);
+}
+
+.hero__desc {
+  margin-top: 20px;
+  font-size: var(--fs-hero-desc);
+  line-height: 1.45;
+  color: var(--text);
+  max-height: 112px;
+  overflow: hidden;
+}
+
+.hero__cast {
+  margin-top: 16px;
+  font-size: var(--fs-hero-cast);
+  color: var(--text-muted);
+}
+
+/* --- row stack ------------------------------------------------------------ */
+
+.rows {
+  padding-left: var(--content-left);
+  padding-right: var(--content-right);
+  padding-bottom: 90px;
+}
+
+.row {
+  margin-bottom: var(--row-gap);
+}
+
+.row__title {
+  font-size: var(--fs-row-title);
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+/* Padding gives the scaled/outlined focused card room inside the clip. */
+.row__viewport {
+  overflow: hidden;
+  padding: 14px;
+  margin: -14px;
+}
+
+.row__track {
+  display: flex;
+  flex-wrap: nowrap;
+  transition: transform var(--t-mid) var(--ease);
+}
+
+/* --- details view --------------------------------------------------------- */
+
+.details {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  /* Opaque base: the details view must fully replace the home page behind it. */
+  background-color: #000000;
+  z-index: 40;
+}
+
+.details.is-open {
+  display: block;
+}
+
+.details__bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center 35%;
+  opacity: 0.55;
+}
+
+.details__scrim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(0, 0, 0, 0.8) 42%,
+      rgba(0, 0, 0, 0.35) 100%
+    ),
+    linear-gradient(to top, #000000 0%, rgba(0, 0, 0, 0.4) 30%, rgba(0, 0, 0, 0) 70%);
+}
+
+.details__content {
+  position: absolute;
+  left: var(--content-left);
+  top: 52px;
+  width: 980px;
+}
+
+.details__title {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -1px;
+  color: var(--text);
+}
+
+.details__meta {
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  font-size: 22px;
+  color: var(--text-dim);
+}
+
+.details__desc {
+  margin-top: 18px;
+  font-size: 23px;
+  line-height: 1.45;
+  color: var(--text);
+  max-height: 104px;
+  overflow: hidden;
+}
+
+.details__cast {
+  margin-top: 14px;
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+.details__pills {
+  display: flex;
+  margin-top: 24px;
+}
+
+.details__actions {
+  display: flex;
+  margin-top: 30px;
+}
+
+.details__section {
+  margin-top: 34px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.episodes {
+  display: flex;
+  margin-top: 16px;
+}
+

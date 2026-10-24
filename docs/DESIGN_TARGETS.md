@@ -3,19 +3,36 @@
 Milestone 0 intentionally ships a **wireframe**, not a WuPlay replica: the layout
 structure, focus behaviour and localization are real; the visual identity is not.
 
-## 1. Placeholder values that MUST be replaced from screenshots
+## 1. Measured from the reference (now implemented)
+
+Values taken from `home.png` and `details.png` in
+<https://github.com/wuplayapp/wuplay-releases/tree/main/screenshots>
+(1920x1080 CSS pixels), applied in `app/css/tokens.css` / `layout.css`:
+
+| Area | Reference value | Token |
+|---|---|---|
+| Left navigation | icon-only column, ~150 px, no solid background; icons ~34 px | `--rail-width` |
+| Expanded rail | translucent dark panel, labels appear, pink focus outline | `--rail-panel-width`, `--accent` |
+| Focus / brand colour | pink `#ff3d7f` | `--accent` |
+| Content left edge | 238 px | `--content-left` |
+| Hero | full-bleed backdrop, left-to-right + bottom-up scrim, ~430 px tall | `--hero-height` |
+| Hero title | ~62 px extra-bold, white | `--fs-hero` |
+| Hero metadata | duration · year · yellow rating badge · genres, ~24 px | `--fs-hero-meta`, `--rating-bg` |
+| Poster cards | 272 x 380, 12 px radius, 28 px gaps, no caption | `--poster-w/-h`, `--card-gap` |
+| Rows | title ~28 px bold, 46 px between rows | `--fs-row-title`, `--row-gap` |
+| Details | full-screen dimmed backdrop, 56 px title, white Play button, secondary actions | `.details` |
+
+Still to be measured / implemented (later milestones): player OSD, profile
+picker, search screen, catalogs screen, settings screen, loading/empty states.
+
+## 2. Placeholder values that remain
 
 | Area | File | Current placeholder |
 |---|---|---|
-| Palette (bg, surfaces, accent) | `app/css/tokens.css` | neutral dark + `#7c5cff` accent |
-| Typography (family, sizes, weights, line heights) | `tokens.css` `--fs-*`, `reset.css` font stack | `Segoe UI`/`SamsungOneUI` stack, sizes guessed |
-| Radii, spacing, gutters | `tokens.css`, `layout.css` | 8/12/20 px radii, 60 px gutter, 300 px rail |
-| Card size and aspect ratio | `components.css` `.card` | 228 × 320 (portrait 0.71), 26 px gap |
-| Focus treatment | `components.css` `.is-focused` | `scale(1.05)` + 4 px inset white ring + lift shadow |
-| Motion timings | `tokens.css` `--t-fast/--t-mid` | 120 ms / 200 ms |
-| Navigation pattern | `layout.css` `.rail` | left rail (top-nav is a real possibility) |
-| Detail overlay | `components.css` `.detail` | centred card overlay |
-| App icon / logo | `app/assets/icon.png` | procedural "W" disc |
+| Typeface | `reset.css` font stack | `Segoe UI`/`SamsungOneUI` stack (reference uses a Roboto-like face) |
+| Artwork | `app/assets/sample/` | public-domain NASA/JPL images (see `CREDITS.md`) |
+| Titles, synopses, ratings, episodes | `app/js/data/mock.js` | invented, Croatian + English |
+
 
 Typography note: a bundled **SIL OFL** font (e.g. Inter) or the TV's built-in
 family will be used — WuPlay's exact typeface must not be copied without a licence.

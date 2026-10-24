@@ -1,40 +1,33 @@
 /**
  * hr.js — Croatian strings (default interface language).
- *
- * Note: Croatian diacritics are stored as UTF-8; the bundle is emitted with
- * charset utf8 so they are never escaped into \u sequences.
+ * Values are UTF-8; the bundle is emitted with charset utf8.
  */
 
 export default {
   'app.name': 'WuTizen',
-  'app.tagline': 'Tizen TV klijent',
 
-  'nav.home': 'Početna',
-  'nav.catalog': 'Katalog',
+  'nav.profile': 'Profil',
   'nav.search': 'Pretraga',
+  'nav.home': 'Početna',
+  'nav.catalog': 'Otkrij',
+  'nav.lists': 'Moje liste',
   'nav.settings': 'Postavke',
   'nav.language': 'Jezik',
 
-  'topbar.greeting': 'Dobrodošli natrag',
-  'topbar.subtitle': 'Pregled sučelja — Milestone 0',
-
+  'row.movies': 'Najbolje od najboljeg – filmovi',
   'row.continue': 'Nastavi gledati',
-  'row.movies': 'Filmovi',
+  'row.series': 'Serije',
 
-  'hint.bar': '↑ ↓ ← → navigacija   ·   OK odabir   ·   BACK povratak',
-  'rail.hint': 'Strelicama se krećete, OK potvrđuje, BACK vraća korak unatrag.',
+  'details.play': 'Reproduciraj',
+  'details.trailer': 'Najava',
+  'details.watchlist': 'Na listi',
+  'details.markWatched': 'Označi kao gledano',
+  'details.episodes': 'Epizode',
 
-  'detail.badge': 'Pregled stavke',
-  'detail.meta': 'Godina',
-  'detail.hint':
-    'Detalji, sezone, titlovi i reprodukcija dolaze u sljedećim fazama. Ovo je prikaz strukture sučelja s lažnim podacima.',
-  'detail.back': 'Natrag',
+  'unit.min': 'min',
 
   'common.wip': 'Ova značajka još nije implementirana.',
-  'common.media': 'Reprodukcija nije dio Milestonea 0.',
-
-  'platform.browser': 'Pregled u pregledniku',
-  'platform.tizen': 'Tizen TV',
+  'common.media': 'Reprodukcija nije dio ovog milestona.',
 
   'lang.hr': 'Hrvatski',
   'lang.en': 'English',

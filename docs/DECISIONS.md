@@ -91,3 +91,16 @@ must be in the repository. The standalone `.wgt` path is untouched.
 **Consequences:** one build output serves both distribution routes; `dist/` is now
 versioned (≈55 kB); publishing = push to GitHub; `npm run module` validates the
 contract and prints the exact install string.
+
+## D14 — WuPlay visual redesign (Milestone 2)
+**Context:** the official WuPlay screenshots define the target look: icon-only
+rail, cinematic hero, poster rows, full-bleed details view, pink focus accent.
+**Decision:** rebuild the shell around those measurements (see DESIGN_TARGETS.md).
+The rail expands by sliding a translucent panel and pushing the content layer with
+a single `translate3d` (no width animation, nothing gets covered). Rows render in
+windows of 8 cards. Images load through `IntersectionObserver` with a bounded
+live-bitmap budget that never evicts an on-screen image. Sample artwork is
+public-domain NASA/JPL material (credits shipped with it).
+**Consequences:** 22 of 24 cards in the DOM at boot, ~13-18 live bitmaps, all
+motion is transform/opacity only; artwork and metadata are clearly marked
+placeholders and are replaced by add-on data in Milestone 3.

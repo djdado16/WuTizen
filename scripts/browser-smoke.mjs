@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * browser-smoke.mjs — end-to-end keyboard test of the built app.
+ * browser-smoke.mjs --- end-to-end keyboard test of the built app.
  *
  * Launches headless Chrome/Edge against dist/, drives it over the Chrome
  * DevTools Protocol (no browser-automation dependency), and asserts D-pad
@@ -35,7 +35,7 @@ const CHROME_CANDIDATES = [
 const results = [];
 function check(name, ok, detail) {
   results.push({ name, ok });
-  console.log((ok ? '  PASS  ' : '  FAIL  ') + name + (detail ? '  — ' + detail : ''));
+  console.log((ok ? '  PASS  ' : '  FAIL  ') + name + (detail ? '  â€” ' + detail : ''));
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -145,10 +145,11 @@ async function capture(client, name) {
   if (!shotsDir) {
     return;
   }
-  const shot = await client.send('Page.captureScreenshot', { format: 'png' });
-  const target = path.join(shotsDir, name + '.png');
+  // JPEG keeps the captures small enough to inspect quickly.
+  const shot = await client.send('Page.captureScreenshot', { format: 'jpeg', quality: 72 });
+  const target = path.join(shotsDir, name + '.jpg');
   await writeFile(target, Buffer.from(shot.data, 'base64'));
-  console.log('  shot  ' + name + '.png');
+  console.log('  shot  ' + name + '.jpg');
 }
 
 const browserPath = findBrowser();
@@ -247,62 +248,81 @@ try {
   await capture(client, '01-home-hr');
 
   const snapshot = () => evaluate(client, 'window.WuTizenDebug.snapshot()');
-  const titleOf = (n) => evaluate(client, 'document.querySelectorAll(".card__title")[' + n + '].textContent');
 
   let s = await snapshot();
-  check('shell renders 2 rows / 18 cards', s.cards === 18 && s.rows === 2, s.cards + ' cards, ' + s.rows + ' rows');
-  check('Croatian is the default language', s.language === 'hr', 'lang=' + s.language);
-  check('platform abstraction reports browser preview', s.platform === 'browser', s.platform);
+  check('three WuPlay-style rows rendered', s.rows === 3, s.rows + ' rows');
   check(
-    'initial focus is the first card of row 1',
-    s.focusedId === 'm1' && s.focusedTitle === 'Planina tišine',
-    s.focusedId + ' = "' + s.focusedTitle + '"'
+    'row windows limit the DOM',
+    s.cards === 22 && s.totalItems === 24,
+    s.cards + ' of ' + s.totalItems + ' items'
+  );
+  check('Croatian is the default language', s.language === 'hr', 'lang=' + s.language);
+  check('cinematic hero shows the featured title', s.heroTitle === 'Tišina svemira', s.heroTitle);
+  check('platform abstraction reports browser preview', s.platform === 'browser', s.platform);
+  check('rail starts collapsed', s.railExpanded === false);
+  check(
+    'initial focus is the first poster card',
+    s.focusedId === 'mv1' && s.focusedZone === 'content',
+    s.focusedId + '/' + s.focusedZone
   );
 
   await press(client, 'ArrowRight', 39);
   s = await snapshot();
-  check('RIGHT moves focus to the next card', s.focusedId === 'm3', s.focusedId);
+  check('RIGHT moves along the row', s.focusedId === 'mv2', s.focusedId);
 
   await press(client, 'ArrowLeft', 37);
-  s = await snapshot();
-  check('LEFT returns to the previous card', s.focusedId === 'm1', s.focusedId);
-
-  await press(client, 'ArrowRight', 39);
   await press(client, 'ArrowDown', 40);
   s = await snapshot();
-  check('DOWN moves focus into row 2', s.focusedZone === 'content' && s.focusedId === 'm2', s.focusedId);
+  check('DOWN enters the landscape continue row', s.focusedId === 'mv3', s.focusedId);
+  check('landscape card shows its caption', s.focusedTitle === 'Zvjezdana prašina', s.focusedTitle);
 
   await press(client, 'Enter', 13);
   s = await snapshot();
   check(
-    'OK opens the detail overlay scoped to it',
-    s.detailOpen === true && s.screen === 'detail' && s.focusedZone === 'overlay' && s.focusedId === 'detail-back',
-    s.screen + '/' + s.focusedZone + '/' + s.focusedId
+    'OK opens details scoped to the overlay with Play focused',
+    s.detailsOpen === true && s.screen === 'details' && s.focusedZone === 'overlay' && s.focusedId === 'play',
+    s.focusedZone + '/' + s.focusedId
   );
-  check('detail overlay shows the selected title', s.detailTitle === 'Posljednji vlak', s.detailTitle);
-  await capture(client, '02-detail-hr');
+  check('details shows the selected title', s.detailsTitle === 'Zvjezdana prašina', s.detailsTitle);
+  check('movies have no episode section', s.episodes === 0, String(s.episodes));
+  await capture(client, '02-details-movie');
 
   await press(client, 'Unidentified', 10009); // Samsung BACK key
   s = await snapshot();
   check(
-    'BACK (10009) closes the overlay and restores card focus',
-    s.detailOpen === false && s.screen === 'home' && s.focusedId === 'm2' && s.focusedZone === 'content',
-    s.focusedId + '/' + s.focusedZone
+    'BACK closes details and restores the card',
+    s.detailsOpen === false && s.focusedId === 'mv3' && s.focusedZone === 'content',
+    s.focusedId
   );
 
-  await press(client, 'ArrowLeft', 37);
+  await press(client, 'ArrowDown', 40);
   s = await snapshot();
-  check('LEFT walks back through the row first', s.focusedZone === 'content' && s.focusedId === 'm1', s.focusedId);
+  check('DOWN reaches the series row', s.focusedId === 'sr1', s.focusedId);
 
+  await press(client, 'Enter', 13);
+  s = await snapshot();
+  check('series details render the episode section', s.detailsOpen === true && s.episodes === 6, String(s.episodes));
+  check('series details title', s.detailsTitle === 'Kolonija', s.detailsTitle);
+  await capture(client, '03-details-series');
+
+  await press(client, 'Unidentified', 10009);
+  s = await snapshot();
+  check('BACK returns to the series row', s.detailsOpen === false && s.focusedId === 'sr1', s.focusedId);
+
+  await press(client, 'ArrowRight', 39);
+  await press(client, 'ArrowLeft', 37);
   await press(client, 'ArrowLeft', 37);
   s = await snapshot();
   check(
-    'LEFT from the first card enters the rail at the remembered entry',
+    'LEFT from the first card enters the rail at Home',
     s.focusedZone === 'rail' && s.focusedId === 'home',
-    s.focusedZone + '/' + s.focusedId
+    s.focusedId
   );
+  check('rail expands while it holds focus', s.railExpanded === true);
+  const pushTransform = await evaluate(client, 'document.querySelector(".scroller").style.transform');
+  check('content shifts aside for the expanded rail', /^translate3d\(150px/.test(pushTransform), pushTransform);
 
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     await press(client, 'ArrowDown', 40);
   }
   s = await snapshot();
@@ -310,32 +330,34 @@ try {
 
   await press(client, 'Enter', 13);
   s = await snapshot();
-  const firstTitleEn = await titleOf(0);
-  const toastVisible = await evaluate(client, 'document.querySelector(".toast").classList.contains("is-visible")');
-  check(
-    'OK on the language entry switches to English',
-    s.language === 'en' && s.railLanguageLabel.indexOf('English') > -1,
-    s.railLanguageLabel
+  const toastVisible = await evaluate(
+    client,
+    'document.querySelector(".toast").classList.contains("is-visible")'
   );
-  check('card titles re-render in English', firstTitleEn === 'Mountain of Silence', firstTitleEn);
+  check('language switches to English', s.language === 'en' && s.heroTitle === 'Silence of Space', s.heroTitle);
   check('language switch shows a localized toast', toastVisible === true);
-  await capture(client, '03-home-en');
+  await capture(client, '04-home-en');
 
   await press(client, 'Enter', 13);
   s = await snapshot();
-  const firstTitleHr = await titleOf(0);
-  check('switching back restores Croatian', s.language === 'hr' && firstTitleHr === 'Planina tišine', s.railLanguageLabel);
+  check(
+    'switching back restores Croatian',
+    s.language === 'hr' && s.heroTitle === 'Tišina svemira',
+    s.heroTitle
+  );
 
   await press(client, 'ArrowRight', 39);
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 6; i++) {
     await press(client, 'ArrowRight', 39);
   }
   const transforms = await evaluate(
     client,
-    'Array.prototype.map.call(document.querySelectorAll(".shelf__track"), function (t) { return t.style.transform || "none"; })'
+    'Array.prototype.map.call(document.querySelectorAll(".row__track"), function (t) { return t.style.transform || "none"; })'
   );
-  const scrolled = transforms.some((value) => /translate3d\(-\d/.test(value));
-  check('row scrolls horizontally when focus leaves the viewport', scrolled, transforms.join(' | '));
+  check('row pages horizontally', transforms.some((v) => /translate3d\(-\d/.test(v)), transforms.join(' | '));
+
+  const lazy = await evaluate(client, 'window.WuTizenDebug.snapshot().images');
+  check('lazy loader bounds live images', lazy.attached > 0 && lazy.live <= 18, JSON.stringify(lazy));
 
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
@@ -355,4 +377,3 @@ try {
   clearTimeout(watchdog);
   shutdown(1);
 }
-

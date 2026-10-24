@@ -1,58 +1,71 @@
 /* ---------------------------------------------------------------------------
-   tokens.css — design tokens.
+   tokens.css — design tokens measured from the official WuPlay screenshots
+   (wuplayapp/wuplay-releases/screenshots/home.png + details.png).
 
-   PLACEHOLDER VALUES. These are neutral dark-theme values chosen so Milestone 0
-   is readable and consistent. They are NOT the final WuPlay palette: the real
-   colors, radii, spacing and type scale must be measured from the WuPlay
-   screenshots (see docs/DESIGN_TARGETS.md) before any fidelity work.
+   Values are 1920x1080 CSS-pixel measurements of the reference layout:
+   icon rail ~150 px, content left edge 238 px, hero text block 62 px title,
+   poster cards 272x380 with 28 px gaps.
 
-   Kept as CSS custom properties (supported since Chromium 49) so re-theming is
-   a single-file change.
+   Chromium M63 constraint: only custom properties + plain values, no clamp()/
+   min()/max(), no logical properties.
    --------------------------------------------------------------------------- */
 
 :root {
   /* Surfaces */
-  --bg-base: #0a0a0f;
-  --bg-stage: #0c0c12;
-  --bg-rail: #09090e;
-  --bg-elevated: #16161f;
-  --bg-poster: #1d1d28;
+  --bg: #000000;
+  --bg-stage: #05050a;
+  --panel: rgba(10, 10, 14, 0.9);
+  --surface: rgba(255, 255, 255, 0.1);
+  --surface-hover: rgba(255, 255, 255, 0.16);
+  --scrim-strong: rgba(0, 0, 0, 0.92);
 
   /* Text */
-  --text-primary: #f4f4f8;
-  --text-secondary: #a2a2b4;
-  --text-muted: #6d6d80;
+  --text: #ffffff;
+  --text-dim: #c2c2cb;
+  --text-muted: #8e8e99;
 
-  /* Accent (placeholder — WuPlay brand color to be measured) */
-  --accent: #7c5cff;
-  --accent-strong: #9a82ff;
-  --accent-dim: rgba(124, 92, 255, 0.16);
-  --accent-line: rgba(124, 92, 255, 0.55);
+  /* Brand / focus (WuPlay pink) */
+  --accent: #ff3d7f;
+  --accent-soft: rgba(255, 61, 127, 0.18);
 
-  /* Focus */
-  --ring: #ffffff;
-  --ring-width: 4px;
+  /* Rating badge */
+  --rating-bg: #f5c518;
+  --rating-fg: #141414;
+
+  /* Metrics */
+  --rail-width: 150px;
+  --rail-panel-width: 300px;
+  --content-left: 238px;
+  --content-right: 48px;
+  --hero-height: 430px;
+  --row-gap: 46px;
+  --card-gap: 28px;
+  --poster-w: 272px;
+  --poster-h: 380px;
+  --land-w: 340px;
+  --land-h: 191px;
+  --ep-w: 300px;
+  --ep-h: 169px;
 
   /* Radii */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --radius-card: 12px;
+  --radius-btn: 10px;
+  --radius-pill: 22px;
 
-  /* Metrics — must stay in sync with the layout decisions in layout.css */
-  --rail-width: 300px;
-  --topbar-height: 108px;
-  --gutter: 60px;
-
-  /* Type scale (1920x1080 stage) */
-  --fs-rail: 22px;
-  --fs-shelf-title: 28px;
+  /* Type scale */
+  --fs-hero: 62px;
+  --fs-hero-meta: 24px;
+  --fs-hero-desc: 25px;
+  --fs-hero-cast: 22px;
+  --fs-row-title: 28px;
   --fs-card-title: 19px;
-  --fs-meta: 16px;
-  --fs-body: 20px;
-  --fs-hint: 17px;
+  --fs-btn: 24px;
+  --fs-nav: 21px;
 
-  /* Motion — short, GPU-friendly transforms only */
-  --t-fast: 120ms;
-  --t-mid: 200ms;
-  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Motion — transform/opacity only (composited on the TV SoC) */
+  --t-fast: 110ms;
+  --t-mid: 180ms;
+  --t-slow: 240ms;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
+

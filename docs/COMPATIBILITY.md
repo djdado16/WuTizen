@@ -58,7 +58,7 @@ Supported and used deliberately: flexbox, CSS custom properties, `calc()`,
 
 | File | Size |
 |---|---|
-| `js/app.js` | 34.4 kB |
+| `js/app.js` | 48.8 kB |
 | `css/components.css` | 6.9 kB |
 | `css/layout.css` | 3.0 kB |
 | `css/tokens.css` | 1.7 kB |
@@ -66,18 +66,21 @@ Supported and used deliberately: flexbox, CSS custom properties, `calc()`,
 | `index.html` | 1.3 kB |
 | `config.xml` | 1.8 kB |
 | `assets/icon.png` | 4.7 kB |
-| **total** | **55.1 kB** |
+| `assets/sample/*.jpg` (11 public-domain images) | 630 kB |
+| **total** | **709 kB** |
 
 `npm run verify` → 8/8 PASS (payload, IIFE, M63 syntax, M63 CSS, i18n parity,
 `t()` key coverage, TV declarations, XML well-formedness).
 
-`npm run smoke` (headless Chrome 149, 1920×1080 emulation) → 21/21 PASS:
-boot, 18 cards / 2 rows, Croatian default, RIGHT/LEFT/DOWN navigation, OK opens
-the scoped detail overlay, BACK (keycode 10009) closes it and restores the card,
-LEFT walks the row then enters the rail at the remembered entry, language switch
-to English re-renders all strings and cards, switching back restores Croatian,
-row scrolls horizontally once focus leaves the viewport, zero console errors,
-zero uncaught exceptions.
+`npm run smoke` (headless Chrome 149, 1920×1080 emulation) → 30/30 PASS:
+boot, 3 rows with windowed DOM (22 of 24 cards), Croatian default, cinematic hero,
+poster row navigation, DOWN into the landscape continue row (caption + progress +
+episode badge), OK opens the opaque details view scoped to its own focus region
+with Play focused, BACK (keycode 10009) restores the originating card, series
+details render the 6-episode section, LEFT returns to the rail at the remembered
+Home entry and expands it (content pushed aside), language switch re-renders hero
+and rows, row pages horizontally, lazy loader keeps live bitmaps bounded, zero
+console errors, zero uncaught exceptions.
 
 ## 4. Performance plan for the Q60R
 

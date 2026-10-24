@@ -1,49 +1,68 @@
 /**
- * card.js — one poster card.
+ * card.js — poster or landscape card with lazy artwork, progress and badge.
  *
- * Artwork is a CSS gradient placeholder on purpose: no third-party poster
- * images are downloaded or bundled in Milestone 0.
+ * No caption is rendered for poster cards (matches the WuPlay home rows); the
+ * human-readable title lives in the aria-label. Landscape cards carry a caption
+ * because they represent an in-progress episode.
  */
 
-export function createCard(item) {
+import { observeImage } from '../../platform/lazy.js';
+
+export function createCard(entry, variant, lang) {
+  var item = entry.item || entry;
+
   var el = document.createElement('div');
-  el.className = 'card';
+  el.className = 'card card--' + variant;
   el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '-1');
   el.setAttribute('data-item-id', item.id);
 
-  var poster = document.createElement('div');
-  poster.className = 'card__poster poster--' + (item.palette || 1);
+  var frame = document.createElement('div');
+  frame.className = 'card__frame';
 
-  var year = document.createElement('span');
-  year.className = 'card__year';
-  year.textContent = String(item.year);
-  poster.appendChild(year);
+  var img = document.createElement('img');
+  img.className = 'card__img';
+  img.setAttribute('data-src', item.image);
+  img.setAttribute('alt', '');
+  img.setAttribute('draggable', 'false');
+  frame.appendChild(img);
 
-  if (typeof item.progress === 'number') {
+  if (typeof entry.progress === 'number') {
     var progress = document.createElement('div');
     progress.className = 'card__progress';
     var fill = document.createElement('div');
     fill.className = 'card__progress-fill';
-    fill.style.width = Math.round(item.progress * 100) + '%';
+    fill.style.width = Math.round(entry.progress * 100) + '%';
     progress.appendChild(fill);
-    poster.appendChild(progress);
+    frame.appendChild(progress);
   }
 
-  var title = document.createElement('div');
-  title.className = 'card__title';
+  if (entry.badge) {
+    var badge = document.createElement('span');
+    badge.className = 'card__badge';
+    badge.textContent = entry.badge;
+    frame.appendChild(badge);
+  }
 
-  el.appendChild(poster);
-  el.appendChild(title);
+  el.appendChild(frame);
 
-  function updateLanguage(lang) {
-    var text = item.title[lang] || item.title.hr;
-    title.textContent = text;
+  var caption = null;
+  if (variant === 'landscape') {
+    caption = document.createElement('div');
+    caption.className = 'card__title';
+    el.appendChild(caption);
+  }
+
+  function updateLanguage(current) {
+    var text = item.title[current] || item.title.hr;
     el.setAttribute('aria-label', text + ', ' + item.year);
+    if (caption) {
+      caption.textContent = text;
+    }
   }
 
-  return {
-    el: el,
-    item: item,
-    updateLanguage: updateLanguage
-  };
+  updateLanguage(lang);
+  observeImage(img);
+
+  return { el: el, item: item, img: img, updateLanguage: updateLanguage };
 }

@@ -1,152 +1,91 @@
 /* ---------------------------------------------------------------------------
-   components.css — rail items, cards, overlay, toast.
+   components.css — cards, badges, buttons, pills, toast.
 
-   Focus styling rule: the focused element is always marked with the
-   `.is-focused` class by the focus manager (never by :focus), because a TV
-   remote moves a logical cursor, not the DOM focus.
+   Focus styling: the focused element is marked with `.is-focused` by the focus
+   manager and gets a pink 2-3 px ring drawn by ::after (a painted border, not
+   `outline`, so it follows the border radius on Chromium M63).
    --------------------------------------------------------------------------- */
-
-/* --- brand ---------------------------------------------------------------- */
-
-.rail__brand {
-  display: flex;
-  align-items: center;
-}
-
-.rail__logo {
-  width: 46px;
-  height: 46px;
-  border-radius: var(--radius-md);
-  background-image: linear-gradient(135deg, #8b6bff 0%, #3a2f8f 100%);
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 46px;
-  text-align: center;
-  letter-spacing: 0.5px;
-}
-
-.rail__brand-text {
-  margin-left: 14px;
-}
-
-.rail__name {
-  font-size: 24px;
-  color: var(--text-primary);
-}
-
-.rail__tagline {
-  margin-top: 2px;
-  font-size: 14px;
-  color: var(--text-muted);
-}
-
-/* --- rail items ----------------------------------------------------------- */
-
-.rail__item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  height: 64px;
-  padding: 0 18px;
-  border-radius: var(--radius-md);
-  font-size: var(--fs-rail);
-  color: var(--text-secondary);
-  transition: background-color var(--t-fast) linear, color var(--t-fast) linear;
-}
-
-.rail__item + .rail__item {
-  margin-top: 8px;
-}
-
-.rail__icon {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  margin-right: 16px;
-  color: currentColor;
-}
-
-.rail__icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.rail__label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.rail__item.is-focused {
-  background-color: var(--accent-dim);
-  color: var(--text-primary);
-}
-
-.rail__item.is-focused::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 14px;
-  bottom: 14px;
-  width: 4px;
-  border-radius: 2px;
-  background-color: var(--accent);
-}
-
-/* --- topbar --------------------------------------------------------------- */
-
-.topbar__greeting {
-  font-size: 30px;
-  color: var(--text-primary);
-}
-
-.topbar__sub {
-  margin-top: 6px;
-  font-size: var(--fs-meta);
-  color: var(--text-muted);
-}
-
-.badge {
-  padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  font-size: var(--fs-meta);
-  color: var(--text-secondary);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-
-.badge.is-tizen {
-  border-color: var(--accent-line);
-  color: var(--accent-strong);
-}
 
 /* --- cards ---------------------------------------------------------------- */
 
 .card {
-  flex: 0 0 auto;
-  width: 228px;
-  margin-right: 26px;
-  transition: transform var(--t-fast) var(--ease-out);
-}
-
-.card__poster {
   position: relative;
-  width: 228px;
-  height: 320px;
-  border-radius: var(--radius-md);
-  background-color: var(--bg-poster);
-  overflow: hidden;
+  flex: 0 0 auto;
+  margin-right: var(--card-gap);
+  transition: transform var(--t-fast) var(--ease);
 }
 
-.card__year {
+.card--poster {
+  width: var(--poster-w);
+}
+
+.card--landscape {
+  width: var(--land-w);
+}
+
+.card__frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background-color: #12121a;
+}
+
+.card--poster .card__frame {
+  width: var(--poster-w);
+  height: var(--poster-h);
+}
+
+.card--landscape .card__frame {
+  width: var(--land-w);
+  height: var(--land-h);
+}
+
+/* object-fit: cover centre-crops the sample artwork to the card shape. */
+.card__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--t-mid) linear;
+}
+
+.card__img[data-loaded="1"] {
+  opacity: 1;
+}
+
+.card::after {
+  content: "";
   position: absolute;
-  right: 12px;
-  bottom: 10px;
-  font-size: 14px;
-  letter-spacing: 0.4px;
-  color: rgba(255, 255, 255, 0.74);
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 3px solid transparent;
+  border-radius: 15px;
+  transition: border-color var(--t-fast) linear;
+  pointer-events: none;
+}
+
+.card.is-focused {
+  transform: scale(1.05);
+}
+
+.card.is-focused::after {
+  border-color: var(--accent);
+}
+
+.card__badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.74);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.3px;
 }
 
 .card__progress {
@@ -155,65 +94,182 @@
   right: 0;
   bottom: 0;
   height: 4px;
-  background-color: rgba(0, 0, 0, 0.45);
+  background-color: rgba(255, 255, 255, 0.24);
 }
 
 .card__progress-fill {
   height: 100%;
-  background-color: var(--accent-strong);
+  background-color: var(--accent);
 }
 
 .card__title {
-  margin-top: 12px;
-  max-height: 2.6em;
+  margin-top: 10px;
   font-size: var(--fs-card-title);
-  line-height: 1.3;
-  color: var(--text-secondary);
+  color: var(--text-dim);
+  white-space: nowrap;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
   transition: color var(--t-fast) linear;
 }
 
-.card.is-focused {
+.card.is-focused .card__title {
+  color: var(--text);
+}
+
+/* --- rating / metadata ---------------------------------------------------- */
+
+.rating {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 5px;
+  background-color: var(--rating-bg);
+  color: var(--rating-fg);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.meta-sep {
+  color: var(--text-muted);
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+/* --- buttons -------------------------------------------------------------- */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 70px;
+  padding: 0 26px;
+  border-radius: var(--radius-btn);
+  background-color: var(--surface);
+  font-size: var(--fs-btn);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.btn + .btn {
+  margin-left: 22px;
+}
+
+.btn::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 3px solid transparent;
+  border-radius: 13px;
+  transition: border-color var(--t-fast) linear;
+  pointer-events: none;
+}
+
+.btn.is-focused::after {
+  border-color: var(--accent);
+}
+
+.btn--primary {
+  min-width: 300px;
+  background-color: #ffffff;
+  color: #0a0a0a;
+  font-weight: 600;
+}
+
+.btn__icon {
+  width: 26px;
+  height: 26px;
+  margin-right: 14px;
+}
+
+.btn__icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 54px;
+  padding: 0 24px;
+  margin-right: 16px;
+  border-radius: var(--radius-pill);
+  background-color: rgba(255, 255, 255, 0.14);
+  font-size: 21px;
+  color: var(--text);
+}
+
+/* --- episode cards -------------------------------------------------------- */
+
+.ep {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--ep-w);
+  margin-right: 24px;
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.ep__frame {
+  position: relative;
+  width: var(--ep-w);
+  height: var(--ep-h);
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: #12121a;
+}
+
+.ep::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 3px solid transparent;
+  border-radius: 13px;
+  transition: border-color var(--t-fast) linear;
+  pointer-events: none;
+}
+
+.ep.is-focused {
   transform: scale(1.05);
 }
 
-.card.is-focused .card__poster {
-  outline: var(--ring-width) solid var(--ring);
-  outline-offset: -3px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+.ep.is-focused::after {
+  border-color: var(--accent);
 }
 
-.card.is-focused .card__title {
-  color: var(--text-primary);
+.ep__label {
+  margin-top: 10px;
+  font-size: 18px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Placeholder artwork. Real posters arrive with the WuPlay screenshots and the
-   add-on catalogue (Milestone 2); no third-party assets are bundled. */
-.poster--1 { background-image: linear-gradient(140deg, #2a2350 0%, #4b3ba8 100%); }
-.poster--2 { background-image: linear-gradient(140deg, #123040 0%, #2f7d8c 100%); }
-.poster--3 { background-image: linear-gradient(140deg, #3a1f2a 0%, #8c3f5a 100%); }
-.poster--4 { background-image: linear-gradient(140deg, #1f3326 0%, #4f8459 100%); }
-.poster--5 { background-image: linear-gradient(140deg, #33291a 0%, #8a6a33 100%); }
-.poster--6 { background-image: linear-gradient(140deg, #20202b 0%, #565a80 100%); }
+.ep.is-focused .ep__label {
+  color: var(--text);
+}
 
 /* --- toast ---------------------------------------------------------------- */
 
 .toast {
   position: absolute;
   left: 50%;
-  bottom: 60px;
-  padding: 18px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: var(--radius-md);
-  background-color: rgba(18, 18, 26, 0.97);
-  font-size: var(--fs-body);
-  color: var(--text-primary);
+  bottom: 56px;
+  padding: 16px 28px;
+  border-radius: var(--radius-btn);
+  background-color: rgba(16, 16, 22, 0.96);
+  font-size: 21px;
+  color: var(--text);
   opacity: 0;
-  transform: translate3d(-50%, 16px, 0);
-  transition: opacity var(--t-fast) linear, transform var(--t-mid) var(--ease-out);
+  transform: translate3d(-50%, 14px, 0);
+  transition: opacity var(--t-fast) linear, transform var(--t-mid) var(--ease);
+  z-index: 60;
 }
 
 .toast.is-visible {
@@ -221,96 +277,17 @@
   transform: translate3d(-50%, 0, 0);
 }
 
-/* --- detail overlay ------------------------------------------------------- */
+/* --- metadata spacing ----------------------------------------------------- */
 
-.overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background-color: rgba(4, 4, 8, 0.8);
+.hero__meta span {
+  margin-right: 28px;
 }
 
-.overlay.is-open {
-  display: flex;
+.details__meta span {
+  margin-right: 26px;
 }
 
-.detail {
-  width: 1000px;
-  padding: 52px 56px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-lg);
-  background-color: var(--bg-elevated);
-}
-
-.detail__body {
-  display: flex;
-}
-
-.detail__poster {
-  flex: 0 0 auto;
-  width: 220px;
-  height: 300px;
-  margin-right: 40px;
-  border-radius: var(--radius-md);
-}
-
-.detail__text {
-  flex: 1;
-  min-width: 0;
-}
-
-.detail__badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background-color: var(--accent-dim);
-  font-size: 14px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--accent-strong);
-}
-
-.detail__title {
-  margin-top: 20px;
-  font-size: 46px;
-  line-height: 1.15;
-  color: var(--text-primary);
-}
-
-.detail__meta {
-  margin-top: 12px;
-  font-size: var(--fs-meta);
-  color: var(--text-secondary);
-}
-
-.detail__hint {
-  margin-top: 26px;
-  font-size: var(--fs-body);
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.detail__actions {
-  display: flex;
-  margin-top: 34px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 14px 26px;
-  border-radius: var(--radius-md);
-  background-color: rgba(255, 255, 255, 0.08);
-  font-size: var(--fs-body);
-  color: var(--text-primary);
-  transition: background-color var(--t-fast) linear;
-}
-
-.btn.is-focused {
-  background-color: var(--accent);
+.hero__meta .rating,
+.details__meta .rating {
+  margin-right: 28px;
 }

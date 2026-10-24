@@ -286,26 +286,24 @@
   // app/js/i18n/hr.js
   var hr_default = {
     "app.name": "WuTizen",
-    "app.tagline": "Tizen TV klijent",
-    "nav.home": "Početna",
-    "nav.catalog": "Katalog",
+    "nav.profile": "Profil",
     "nav.search": "Pretraga",
+    "nav.home": "Početna",
+    "nav.catalog": "Otkrij",
+    "nav.lists": "Moje liste",
     "nav.settings": "Postavke",
     "nav.language": "Jezik",
-    "topbar.greeting": "Dobrodošli natrag",
-    "topbar.subtitle": "Pregled sučelja — Milestone 0",
+    "row.movies": "Najbolje od najboljeg – filmovi",
     "row.continue": "Nastavi gledati",
-    "row.movies": "Filmovi",
-    "hint.bar": "↑ ↓ ← → navigacija   ·   OK odabir   ·   BACK povratak",
-    "rail.hint": "Strelicama se krećete, OK potvrđuje, BACK vraća korak unatrag.",
-    "detail.badge": "Pregled stavke",
-    "detail.meta": "Godina",
-    "detail.hint": "Detalji, sezone, titlovi i reprodukcija dolaze u sljedećim fazama. Ovo je prikaz strukture sučelja s lažnim podacima.",
-    "detail.back": "Natrag",
+    "row.series": "Serije",
+    "details.play": "Reproduciraj",
+    "details.trailer": "Najava",
+    "details.watchlist": "Na listi",
+    "details.markWatched": "Označi kao gledano",
+    "details.episodes": "Epizode",
+    "unit.min": "min",
     "common.wip": "Ova značajka još nije implementirana.",
-    "common.media": "Reprodukcija nije dio Milestonea 0.",
-    "platform.browser": "Pregled u pregledniku",
-    "platform.tizen": "Tizen TV",
+    "common.media": "Reprodukcija nije dio ovog milestona.",
     "lang.hr": "Hrvatski",
     "lang.en": "English",
     "toast.language": "Jezik sučelja: Hrvatski"
@@ -314,26 +312,24 @@
   // app/js/i18n/en.js
   var en_default = {
     "app.name": "WuTizen",
-    "app.tagline": "Tizen TV client",
-    "nav.home": "Home",
-    "nav.catalog": "Catalog",
+    "nav.profile": "Profile",
     "nav.search": "Search",
+    "nav.home": "Home",
+    "nav.catalog": "Discover",
+    "nav.lists": "My Lists",
     "nav.settings": "Settings",
     "nav.language": "Language",
-    "topbar.greeting": "Welcome back",
-    "topbar.subtitle": "Interface preview — Milestone 0",
+    "row.movies": "Best of the Best – Movies",
     "row.continue": "Continue watching",
-    "row.movies": "Movies",
-    "hint.bar": "↑ ↓ ← → navigate   ·   OK select   ·   BACK go back",
-    "rail.hint": "Use the arrows to move, OK to confirm, BACK to go back one step.",
-    "detail.badge": "Item preview",
-    "detail.meta": "Year",
-    "detail.hint": "Details, seasons, subtitles and playback arrive in later milestones. This is a structure preview with placeholder data.",
-    "detail.back": "Back",
+    "row.series": "Series",
+    "details.play": "Play",
+    "details.trailer": "Trailer",
+    "details.watchlist": "In Watchlist",
+    "details.markWatched": "Mark Watched",
+    "details.episodes": "Episodes",
+    "unit.min": "min",
     "common.wip": "This feature is not implemented yet.",
-    "common.media": "Playback is not part of Milestone 0.",
-    "platform.browser": "Browser preview",
-    "platform.tizen": "Tizen TV",
+    "common.media": "Playback is not part of this milestone.",
     "lang.hr": "Hrvatski",
     "lang.en": "English",
     "toast.language": "Interface language: English"
@@ -490,204 +486,640 @@
     }
   };
 
+  // app/js/platform/lazy.js
+  var MAX_LIVE = 18;
+  var live = [];
+  var visible = [];
+  var observer = null;
+  var stats = { attached: 0, released: 0 };
+  function isLoaded(img) {
+    return img.getAttribute("data-loaded") === "1";
+  }
+  function indexIn(list, img) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === img) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  function setVisible(img, value) {
+    var at = indexIn(visible, img);
+    if (value && at < 0) {
+      visible.push(img);
+    } else if (!value && at > -1) {
+      visible.splice(at, 1);
+    }
+  }
+  function release(img) {
+    var at = indexIn(live, img);
+    if (at > -1) {
+      live.splice(at, 1);
+    }
+    if (!isLoaded(img)) {
+      return;
+    }
+    img.removeAttribute("data-loaded");
+    img.removeAttribute("src");
+    stats.released += 1;
+  }
+  function evictOverflow() {
+    while (live.length > MAX_LIVE) {
+      var victim = null;
+      for (var i = 0; i < live.length; i++) {
+        if (indexIn(visible, live[i]) === -1) {
+          victim = live[i];
+          break;
+        }
+      }
+      if (!victim) {
+        return;
+      }
+      release(victim);
+    }
+  }
+  function attach(img) {
+    if (isLoaded(img)) {
+      return;
+    }
+    var src = img.getAttribute("data-src");
+    if (!src) {
+      return;
+    }
+    img.setAttribute("src", src);
+    img.setAttribute("data-loaded", "1");
+    stats.attached += 1;
+    live.push(img);
+    evictOverflow();
+  }
+  function getObserver() {
+    if (observer || typeof window === "undefined" || !window.IntersectionObserver) {
+      return observer;
+    }
+    observer = new window.IntersectionObserver(
+      function(entries) {
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i];
+          setVisible(entry.target, entry.isIntersecting);
+          if (entry.isIntersecting) {
+            attach(entry.target);
+          } else {
+            release(entry.target);
+          }
+        }
+      },
+      { rootMargin: "300px 0px 300px 0px", threshold: 0 }
+    );
+    return observer;
+  }
+  function observeImage(img) {
+    var io = getObserver();
+    if (!io) {
+      attach(img);
+      return;
+    }
+    io.observe(img);
+  }
+  function forgetImage(img) {
+    var io = getObserver();
+    if (io) {
+      io.unobserve(img);
+    }
+    setVisible(img, false);
+    release(img);
+  }
+  function lazyStats() {
+    return { attached: stats.attached, released: stats.released, live: live.length };
+  }
+
   // app/js/data/mock.js
-  var ITEMS = [
-    { id: "m1", title: { hr: "Planina tišine", en: "Mountain of Silence" }, year: 2019, kind: "movie", palette: 1, progress: 0.42 },
-    { id: "m2", title: { hr: "Posljednji vlak", en: "The Last Train" }, year: 2021, kind: "movie", palette: 2 },
-    { id: "m3", title: { hr: "Sedmi kat", en: "The Seventh Floor" }, year: 2018, kind: "series", palette: 3, progress: 0.18 },
-    { id: "m4", title: { hr: "Hladna obala", en: "Cold Coast" }, year: 2022, kind: "series", palette: 4 },
-    { id: "m5", title: { hr: "Grad pod svjetlima", en: "City Under Lights" }, year: 2020, kind: "movie", palette: 5, progress: 0.73 },
-    { id: "m6", title: { hr: "Tiho ljeto", en: "Quiet Summer" }, year: 2017, kind: "movie", palette: 6 },
-    { id: "m7", title: { hr: "Noćna smjena", en: "Night Shift" }, year: 2023, kind: "series", palette: 1, progress: 0.09 },
-    { id: "m8", title: { hr: "Stakleni vrt", en: "The Glass Garden" }, year: 2016, kind: "movie", palette: 2 },
-    { id: "m9", title: { hr: "Prašina i zvijezde", en: "Dust and Stars" }, year: 2021, kind: "movie", palette: 3, progress: 0.55 },
-    { id: "m10", title: { hr: "Rub svijeta", en: "Edge of the World" }, year: 2019, kind: "series", palette: 4 },
-    { id: "m11", title: { hr: "Duga cesta", en: "The Long Road" }, year: 2015, kind: "movie", palette: 5, progress: 0.31 },
-    { id: "m12", title: { hr: "Zvuk kiše", en: "The Sound of Rain" }, year: 2022, kind: "movie", palette: 6 }
+  var CAST = ["Marta Kovač", "Luka Novak", "Ivana Radić"];
+  function make(id, kind, hr, en, year, minutes, rating, genreHr, genreEn, descHr, descEn, img) {
+    return {
+      id,
+      kind,
+      title: { hr, en },
+      year,
+      minutes,
+      rating,
+      genres: { hr: genreHr, en: genreEn },
+      description: { hr: descHr, en: descEn },
+      cast: CAST,
+      image: "assets/sample/space-" + img + ".jpg"
+    };
+  }
+  var MOVIES = [
+    make(
+      "mv1",
+      "movie",
+      "Tišina svemira",
+      "Silence of Space",
+      2019,
+      118,
+      8.1,
+      "Znanstvena fantastika | Drama",
+      "Sci-Fi | Drama",
+      "Posada izgubljene postaje hvata signal koji ne bi smio postojati i mora odlučiti hoće li odgovoriti.",
+      "The crew of a lost station picks up a signal that should not exist and must decide whether to answer it.",
+      "01"
+    ),
+    make(
+      "mv2",
+      "movie",
+      "Crveni horizont",
+      "Red Horizon",
+      2021,
+      104,
+      7.4,
+      "Avantura | SF",
+      "Adventure | Sci-Fi",
+      "Prva ekspedicija na rub crvene pustinje otkriva da horizont nije ono što izgleda.",
+      "The first expedition to the edge of the red desert discovers the horizon is not what it seems.",
+      "02"
+    ),
+    make(
+      "mv3",
+      "movie",
+      "Zvjezdana prašina",
+      "Stardust",
+      2018,
+      96,
+      6.9,
+      "Drama | SF",
+      "Drama | Sci-Fi",
+      "Dvoje istraživača provode godinu dana skupljajući prašinu komete i vlastite uspomene.",
+      "Two researchers spend a year collecting comet dust and their own memories.",
+      "03"
+    ),
+    make(
+      "mv4",
+      "movie",
+      "Orbita",
+      "Orbit",
+      2022,
+      127,
+      7.8,
+      "Triler | SF",
+      "Thriller | Sci-Fi",
+      "Jedan krug oko planeta postaje pitanje života i smrti kada otkaže sustav za održavanje.",
+      "One lap around the planet becomes a matter of life and death when life support fails.",
+      "04"
+    ),
+    make(
+      "mv5",
+      "movie",
+      "Noć na Marsu",
+      "Night on Mars",
+      2020,
+      111,
+      7.1,
+      "SF | Horor",
+      "Sci-Fi | Horror",
+      "Istraživačka baza ostaje bez veze sa Zemljom, a netko ili nešto kuca po vanjskom otvoru.",
+      "A research base loses contact with Earth, and someone or something knocks on the outer hatch.",
+      "05"
+    ),
+    make(
+      "mv6",
+      "movie",
+      "Posljednji signal",
+      "The Last Signal",
+      2023,
+      134,
+      8.3,
+      "Misterij | SF",
+      "Mystery | Sci-Fi",
+      "Radio astronom otkriva ponavljajući uzorak koji seže dalje od granice promatranog svemira.",
+      "A radio astronomer finds a repeating pattern reaching beyond the observable universe.",
+      "06"
+    ),
+    make(
+      "mv7",
+      "movie",
+      "Treći mjesec",
+      "The Third Moon",
+      2017,
+      89,
+      6.5,
+      "Avantura",
+      "Adventure",
+      "Kartografi otkrivaju treći, nenavedeni mjesec i pokušavaju ga ucrtati prije oluje.",
+      "Cartographers discover an unlisted third moon and try to chart it before the storm arrives.",
+      "07"
+    ),
+    make(
+      "mv8",
+      "movie",
+      "Duboko polje",
+      "Deep Field",
+      2021,
+      121,
+      7.9,
+      "Dokumentarni",
+      "Documentary",
+      "Godina rada jednog teleskopa sažeta u priču o tisućama galaksija u jednoj točki neba.",
+      "A year of telescope work condensed into a story of thousands of galaxies in one point of sky.",
+      "08"
+    ),
+    make(
+      "mv9",
+      "movie",
+      "Bijeli div",
+      "White Giant",
+      2016,
+      102,
+      7.2,
+      "Drama",
+      "Drama",
+      "Astronaut se vraća kući nakon dvadeset godina i otkriva da ga nitko više ne prepoznaje.",
+      "An astronaut returns home after twenty years and finds nobody recognises him anymore.",
+      "09"
+    ),
+    make(
+      "mv10",
+      "movie",
+      "Izvan dosega",
+      "Out of Reach",
+      2022,
+      115,
+      6.8,
+      "Akcija | SF",
+      "Action | Sci-Fi",
+      "Kurir mora prenijeti uzorak kroz tri kolonije prije nego ga presretne lovac na nagrade.",
+      "A courier must carry a sample through three colonies before a bounty hunter intercepts him.",
+      "10"
+    )
   ];
-  var MOCK_ROWS = [
+  var SERIES = [
+    make(
+      "sr1",
+      "series",
+      "Kolonija",
+      "The Colony",
+      2021,
+      45,
+      8,
+      "SF | Drama",
+      "Sci-Fi | Drama",
+      "Prva generacija rođena izvan Zemlje suočava se s odlukom svojih roditelja.",
+      "The first generation born off Earth confronts the decision their parents made.",
+      "04"
+    ),
+    make(
+      "sr2",
+      "series",
+      "Signal iz tame",
+      "Signal from the Dark",
+      2022,
+      52,
+      7.6,
+      "Misterij",
+      "Mystery",
+      "Istražiteljica svake noći bilježi isti tihi impuls, a svaki dolazi s drugog mjesta.",
+      "An investigator records the same quiet pulse every night, each from a different place.",
+      "06"
+    ),
+    make(
+      "sr3",
+      "series",
+      "Mjesečevi ljudi",
+      "Moon People",
+      2020,
+      41,
+      7,
+      "SF",
+      "Sci-Fi",
+      "Mala posada rudarske stanice otkriva tragove koji nisu njihovi.",
+      "A small mining-station crew finds traces that are not their own.",
+      "02"
+    ),
+    make(
+      "sr4",
+      "series",
+      "Tihi prolaz",
+      "Silent Pass",
+      2019,
+      48,
+      6.7,
+      "Drama",
+      "Drama",
+      "Dvije obitelji dijele karantenu u prolazu prema unutrašnjosti planeta.",
+      "Two families share a quarantine in a pass leading to the planet interior.",
+      "08"
+    ),
+    make(
+      "sr5",
+      "series",
+      "Deveta stanica",
+      "Station Nine",
+      2023,
+      55,
+      8.4,
+      "SF | Triler",
+      "Sci-Fi | Thriller",
+      "Stanica koja službeno ne postoji prima hitne pozive s planeta koji je napušten.",
+      "A station that officially does not exist receives distress calls from an abandoned planet.",
+      "10"
+    ),
+    make(
+      "sr6",
+      "series",
+      "Pustinja leda",
+      "Desert of Ice",
+      2018,
+      44,
+      7.3,
+      "Avantura",
+      "Adventure",
+      "Ekspedicija prelazi zaleđenu visoravan i pritom budi ono što je pod njom spavalo.",
+      "An expedition crosses a frozen plateau and wakes what slept beneath it.",
+      "03"
+    ),
+    make(
+      "sr7",
+      "series",
+      "Visina",
+      "Altitude",
+      2022,
+      39,
+      6.6,
+      "Drama",
+      "Drama",
+      "Tim na orbiti uči kako živjeti bez gravitacije i bez starih navika.",
+      "A team in orbit learns to live without gravity and without old habits.",
+      "05"
+    ),
+    make(
+      "sr8",
+      "series",
+      "Noćni sat",
+      "Night Hour",
+      2021,
+      50,
+      7.7,
+      "Horor",
+      "Horror",
+      "Svake noći u isto vrijeme baza izgubi struju na točno četrdeset sekundi.",
+      "Every night at the same time the base loses power for exactly forty seconds.",
+      "07"
+    )
+  ];
+  var HERO_ID = "mv1";
+  var ROWS = [
+    { id: "movies", titleKey: "row.movies", variant: "poster", items: MOVIES },
     {
       id: "continue",
       titleKey: "row.continue",
-      items: [ITEMS[0], ITEMS[2], ITEMS[4], ITEMS[6], ITEMS[8], ITEMS[10]]
+      variant: "landscape",
+      items: [
+        { item: MOVIES[2], progress: 0.42, badge: "S1 E3" },
+        { item: MOVIES[4], progress: 0.18, badge: "S2 E1" },
+        { item: MOVIES[5], progress: 0.73, badge: "S1 E7" },
+        { item: MOVIES[7], progress: 0.31 },
+        { item: MOVIES[1], progress: 0.55, badge: "S3 E2" },
+        { item: MOVIES[8], progress: 0.09 }
+      ]
     },
-    {
-      id: "movies",
-      titleKey: "row.movies",
-      items: ITEMS
-    }
+    { id: "series", titleKey: "row.series", variant: "poster", items: SERIES }
   ];
+  var ALL = MOVIES.concat(SERIES);
+  function getItem2(id) {
+    for (var i = 0; i < ALL.length; i++) {
+      if (ALL[i].id === id) {
+        return ALL[i];
+      }
+    }
+    return MOVIES[0];
+  }
+  function getHero() {
+    return getItem2(HERO_ID);
+  }
+  function getEpisodes(item) {
+    if (!item || item.kind !== "series") {
+      return [];
+    }
+    var list = [];
+    for (var n = 1; n <= 6; n++) {
+      list.push({
+        id: item.id + "-e" + n,
+        number: n,
+        title: { hr: "Epizoda " + n, en: "Episode " + n },
+        minutes: 38 + n * 2,
+        image: item.image
+      });
+    }
+    return list;
+  }
 
   // app/js/ui/components/rail.js
   var ICONS = {
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4.2l8 7.3"/><path d="M6.6 10.4V20h10.8v-9.6"/></svg>',
-    catalog: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
-    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.8" cy="10.8" r="6.2"/><path d="m15.4 15.4 4.2 4.2"/></svg>',
-    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.6v2.1M12 18.3v2.1M3.6 12h2.1M18.3 12h2.1"/><path d="M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5"/></svg>',
-    language: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M4.2 12h15.6"/><path d="M12 4c2.3 2.2 3.5 5 3.5 8s-1.2 5.8-3.5 8c-2.3-2.2-3.5-5-3.5-8s1.2-5.8 3.5-8Z"/></svg>'
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="10.6" cy="10.6" r="6.1"/><path d="m15.2 15.2 4.6 4.6"/></svg>',
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.6 11.4 12 3.9l8.4 7.5"/><path d="M6.2 10.2V20h11.6v-9.8"/></svg>',
+    compass: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="8.3"/><path d="m9 15 1.9-4.1L15 9l-1.9 4.1z"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6.5 4.2h11v16l-5.5-4-5.5 4z"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.2"/><path d="M3.9 12h16.2"/><path d="M12 3.8c2.3 2.3 3.5 5.1 3.5 8.2s-1.2 5.9-3.5 8.2c-2.3-2.3-3.5-5.1-3.5-8.2S9.7 6.1 12 3.8Z"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.6v2.1M12 18.3v2.1M3.6 12h2.1M18.3 12h2.1"/><path d="M6.1 6.1l1.5 1.5M16.4 16.4l1.5 1.5M17.9 6.1l-1.5 1.5M7.6 16.4l-1.5 1.5"/></svg>'
   };
+  function buildItem(def, lang) {
+    var el = document.createElement("div");
+    el.className = "rail__item";
+    if (def.active) {
+      el.className += " is-active";
+    }
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "-1");
+    el.setAttribute("data-rail-id", def.id);
+    var icon = document.createElement("span");
+    icon.className = "rail__icon";
+    if (def.profile) {
+      var avatar = document.createElement("div");
+      avatar.className = "rail__avatar";
+      avatar.textContent = "DJ";
+      icon.appendChild(avatar);
+    } else {
+      icon.innerHTML = ICONS[def.icon] || ICONS.home;
+    }
+    var label = document.createElement("span");
+    label.className = "rail__label";
+    el.appendChild(icon);
+    el.appendChild(label);
+    return { el, def, label, lang };
+  }
   function createRail(options) {
     var defs = options.items || [];
+    var lang = options.language || "hr";
     var nodes = [];
     var el = document.createElement("nav");
     el.className = "rail";
+    el.setAttribute("data-focus-region", "rail");
     el.setAttribute("aria-label", "Primary");
-    var brand = document.createElement("div");
-    brand.className = "rail__brand";
-    var logo = document.createElement("div");
-    logo.className = "rail__logo";
-    logo.textContent = "W";
-    var brandText = document.createElement("div");
-    brandText.className = "rail__brand-text";
-    var name = document.createElement("div");
-    name.className = "rail__name";
-    name.setAttribute("data-i18n", "app.name");
-    var tagline = document.createElement("div");
-    tagline.className = "rail__tagline";
-    tagline.setAttribute("data-i18n", "app.tagline");
-    brandText.appendChild(name);
-    brandText.appendChild(tagline);
-    brand.appendChild(logo);
-    brand.appendChild(brandText);
-    el.appendChild(brand);
-    var nav = document.createElement("div");
-    nav.className = "rail__nav";
-    nav.setAttribute("data-focus-region", "rail");
+    var panel = document.createElement("div");
+    panel.className = "rail__panel";
+    el.appendChild(panel);
+    var itemsEl = document.createElement("div");
+    itemsEl.className = "rail__items";
+    if (options.profile) {
+      var profileNode = buildItem(options.profile, lang);
+      nodes.push(profileNode);
+      itemsEl.appendChild(profileNode.el);
+    }
+    var bottomNodes = [];
     for (var i = 0; i < defs.length; i++) {
-      var def = defs[i];
-      var node = document.createElement("div");
-      node.className = "rail__item";
-      node.setAttribute("role", "button");
-      node.setAttribute("data-rail-id", def.id);
-      var icon = document.createElement("span");
-      icon.className = "rail__icon";
-      icon.innerHTML = ICONS[def.icon] || ICONS.home;
-      var label = document.createElement("span");
-      label.className = "rail__label";
-      node.appendChild(icon);
-      node.appendChild(label);
-      nav.appendChild(node);
-      nodes.push({ el: node, def, label });
-    }
-    el.appendChild(nav);
-    var hint = document.createElement("div");
-    hint.className = "rail__hint";
-    hint.setAttribute("data-i18n", "rail.hint");
-    el.appendChild(hint);
-    function labelFor(entry, lang) {
-      if (entry.def.dynamic === "language") {
-        return t("lang." + lang);
-      }
-      return t(entry.def.labelKey);
-    }
-    function updateLanguage(lang) {
-      for (var j = 0; j < nodes.length; j++) {
-        var text = labelFor(nodes[j], lang);
-        nodes[j].label.textContent = text;
-        nodes[j].el.setAttribute(
-          "aria-label",
-          nodes[j].def.dynamic === "language" ? t("nav.language") + ": " + text : text
-        );
+      var node = buildItem(defs[i], lang);
+      nodes.push(node);
+      if (defs[i].bottom) {
+        bottomNodes.push(node);
+      } else {
+        itemsEl.appendChild(node.el);
       }
     }
-    return { el, nodes, updateLanguage };
-  }
-
-  // app/js/ui/components/card.js
-  function createCard(item) {
-    var el = document.createElement("div");
-    el.className = "card";
-    el.setAttribute("role", "button");
-    el.setAttribute("data-item-id", item.id);
-    var poster = document.createElement("div");
-    poster.className = "card__poster poster--" + (item.palette || 1);
-    var year = document.createElement("span");
-    year.className = "card__year";
-    year.textContent = String(item.year);
-    poster.appendChild(year);
-    if (typeof item.progress === "number") {
-      var progress = document.createElement("div");
-      progress.className = "card__progress";
-      var fill = document.createElement("div");
-      fill.className = "card__progress-fill";
-      fill.style.width = Math.round(item.progress * 100) + "%";
-      progress.appendChild(fill);
-      poster.appendChild(progress);
+    var spacer = document.createElement("div");
+    spacer.className = "rail__spacer";
+    itemsEl.appendChild(spacer);
+    for (var j = 0; j < bottomNodes.length; j++) {
+      itemsEl.appendChild(bottomNodes[j].el);
     }
-    var title = document.createElement("div");
-    title.className = "card__title";
-    el.appendChild(poster);
-    el.appendChild(title);
-    function updateLanguage(lang) {
-      var text = item.title[lang] || item.title.hr;
-      title.textContent = text;
-      el.setAttribute("aria-label", text + ", " + item.year);
+    el.appendChild(itemsEl);
+    function labelFor(node2, current2) {
+      if (node2.def.dynamic === "language") {
+        return t("lang." + current2);
+      }
+      return t(node2.def.labelKey);
     }
+    function updateLanguage(current2) {
+      for (var k = 0; k < nodes.length; k++) {
+        var text = labelFor(nodes[k], current2);
+        nodes[k].label.textContent = text;
+        nodes[k].el.setAttribute("aria-label", text);
+      }
+    }
+    function setExpanded(value) {
+      if (value) {
+        el.classList.add("is-expanded");
+      } else {
+        el.classList.remove("is-expanded");
+      }
+    }
+    updateLanguage(lang);
     return {
       el,
-      item,
+      nodes,
+      setExpanded,
+      isExpanded: function() {
+        return el.classList.contains("is-expanded");
+      },
       updateLanguage
     };
   }
 
+  // app/js/ui/components/card.js
+  function createCard(entry, variant, lang) {
+    var item = entry.item || entry;
+    var el = document.createElement("div");
+    el.className = "card card--" + variant;
+    el.setAttribute("role", "button");
+    el.setAttribute("tabindex", "-1");
+    el.setAttribute("data-item-id", item.id);
+    var frame = document.createElement("div");
+    frame.className = "card__frame";
+    var img = document.createElement("img");
+    img.className = "card__img";
+    img.setAttribute("data-src", item.image);
+    img.setAttribute("alt", "");
+    img.setAttribute("draggable", "false");
+    frame.appendChild(img);
+    if (typeof entry.progress === "number") {
+      var progress = document.createElement("div");
+      progress.className = "card__progress";
+      var fill = document.createElement("div");
+      fill.className = "card__progress-fill";
+      fill.style.width = Math.round(entry.progress * 100) + "%";
+      progress.appendChild(fill);
+      frame.appendChild(progress);
+    }
+    if (entry.badge) {
+      var badge = document.createElement("span");
+      badge.className = "card__badge";
+      badge.textContent = entry.badge;
+      frame.appendChild(badge);
+    }
+    el.appendChild(frame);
+    var caption = null;
+    if (variant === "landscape") {
+      caption = document.createElement("div");
+      caption.className = "card__title";
+      el.appendChild(caption);
+    }
+    function updateLanguage(current2) {
+      var text = item.title[current2] || item.title.hr;
+      el.setAttribute("aria-label", text + ", " + item.year);
+      if (caption) {
+        caption.textContent = text;
+      }
+    }
+    updateLanguage(lang);
+    observeImage(img);
+    return { el, item, img, updateLanguage };
+  }
+
   // app/js/ui/components/shelf.js
-  var FALLBACK_STEP = 254;
+  var INITIAL_CARDS = 8;
+  var CHUNK = 8;
+  var FALLBACK_STEP = 300;
   function createShelf(options) {
     var row = options.row;
+    var lang = options.language;
+    var variant = row.variant || "poster";
     var cards = [];
     var el = document.createElement("section");
-    el.className = "shelf";
+    el.className = "row";
     el.setAttribute("data-shelf-id", row.id);
-    el.setAttribute("data-focus-region", "shelf:" + row.id);
-    var head = document.createElement("div");
-    head.className = "shelf__head";
+    el.setAttribute("data-focus-region", "row:" + row.id);
     var title = document.createElement("h2");
-    title.className = "shelf__title";
-    var count = document.createElement("span");
-    count.className = "shelf__count";
-    count.textContent = String(row.items.length);
-    head.appendChild(title);
-    head.appendChild(count);
+    title.className = "row__title";
     var viewport = document.createElement("div");
-    viewport.className = "shelf__viewport";
+    viewport.className = "row__viewport";
     var track = document.createElement("div");
-    track.className = "shelf__track";
-    for (var i = 0; i < row.items.length; i++) {
-      var card = createCard(row.items[i]);
-      cards.push(card);
-      track.appendChild(card.el);
-    }
+    track.className = "row__track";
     viewport.appendChild(track);
-    el.appendChild(head);
+    el.appendChild(title);
     el.appendChild(viewport);
     var startIndex = 0;
     var step = FALLBACK_STEP;
-    var visible = 1;
+    var visible2 = 1;
+    function appendCards(count) {
+      var from = cards.length;
+      var to = Math.min(row.items.length, from + count);
+      for (var i = from; i < to; i++) {
+        var card = createCard(row.items[i], variant, lang);
+        cards.push(card);
+        track.appendChild(card.el);
+        if (typeof options.onCard === "function") {
+          options.onCard(card, api);
+        }
+      }
+    }
     function measure() {
       if (cards.length === 0) {
         return;
       }
       var first = cards[0].el;
-      var width = first.offsetWidth;
       if (cards.length > 1) {
         var delta = cards[1].el.offsetLeft - first.offsetLeft;
-        step = delta > 0 ? delta : width + 26;
+        step = delta > 0 ? delta : FALLBACK_STEP;
       } else {
-        step = width + 26;
-      }
-      if (!step || step < 1) {
-        step = FALLBACK_STEP;
+        step = first.offsetWidth + 28;
       }
       var style = window.getComputedStyle(viewport);
-      var paddingX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
-      var available = Math.max(1, viewport.clientWidth - paddingX);
-      visible = Math.max(1, Math.floor(available / step));
+      var padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      var available = Math.max(1, viewport.clientWidth - padding);
+      visible2 = Math.max(1, Math.floor(available / step));
     }
     function applyScroll() {
       track.style.transform = "translate3d(" + -startIndex * step + "px, 0, 0)";
     }
     function setStart(next) {
-      var maxStart = Math.max(0, cards.length - visible);
+      var maxStart = Math.max(0, cards.length - visible2);
       var clamped = Math.max(0, Math.min(next, maxStart));
       if (clamped === startIndex) {
         return;
@@ -695,42 +1127,111 @@
       startIndex = clamped;
       applyScroll();
     }
-    function reveal(element) {
-      if (cards.length === 0) {
-        return;
-      }
-      measure();
-      var index = -1;
-      for (var k = 0; k < cards.length; k++) {
-        if (cards[k].el === element) {
-          index = k;
-          break;
+    function indexOf(element) {
+      for (var i = 0; i < cards.length; i++) {
+        if (cards[i].el === element) {
+          return i;
         }
       }
+      return -1;
+    }
+    function ensureWindow(index) {
+      if (index < cards.length - 2) {
+        return;
+      }
+      if (cards.length >= row.items.length) {
+        return;
+      }
+      appendCards(CHUNK);
+      measure();
+    }
+    function reveal(element) {
+      measure();
+      var index = indexOf(element);
       if (index < 0) {
         return;
       }
+      ensureWindow(index + 1);
       if (index < startIndex) {
         setStart(index);
-      } else if (index >= startIndex + visible) {
-        setStart(index - visible + 1);
+      } else if (index >= startIndex + visible2) {
+        setStart(index - visible2 + 1);
       }
     }
-    function updateLanguage(lang) {
+    function updateLanguage(current2) {
       title.textContent = t(row.titleKey);
-      for (var m = 0; m < cards.length; m++) {
-        cards[m].updateLanguage(lang);
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].updateLanguage(current2);
       }
     }
-    return {
+    var api = {
       el,
       id: row.id,
       cards,
       measure,
       reveal,
-      updateLanguage,
-      getStartIndex: function() {
-        return startIndex;
+      updateLanguage
+    };
+    appendCards(INITIAL_CARDS);
+    updateLanguage(lang);
+    return api;
+  }
+
+  // app/js/ui/components/hero.js
+  function createHero(item, lang) {
+    var current2 = lang || "hr";
+    var el = document.createElement("section");
+    el.className = "hero";
+    var bg = document.createElement("div");
+    bg.className = "hero__bg";
+    bg.style.backgroundImage = 'url("' + item.image + '")';
+    var scrim = document.createElement("div");
+    scrim.className = "hero__scrim";
+    var content = document.createElement("div");
+    content.className = "hero__content";
+    var title = document.createElement("h1");
+    title.className = "hero__title";
+    var meta = document.createElement("div");
+    meta.className = "hero__meta";
+    var duration = document.createElement("span");
+    duration.className = "hero__duration";
+    var year = document.createElement("span");
+    year.className = "hero__year";
+    var rating = document.createElement("span");
+    rating.className = "rating";
+    var genres = document.createElement("span");
+    genres.className = "hero__genres";
+    meta.appendChild(duration);
+    meta.appendChild(year);
+    meta.appendChild(rating);
+    meta.appendChild(genres);
+    var desc = document.createElement("p");
+    desc.className = "hero__desc";
+    var cast = document.createElement("div");
+    cast.className = "hero__cast";
+    content.appendChild(title);
+    content.appendChild(meta);
+    content.appendChild(desc);
+    content.appendChild(cast);
+    el.appendChild(bg);
+    el.appendChild(scrim);
+    el.appendChild(content);
+    function render() {
+      title.textContent = item.title[current2] || item.title.hr;
+      duration.textContent = item.minutes + " " + t("unit.min");
+      year.textContent = String(item.year);
+      rating.textContent = item.rating.toFixed(1);
+      genres.textContent = item.genres[current2] || item.genres.hr;
+      desc.textContent = item.description[current2] || item.description.hr;
+      cast.textContent = item.cast.join(", ");
+    }
+    render();
+    return {
+      el,
+      item,
+      updateLanguage: function(next) {
+        current2 = next;
+        render();
       }
     };
   }
@@ -757,88 +1258,175 @@
   }
 
   // app/js/ui/views/detail.js
-  function createDetailOverlay() {
-    var el = document.createElement("div");
-    el.className = "overlay";
-    el.setAttribute("role", "dialog");
-    el.setAttribute("aria-modal", "true");
-    el.setAttribute("data-focus-region", "overlay");
-    var panel = document.createElement("div");
-    panel.className = "detail";
-    var body = document.createElement("div");
-    body.className = "detail__body";
-    var poster = document.createElement("div");
-    poster.className = "detail__poster";
-    var text = document.createElement("div");
-    text.className = "detail__text";
-    var badge = document.createElement("span");
-    badge.className = "detail__badge";
-    badge.setAttribute("data-detail-badge", "1");
-    var title = document.createElement("h2");
-    title.className = "detail__title";
+  var ACTION_DEFS = [
+    { id: "play", labelKey: "details.play", primary: true },
+    { id: "trailer", labelKey: "details.trailer" },
+    { id: "watchlist", labelKey: "details.watchlist" },
+    { id: "watched", labelKey: "details.markWatched" }
+  ];
+  var PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.2v13.6L19 12z"/></svg>';
+  function createDetails() {
+    var root = document.createElement("div");
+    root.className = "details";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-focus-region", "overlay");
+    var bg = document.createElement("div");
+    bg.className = "details__bg";
+    var scrim = document.createElement("div");
+    scrim.className = "details__scrim";
+    var content = document.createElement("div");
+    content.className = "details__content";
+    var title = document.createElement("h1");
+    title.className = "details__title";
     var meta = document.createElement("div");
-    meta.className = "detail__meta";
-    var hint = document.createElement("p");
-    hint.className = "detail__hint";
+    meta.className = "details__meta";
+    var metaDuration = document.createElement("span");
+    var metaYear = document.createElement("span");
+    var metaRating = document.createElement("span");
+    metaRating.className = "rating";
+    var metaGenres = document.createElement("span");
+    meta.appendChild(metaDuration);
+    meta.appendChild(metaYear);
+    meta.appendChild(metaRating);
+    meta.appendChild(metaGenres);
+    var desc = document.createElement("p");
+    desc.className = "details__desc";
+    var cast = document.createElement("div");
+    cast.className = "details__cast";
     var actions = document.createElement("div");
-    actions.className = "detail__actions";
-    var backButton = document.createElement("div");
-    backButton.className = "btn";
-    backButton.setAttribute("role", "button");
-    backButton.setAttribute("data-detail-back", "1");
-    var backLabel = document.createElement("span");
-    backButton.appendChild(backLabel);
-    actions.appendChild(backButton);
-    text.appendChild(badge);
-    text.appendChild(title);
-    text.appendChild(meta);
-    text.appendChild(hint);
-    text.appendChild(actions);
-    body.appendChild(poster);
-    body.appendChild(text);
-    panel.appendChild(body);
-    el.appendChild(panel);
+    actions.className = "details__actions";
+    var buttonList = [];
+    for (var i = 0; i < ACTION_DEFS.length; i++) {
+      var def = ACTION_DEFS[i];
+      var btn = document.createElement("div");
+      btn.className = def.primary ? "btn btn--primary" : "btn";
+      btn.setAttribute("role", "button");
+      btn.setAttribute("tabindex", "-1");
+      btn.setAttribute("data-detail-action", def.id);
+      if (def.primary) {
+        var icon = document.createElement("span");
+        icon.className = "btn__icon";
+        icon.innerHTML = PLAY_ICON;
+        btn.appendChild(icon);
+      }
+      var label = document.createElement("span");
+      btn.appendChild(label);
+      actions.appendChild(btn);
+      buttonList.push({ id: def.id, el: btn, label, labelKey: def.labelKey });
+    }
+    var section = document.createElement("h3");
+    section.className = "details__section";
+    var episodes = document.createElement("div");
+    episodes.className = "episodes";
+    content.appendChild(title);
+    content.appendChild(meta);
+    content.appendChild(desc);
+    content.appendChild(cast);
+    content.appendChild(actions);
+    content.appendChild(section);
+    content.appendChild(episodes);
+    root.appendChild(bg);
+    root.appendChild(scrim);
+    root.appendChild(content);
     var currentItem = null;
     var currentLang = "hr";
-    function render() {
-      badge.textContent = t("detail.badge");
-      hint.textContent = t("detail.hint");
-      backLabel.textContent = t("detail.back");
-      if (currentItem) {
-        poster.className = "detail__poster poster--" + (currentItem.palette || 1);
-        title.textContent = currentItem.title[currentLang] || currentItem.title.hr;
-        meta.textContent = t("detail.meta") + ": " + currentItem.year;
-        backButton.setAttribute("aria-label", t("detail.back"));
+    var episodeImages = [];
+    function renderText() {
+      if (!currentItem) {
+        return;
       }
+      title.textContent = currentItem.title[currentLang] || currentItem.title.hr;
+      metaDuration.textContent = currentItem.minutes + " " + t("unit.min");
+      metaYear.textContent = String(currentItem.year);
+      metaRating.textContent = currentItem.rating.toFixed(1);
+      metaGenres.textContent = currentItem.genres[currentLang] || currentItem.genres.hr;
+      desc.textContent = currentItem.description[currentLang] || currentItem.description.hr;
+      cast.textContent = currentItem.cast.join(", ");
+      section.textContent = t("details.episodes");
+      for (var i2 = 0; i2 < buttonList.length; i2++) {
+        var text = t(buttonList[i2].labelKey);
+        buttonList[i2].label.textContent = text;
+        buttonList[i2].el.setAttribute("aria-label", text);
+      }
+    }
+    function clearEpisodes() {
+      for (var i2 = 0; i2 < episodeImages.length; i2++) {
+        forgetImage(episodeImages[i2]);
+      }
+      episodeImages = [];
+      while (episodes.firstChild) {
+        episodes.removeChild(episodes.firstChild);
+      }
+    }
+    function renderEpisodes() {
+      clearEpisodes();
+      var list = getEpisodes(currentItem);
+      var hasEpisodes = list.length > 0;
+      section.style.display = hasEpisodes ? "" : "none";
+      episodes.style.display = hasEpisodes ? "flex" : "none";
+      for (var i2 = 0; i2 < list.length; i2++) {
+        var ep = list[i2];
+        var card = document.createElement("div");
+        card.className = "ep";
+        var frame = document.createElement("div");
+        frame.className = "ep__frame";
+        var img = document.createElement("img");
+        img.className = "card__img";
+        img.setAttribute("data-src", ep.image);
+        img.setAttribute("alt", "");
+        img.setAttribute("draggable", "false");
+        frame.appendChild(img);
+        var badge = document.createElement("span");
+        badge.className = "card__badge";
+        badge.textContent = "E" + ep.number;
+        frame.appendChild(badge);
+        var label2 = document.createElement("div");
+        label2.className = "ep__label";
+        label2.textContent = (ep.title[currentLang] || ep.title.hr) + " · " + ep.minutes + " " + t("unit.min");
+        card.appendChild(frame);
+        card.appendChild(label2);
+        episodes.appendChild(card);
+        observeImage(img);
+        episodeImages.push(img);
+      }
+    }
+    function setItem2(item, lang) {
+      currentItem = item;
+      currentLang = lang || currentLang;
+      bg.style.backgroundImage = 'url("' + item.image + '")';
+      renderText();
+      renderEpisodes();
     }
     function setLanguage2(lang) {
       currentLang = lang;
-      render();
+      renderText();
+      renderEpisodes();
     }
     return {
-      el,
-      backButton,
+      el: root,
+      buttons: buttonList,
+      setItem: setItem2,
+      setLanguage: setLanguage2,
       isOpen: function() {
-        return el.classList.contains("is-open");
-      },
-      setItem: function(item, lang) {
-        currentItem = item;
-        currentLang = lang || currentLang;
-        render();
-      },
-      setLanguage: setLanguage2
+        return root.classList.contains("is-open");
+      }
     };
   }
 
   // app/js/main.js
   var STAGE_WIDTH = 1920;
   var STAGE_HEIGHT = 1080;
+  var SCROLL_PAD = 24;
+  var RAIL_PUSH = 150;
+  var PROFILE_ITEM = { id: "profile", labelKey: "nav.profile", icon: "profile", profile: true };
   var RAIL_ITEMS = [
-    { id: "home", labelKey: "nav.home", icon: "home" },
-    { id: "catalog", labelKey: "nav.catalog", icon: "catalog" },
     { id: "search", labelKey: "nav.search", icon: "search" },
-    { id: "settings", labelKey: "nav.settings", icon: "settings" },
-    { id: "language", labelKey: "nav.language", icon: "language", dynamic: "language" }
+    { id: "home", labelKey: "nav.home", icon: "home", active: true },
+    { id: "catalog", labelKey: "nav.catalog", icon: "compass" },
+    { id: "lists", labelKey: "nav.lists", icon: "bookmark" },
+    { id: "language", labelKey: "nav.language", icon: "globe", dynamic: "language", bottom: true },
+    { id: "settings", labelKey: "nav.settings", icon: "settings", bottom: true }
   ];
   function boot() {
     var appEl = document.getElementById("app");
@@ -846,59 +1434,83 @@
     initLanguage();
     var platformInfo = platform.init();
     logInfo("boot", platformInfo);
-    var focusManager = new FocusManager({
-      onFocus: function(el) {
-        if (typeof el.__reveal === "function") {
-          el.__reveal();
-        }
-      }
-    });
+    var focusManager = new FocusManager({ onFocus: onFocusChanged });
     var router = createRouter();
     var toast = createToast();
     var shelves = [];
     var previousFocus = null;
-    var rail = createRail({ items: RAIL_ITEMS });
+    var scrollY = 0;
+    var railPush = 0;
+    var rail = createRail({ profile: PROFILE_ITEM, items: RAIL_ITEMS, language: getLanguage() });
     appEl.appendChild(rail.el);
-    var topbar = document.createElement("header");
-    topbar.className = "topbar";
-    var greetingWrap = document.createElement("div");
-    var greeting = document.createElement("div");
-    greeting.className = "topbar__greeting";
-    greeting.setAttribute("data-i18n", "topbar.greeting");
-    var subtitle = document.createElement("div");
-    subtitle.className = "topbar__sub";
-    subtitle.setAttribute("data-i18n", "topbar.subtitle");
-    greetingWrap.appendChild(greeting);
-    greetingWrap.appendChild(subtitle);
-    var badge = document.createElement("div");
-    badge.className = "badge" + (platformInfo.isTizen ? " is-tizen" : "");
-    topbar.appendChild(greetingWrap);
-    topbar.appendChild(badge);
-    appEl.appendChild(topbar);
-    var content = document.createElement("main");
-    content.className = "content";
-    for (var i = 0; i < MOCK_ROWS.length; i++) {
-      var shelf = createShelf({ row: MOCK_ROWS[i] });
+    var scroller = document.createElement("div");
+    scroller.className = "scroller";
+    var hero = createHero(getHero(), getLanguage());
+    scroller.appendChild(hero.el);
+    var rowsEl = document.createElement("div");
+    rowsEl.className = "rows";
+    for (var i = 0; i < ROWS.length; i++) {
+      var shelf = createShelf({
+        row: ROWS[i],
+        language: getLanguage(),
+        onCard: registerCard
+      });
       shelves.push(shelf);
-      content.appendChild(shelf.el);
+      rowsEl.appendChild(shelf.el);
     }
-    appEl.appendChild(content);
-    var hintbar = document.createElement("div");
-    hintbar.className = "hintbar";
-    hintbar.setAttribute("data-i18n", "hint.bar");
-    appEl.appendChild(hintbar);
+    scroller.appendChild(rowsEl);
+    appEl.appendChild(scroller);
+    var details = createDetails();
+    appEl.appendChild(details.el);
     appEl.appendChild(toast.el);
-    var detail = createDetailOverlay();
-    appEl.appendChild(detail.el);
-    var detailScreen = {
-      name: "detail",
+    function applyScroller() {
+      scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
+    }
+    function setRailPush(px) {
+      if (railPush === px) {
+        return;
+      }
+      railPush = px;
+      applyScroller();
+    }
+    function scrollToRow(row) {
+      if (row === rowsEl.firstElementChild) {
+        scrollY = 0;
+      } else {
+        var top = row.offsetTop;
+        var height = row.offsetHeight;
+        if (top - SCROLL_PAD < scrollY) {
+          scrollY = top - SCROLL_PAD;
+        } else if (top + height + SCROLL_PAD > scrollY + STAGE_HEIGHT) {
+          scrollY = top + height + SCROLL_PAD - STAGE_HEIGHT;
+        }
+      }
+      if (scrollY < 0) {
+        scrollY = 0;
+      }
+      applyScroller();
+    }
+    function onFocusChanged(el) {
+      var inRail = !!el.closest(".rail");
+      rail.setExpanded(inRail);
+      setRailPush(inRail ? RAIL_PUSH : 0);
+      if (typeof el.__reveal === "function") {
+        el.__reveal();
+      }
+      var row = el.closest(".row");
+      if (row) {
+        scrollToRow(row);
+      }
+    }
+    var detailsScreen = {
+      name: "details",
       show: function() {
-        detail.el.classList.add("is-open");
-        focusManager.setScope(detail.el);
-        focusManager.focus(detail.backButton);
+        details.el.classList.add("is-open");
+        focusManager.setScope(details.el);
+        focusManager.focus(details.buttons[0].el);
       },
       hide: function() {
-        detail.el.classList.remove("is-open");
+        details.el.classList.remove("is-open");
         focusManager.setScope(null);
         if (previousFocus) {
           focusManager.focus(previousFocus);
@@ -906,10 +1518,10 @@
         }
       }
     };
-    function openDetail(item) {
+    function openDetails(item) {
       previousFocus = focusManager.getCurrent();
-      detail.setItem(item, getLanguage());
-      router.push(detailScreen);
+      details.setItem(item, getLanguage());
+      router.push(detailsScreen);
     }
     function onRailSelect(id) {
       if (id === "language") {
@@ -932,37 +1544,33 @@
         });
       })(rail.nodes[r]);
     }
+    function registerCard(card, shelfApi) {
+      card.el.__reveal = function() {
+        shelfApi.reveal(card.el);
+      };
+      focusManager.register(card.el, function() {
+        openDetails(card.item);
+      });
+    }
     for (var s = 0; s < shelves.length; s++) {
-      (function(currentShelf) {
-        for (var c = 0; c < currentShelf.cards.length; c++) {
-          (function(card) {
-            card.el.__reveal = function() {
-              currentShelf.reveal(card.el);
-            };
-            focusManager.register(card.el, function() {
-              openDetail(card.item);
-            });
-          })(currentShelf.cards[c]);
-        }
-      })(shelves[s]);
+      shelves[s].measure();
     }
-    if (rail.nodes.length > 0) {
-      focusManager.remember(rail.nodes[0].el);
+    for (var b = 0; b < details.buttons.length; b++) {
+      (function(button) {
+        focusManager.register(button.el, function() {
+          toast.show(button.id === "play" ? t("common.media") : t("common.wip"));
+        });
+      })(details.buttons[b]);
     }
-    for (var q = 0; q < shelves.length; q++) {
-      if (shelves[q].cards.length > 0) {
-        focusManager.remember(shelves[q].cards[0].el);
+    for (var rn = 0; rn < rail.nodes.length; rn++) {
+      if (rail.nodes[rn].def.id === "home") {
+        focusManager.remember(rail.nodes[rn].el);
       }
     }
-    focusManager.register(detail.backButton, function() {
-      router.pop();
-    });
-    function handleBack() {
-      if (router.depth() > 0) {
-        router.pop();
-        return;
+    for (var sn = 0; sn < shelves.length; sn++) {
+      if (shelves[sn].cards.length > 0) {
+        focusManager.remember(shelves[sn].cards[0].el);
       }
-      platform.exitApp();
     }
     function onKeyDown(event) {
       var action = actionFromEvent(event);
@@ -971,7 +1579,11 @@
       }
       event.preventDefault();
       if (action === "back") {
-        handleBack();
+        if (router.depth() > 0) {
+          router.pop();
+        } else {
+          platform.exitApp();
+        }
         return;
       }
       if (action === "exit") {
@@ -993,11 +1605,11 @@
       var lang = getLanguage();
       applyStaticText(document);
       rail.updateLanguage(lang);
+      hero.updateLanguage(lang);
       for (var n = 0; n < shelves.length; n++) {
         shelves[n].updateLanguage(lang);
       }
-      detail.setLanguage(lang);
-      badge.textContent = platformInfo.isTizen ? t("platform.tizen") : t("platform.browser");
+      details.setLanguage(lang);
     }
     onLanguageChange(renderLanguage);
     function fitStage() {
@@ -1037,27 +1649,35 @@
         if (focused) {
           if (focused.closest(".rail")) {
             zone = "rail";
-          } else if (focused.closest(".overlay")) {
+          } else if (focused.closest(".details")) {
             zone = "overlay";
           } else {
             zone = "content";
           }
-          focusedId = focused.getAttribute("data-item-id") || focused.getAttribute("data-rail-id") || (focused.hasAttribute("data-detail-back") ? "detail-back" : null);
+          focusedId = focused.getAttribute("data-item-id") || focused.getAttribute("data-rail-id") || focused.getAttribute("data-detail-action");
         }
-        var titleEl = focused ? focused.querySelector(".card__title") : null;
-        var detailTitleEl = document.querySelector(".detail__title");
-        var languageNode = rail.nodes[rail.nodes.length - 1];
+        var caption = focused ? focused.querySelector(".card__title") : null;
+        var detailsTitle = document.querySelector(".details__title");
+        var heroTitle = document.querySelector(".hero__title");
+        var total = 0;
+        for (var i2 = 0; i2 < ROWS.length; i2++) {
+          total += ROWS[i2].items.length;
+        }
         return {
           language: getLanguage(),
-          screen: router.depth() > 0 && router.peek() ? router.peek().name : "home",
+          screen: router.depth() > 0 ? "details" : "home",
           rows: shelves.length,
           cards: document.querySelectorAll(".card").length,
+          totalItems: total,
           focusedId,
           focusedZone: zone,
-          focusedTitle: titleEl ? titleEl.textContent : null,
-          railLanguageLabel: languageNode ? languageNode.label.textContent : "",
-          detailOpen: detail.isOpen(),
-          detailTitle: detailTitleEl ? detailTitleEl.textContent : "",
+          focusedTitle: caption ? caption.textContent : null,
+          railExpanded: rail.isExpanded(),
+          heroTitle: heroTitle ? heroTitle.textContent : "",
+          detailsOpen: details.isOpen(),
+          detailsTitle: detailsTitle ? detailsTitle.textContent : "",
+          episodes: document.querySelectorAll(".ep").length,
+          images: lazyStats(),
           platform: platformInfo.label
         };
       }

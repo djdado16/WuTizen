@@ -10,9 +10,10 @@ a **TizenBrew module** (loaded from GitHub, no Tizen Studio needed —
 see [docs/TIZENBREW.md](docs/TIZENBREW.md)) and a **standalone `.wgt`**
 (see [docs/TIZEN_DEPLOYMENT.md](docs/TIZEN_DEPLOYMENT.md)).
 
-> **Status: Milestone 0 complete** — application shell, D-pad focus system, placeholder
-> catalogue rows, detail overlay, HR/EN localization, Tizen platform abstraction.
-> No streaming, no playback, no profile import, no network access yet.
+> **Status: Milestone 2 complete** — WuPlay-style UI: icon rail that expands on
+> focus, cinematic hero, windowed content rows with progress/badges, full-screen
+> details view with an episode section, lazy artwork, Croatian + English.
+> No streaming, no playback, no profile data, no network yet.
 
 ---
 

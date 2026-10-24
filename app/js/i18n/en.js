@@ -5,34 +5,29 @@
 
 export default {
   'app.name': 'WuTizen',
-  'app.tagline': 'Tizen TV client',
 
-  'nav.home': 'Home',
-  'nav.catalog': 'Catalog',
+  'nav.profile': 'Profile',
   'nav.search': 'Search',
+  'nav.home': 'Home',
+  'nav.catalog': 'Discover',
+  'nav.lists': 'My Lists',
   'nav.settings': 'Settings',
   'nav.language': 'Language',
 
-  'topbar.greeting': 'Welcome back',
-  'topbar.subtitle': 'Interface preview — Milestone 0',
-
+  'row.movies': 'Best of the Best – Movies',
   'row.continue': 'Continue watching',
-  'row.movies': 'Movies',
+  'row.series': 'Series',
 
-  'hint.bar': '↑ ↓ ← → navigate   ·   OK select   ·   BACK go back',
-  'rail.hint': 'Use the arrows to move, OK to confirm, BACK to go back one step.',
+  'details.play': 'Play',
+  'details.trailer': 'Trailer',
+  'details.watchlist': 'In Watchlist',
+  'details.markWatched': 'Mark Watched',
+  'details.episodes': 'Episodes',
 
-  'detail.badge': 'Item preview',
-  'detail.meta': 'Year',
-  'detail.hint':
-    'Details, seasons, subtitles and playback arrive in later milestones. This is a structure preview with placeholder data.',
-  'detail.back': 'Back',
+  'unit.min': 'min',
 
   'common.wip': 'This feature is not implemented yet.',
-  'common.media': 'Playback is not part of Milestone 0.',
-
-  'platform.browser': 'Browser preview',
-  'platform.tizen': 'Tizen TV',
+  'common.media': 'Playback is not part of this milestone.',
 
   'lang.hr': 'Hrvatski',
   'lang.en': 'English',
