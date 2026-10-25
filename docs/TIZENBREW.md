@@ -21,7 +21,7 @@ services — and reads a module's `package.json` to decide how to run it:
 | `appPath` | `"dist/index.html"` | path to the entry page **inside the repo** |
 | `keys` | media keys | remote keys registered via `TVInputDevice` |
 | `serviceFile` | *omitted* | optional NodeJS service — not needed |
-| `name` / `version` | `wutizen` / `0.4.0` | required for jsDelivr resolution |
+| `name` / `version` | `wutizen` / `0.4.1` | required for jsDelivr resolution |
 
 Validation: `npm run module` (checks these fields, that `appPath` exists, the
 payload size, and scans the payload for credentials).
@@ -57,7 +57,7 @@ npm run module         # validate the module manifest + payload
 
 git init -b main
 git add .
-git commit -m "WuTizen 0.4.0"
+git commit -m "WuTizen 0.4.1"
 git remote add origin https://github.com/djdado16/WuTizen.git
 git push -u origin main
 ```
@@ -65,8 +65,8 @@ git push -u origin main
 Optional but recommended (pinned, cache-proof installs):
 
 ```powershell
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.1
+git push origin v0.4.1
 ```
 
 > The commands above assume the repository is named **WuTizen** under the
@@ -105,7 +105,7 @@ entry    : https://cdn.jsdelivr.net/gh/djdado16/WuTizen/dist/index.html
 To pin a release instead of tracking the default branch (recommended once tagged):
 
 ```
-djdado16/WuTizen@v0.4.0
+djdado16/WuTizen@v0.4.1
 ```
 
 ---

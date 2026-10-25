@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.1 — 2026-10-25 — Samsung IME / import hotfix
+
+### Fixed
+- **Import from URL re-opened the Samsung keyboard instead of importing.** The URL `<input>` kept DOM focus after the on-screen keyboard's *Done*, and Tizen re-attaches the IME to any focused editable element, so OK on **Uvoz** hit the field again. The field is now blurred as soon as the remote leaves it, *Done* commits the typed text (trimmed) and moves focus to the **Import** action, and OK then starts exactly one import.
+- Done on the keyboard is committed exactly once: a repeat/echo keydown cannot import twice, and an import in flight ignores further OK presses.
+- Import no longer moves focus back to the URL field when it finishes (success or error) — it stays on **Import**, so the keyboard stays closed.
+- `BACKSPACE` while typing no longer closes the Settings screen (it was normalized to BACK). It now edits text; BACK while editing only closes the keyboard.
+- The custom-URL field in **Add-ons** gets the same treatment (Done blurs and moves to its Add action).
+
+### Tests
+- 16 new checks (79 total): BACKSPACE keeps Settings open, *Done* commits the address, *Done* closes the keyboard and moves focus to Import, *Done* alone does not import, one OK (with a duplicated keydown) imports exactly once, keyboard stays closed after the import, focus remains on Import, plus the "IME closed itself" variant and Settings navigation.
+
 ## v0.4.0 — 2026-10-24 — WuPlay profile and add-on import (Milestone 4)
 
 ### Added

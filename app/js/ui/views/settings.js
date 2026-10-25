@@ -41,6 +41,10 @@ export function createSettingsView() {
   urlInput.className = 'addon-input settings__url';
   urlInput.setAttribute('type', 'text');
   urlInput.setAttribute('spellcheck', 'false');
+  urlInput.setAttribute('inputmode', 'url'); // TV keyboard opens in URL mode
+  urlInput.setAttribute('autocomplete', 'off');
+  urlInput.setAttribute('autocapitalize', 'off');
+  urlInput.setAttribute('data-settings-field', 'url');
   urlInput.setAttribute('placeholder', t('settings.urlPlaceholder'));
 
   var fileInput = document.createElement('input');
@@ -50,6 +54,7 @@ export function createSettingsView() {
 
   var focusables = [];
   var handlers = { onImportUrl: null, onImportText: null, onClose: null };
+  var importBtn = null;
 
   function button(label, id, handler) {
     var el = document.createElement('div');
@@ -63,6 +68,9 @@ export function createSettingsView() {
     el.addEventListener('click', handler);
     focusables.push({ el: el, activate: handler });
     actions.appendChild(el);
+    if (id === 'import-url') {
+      importBtn = el; // what focus lands on after the keyboard commits
+    }
     return el;
   }
 
@@ -136,13 +144,28 @@ export function createSettingsView() {
         t('settings.listItems');
     }
 
-    focusables.push({ el: urlInput, activate: function () {} });
+    focusables.push({
+      el: urlInput,
+      activate: function () {
+        // OK on the field itself only re-opens the keyboard; the global key
+        // router commits the value and moves to Import (see main.js).
+        try {
+          urlInput.focus();
+        } catch (err) {
+          /* ignored */
+        }
+      }
+    });
   }
 
   return {
     el: root,
     render: render,
     fileInput: fileInput,
+    urlInput: urlInput,
+    importButton: function () {
+      return importBtn;
+    },
     setStatus: function (message, isError) {
       status.textContent = message || '';
       status.className = 'addons__status' + (isError ? ' is-error' : '');

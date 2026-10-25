@@ -140,6 +140,27 @@ function boot() {
     applyScroller();
   }
 
+  /* The <input> that currently owns real DOM focus — on Tizen that is exactly
+     the condition that keeps the on-screen keyboard attached. It must be
+     released explicitly (blur) as soon as the remote moves on: leaving DOM
+     focus on the field is what made the Samsung IME re-open on every OK press
+     instead of activating the Import button. */
+  var imeField = null;
+
+  function releaseIme() {
+    var field = imeField;
+    if (!field) {
+      return false;
+    }
+    imeField = null;
+    try {
+      field.blur(); // closes the TV keyboard
+    } catch (err) {
+      /* ignored */
+    }
+    return true;
+  }
+
   function onFocusChanged(el) {
     var inRail = !!el.closest('.rail');
     rail.setExpanded(inRail);
@@ -148,11 +169,14 @@ function boot() {
       el.__reveal();
     }
     if (el.tagName === 'INPUT') {
+      imeField = el;
       try {
-        el.focus(); // let the TV IME attach to the add-on URL field
+        el.focus(); // let the TV IME attach to the URL field
       } catch (err) {
         /* ignored */
       }
+    } else {
+      releaseIme();
     }
     var row = el.closest('.row');
     if (row) {
@@ -366,10 +390,26 @@ function boot() {
     });
   }
 
+  var importing = false;
+
+  /** Focus the Import action (never the URL field: that re-opens the IME). */
+  function focusImportAction() {
+    var target = settingsView.importButton();
+    if (target && focusManager.focus(target)) {
+      return true;
+    }
+    return focusManager.focusFirst();
+  }
+
   function runImport(promiseSource) {
+    if (importing) {
+      return; // one OK press = one import, even when the key echoes
+    }
+    importing = true;
     settingsView.setStatus(t('common.loading'));
     promiseSource().then(
       function (result) {
+        importing = false;
         settingsView.setStatus(
           t('settings.done') +
             ' ' +
@@ -380,13 +420,12 @@ function boot() {
         );
         settingsView.render();
         registerSettings();
-        var list = settingsView.focusables();
-        if (list.length) {
-          focusManager.focus(list[0].el);
-        }
+        focusImportAction();
       },
       function (err) {
+        importing = false;
         settingsView.setStatus(t('settings.invalid') + ' · ' + err.message, true);
+        focusImportAction();
       }
     );
   }
@@ -785,12 +824,89 @@ function boot() {
     platform.exitApp();
   }
 
+  /** The text field the TV keyboard can type into, if one owns DOM focus. */
+  function editableFieldOf(el) {
+    if (!el || el.tagName !== 'INPUT' || !appEl.contains(el)) {
+      return null;
+    }
+    var type = String(el.getAttribute('type') || 'text').toLowerCase();
+    return type === 'text' || type === 'search' || type === 'url' ? el : null;
+  }
+
+  /**
+   * Commits the typed value, closes the TV keyboard and — when the remote is
+   * moving on — hands focus to the Import action that consumes the value.
+   */
+  function commitField(field, moveFocus) {
+    if (!field) {
+      return;
+    }
+    field.value = String(field.value || '').trim(); // Done commits the text
+    if (!releaseIme()) {
+      try {
+        field.blur();
+      } catch (err) {
+        /* ignored */
+      }
+    }
+    if (moveFocus && focusManager.getCurrent() === field) {
+      var target = settingsView.isOpen() ? settingsView.importButton() : null;
+      if (target) {
+        focusManager.focus(target);
+      } else {
+        // Add-ons view: the field's action sits to its right.
+        focusManager.move('right');
+      }
+    }
+  }
+
+  /**
+   * Keys while the TV keyboard is typing into a field.
+   * @returns {boolean} true when the key was consumed here
+   */
+  function handleFieldKey(event, field, action) {
+    if (event.keyCode === 8 || event.which === 8 || event.key === 'Backspace') {
+      // Backspace deletes a character. It used to be normalized to BACK, which
+      // closed Settings while the user was editing the address.
+      return true;
+    }
+    if (action === 'enter' || action === 'down') {
+      if (action === 'enter' && event.repeat) {
+        return true;
+      }
+      event.preventDefault();
+      // "Done"/DOWN: commit + focus Import. Import itself needs its own OK, so
+      // one press can never both commit and start a request.
+      commitField(field, true);
+      return true;
+    }
+    if (action === 'back') {
+      event.preventDefault();
+      commitField(field, false); // keyboard closes, Settings stays open
+      return true;
+    }
+    if (action === 'left' || action === 'right' || action === 'up') {
+      return true; // caret movement / IME navigation belongs to the field
+    }
+    return false; // EXIT and media keys keep their meaning
+  }
+
   function onKeyDown(event) {
     var action = actionFromEvent(event);
     if (!action) {
       return;
     }
-    event.preventDefault(); // never let the page scroll on arrow keys
+
+    /* While the TV keyboard is typing, the field owns the keys: Backspace
+       deletes, LEFT/RIGHT move the caret, Done commits and moves to Import.
+       Only real remote navigation (DOWN / BACK) leaves the field. */
+    var field = editableFieldOf(document.activeElement);
+    if (field && handleFieldKey(event, field, action)) {
+      return;
+    }
+    if (!field) {
+      event.preventDefault(); // never let the page scroll on arrow keys
+    }
 
     var isTransition = action === 'back' || action === 'enter' || action === 'exit';
     if (isTransition) {
@@ -818,6 +934,13 @@ function boot() {
       return;
     }
     if (action === 'enter') {
+      var current = focusManager.getCurrent();
+      if (editableFieldOf(current)) {
+        // Done already closed the keyboard but left the cursor on the field:
+        // commit and move to Import instead of re-opening the IME.
+        commitField(current, true);
+        return;
+      }
       focusManager.activate();
       return;
     }

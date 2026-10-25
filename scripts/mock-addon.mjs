@@ -69,6 +69,13 @@ const MANIFEST = {
 };
 
 export function startMockAddon(port) {
+  const profileExport = {
+    profiles: [{ name: 'Imported over LAN' }],
+    // A configured add-on: models what a real WuPlay export contains.
+    addons: [{ transportUrl: 'http://127.0.0.1:' + port + '/cfg-ime-token/manifest.json' }],
+    watchlist: [{ id: 'tt9' }]
+  };
+
   const server = createServer((req, res) => {
     let url = (req.url || '/').split('?')[0];
     // Configured add-ons carry their configuration in the path: strip a
@@ -91,6 +98,13 @@ export function startMockAddon(port) {
 
     if (url === '/manifest.json') {
       send(200, MANIFEST);
+      return;
+    }
+
+    // WuPlay-shaped profile export, served for the "import from a LAN address"
+    // flow (the Settings URL field points here instead of at a manifest).
+    if (url === '/profile.json') {
+      send(200, profileExport);
       return;
     }
 

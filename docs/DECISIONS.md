@@ -127,3 +127,30 @@ view, and remote keys were occasionally ignored altogether.
   nothing like WuPlay.
 **Consequences:** seven regression checks were added to `npm run smoke` (held
 BACK, duplicate BACK keydown, repeated OK, repeated navigation); total 37.
+
+## D16 — TV on-screen keyboard (IME) vs. the remote (v0.4.1)
+**Context:** on the TV, typing the LAN address in **Settings → Import from URL**
+and then pressing OK on **Uvoz** re-opened the Samsung keyboard instead of
+importing. Root cause: the URL `<input>` kept **DOM** focus after the IME's
+*Done* (the logical focus ring had moved on, the real one had not). Tizen keeps
+the keyboard attached to whatever editable element has DOM focus, so the next OK
+went back into the field; a failed import also left focus on the field. A second
+bug on the same path: Backspace is normalized to BACK (keyCode 8), so deleting a
+character closed the whole Settings screen.
+**Decision:**
+- the app tracks the field that owns DOM focus (`imeField`) and **blurs it as
+  soon as the remote leaves it** — that is what closes the IME;
+- while a field is focused the key router is in **editing mode**: Backspace and
+  LEFT/RIGHT/UP are left to the field/IME, *Done* (OK) and DOWN commit the value
+  (trimmed), blur the field and move focus to the field's action (Settings →
+  **Import**); BACK closes only the keyboard;
+- **Done never imports.** Importing needs its own OK press on **Import**, so one
+  press can never both commit text and fire a request;
+- an import in flight is **single-flight** (further OK presses are ignored) and
+  focus returns to **Import**, never to the field, on success *and* on error;
+- when the IME closed itself before the page saw the key, OK on the still-focused
+  field commits and moves to **Import** instead of being a dead key that re-opens
+  the keyboard.
+**Consequences:** the remote never gets "stuck" on a text field; 16 new smoke
+checks pin the chain (total 79). The same handling applies to the custom-URL
+field in Add-ons, where *Done* moves to that row's Add action.

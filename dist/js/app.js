@@ -2171,6 +2171,10 @@
     urlInput.className = "addon-input settings__url";
     urlInput.setAttribute("type", "text");
     urlInput.setAttribute("spellcheck", "false");
+    urlInput.setAttribute("inputmode", "url");
+    urlInput.setAttribute("autocomplete", "off");
+    urlInput.setAttribute("autocapitalize", "off");
+    urlInput.setAttribute("data-settings-field", "url");
     urlInput.setAttribute("placeholder", t("settings.urlPlaceholder"));
     var fileInput = document.createElement("input");
     fileInput.setAttribute("type", "file");
@@ -2178,6 +2182,7 @@
     fileInput.className = "settings__file";
     var focusables = [];
     var handlers = { onImportUrl: null, onImportText: null, onClose: null };
+    var importBtn = null;
     function button(label, id, handler) {
       var el = document.createElement("div");
       el.className = "btn";
@@ -2190,6 +2195,9 @@
       el.addEventListener("click", handler);
       focusables.push({ el, activate: handler });
       actions.appendChild(el);
+      if (id === "import-url") {
+        importBtn = el;
+      }
       return el;
     }
     content.appendChild(title);
@@ -2241,13 +2249,24 @@
       } else {
         summary.textContent = t("settings.imported") + " " + last.imported + " · " + t("settings.skipped") + " " + last.skipped + " · " + (last.profiles || []).length + " " + t("settings.profiles") + " · " + last.lists + " " + t("settings.listItems");
       }
-      focusables.push({ el: urlInput, activate: function() {
-      } });
+      focusables.push({
+        el: urlInput,
+        activate: function() {
+          try {
+            urlInput.focus();
+          } catch (err) {
+          }
+        }
+      });
     }
     return {
       el: root,
       render,
       fileInput,
+      urlInput,
+      importButton: function() {
+        return importBtn;
+      },
       setStatus: function(message, isError) {
         status.textContent = message || "";
         status.className = "addons__status" + (isError ? " is-error" : "");
@@ -2537,6 +2556,19 @@
       }
       applyScroller();
     }
+    var imeField = null;
+    function releaseIme() {
+      var field = imeField;
+      if (!field) {
+        return false;
+      }
+      imeField = null;
+      try {
+        field.blur();
+      } catch (err) {
+      }
+      return true;
+    }
     function onFocusChanged(el) {
       var inRail = !!el.closest(".rail");
       rail.setExpanded(inRail);
@@ -2545,10 +2577,13 @@
         el.__reveal();
       }
       if (el.tagName === "INPUT") {
+        imeField = el;
         try {
           el.focus();
         } catch (err) {
         }
+      } else {
+        releaseIme();
       }
       var row = el.closest(".row");
       if (row) {
@@ -2731,22 +2766,34 @@
         next();
       });
     }
+    var importing = false;
+    function focusImportAction() {
+      var target = settingsView.importButton();
+      if (target && focusManager.focus(target)) {
+        return true;
+      }
+      return focusManager.focusFirst();
+    }
     function runImport(promiseSource) {
+      if (importing) {
+        return;
+      }
+      importing = true;
       settingsView.setStatus(t("common.loading"));
       promiseSource().then(
         function(result) {
+          importing = false;
           settingsView.setStatus(
             t("settings.done") + " " + result.imported + " / " + (result.imported + result.skipped) + (result.skipped ? " · " + t("settings.seeDiagnostics") : "")
           );
           settingsView.render();
           registerSettings();
-          var list = settingsView.focusables();
-          if (list.length) {
-            focusManager.focus(list[0].el);
-          }
+          focusImportAction();
         },
         function(err) {
+          importing = false;
           settingsView.setStatus(t("settings.invalid") + " · " + err.message, true);
+          focusImportAction();
         }
       );
     }
@@ -3077,12 +3124,67 @@
       }
       platform.exitApp();
     }
+    function editableFieldOf(el) {
+      if (!el || el.tagName !== "INPUT" || !appEl.contains(el)) {
+        return null;
+      }
+      var type = String(el.getAttribute("type") || "text").toLowerCase();
+      return type === "text" || type === "search" || type === "url" ? el : null;
+    }
+    function commitField(field, moveFocus) {
+      if (!field) {
+        return;
+      }
+      field.value = String(field.value || "").trim();
+      if (!releaseIme()) {
+        try {
+          field.blur();
+        } catch (err) {
+        }
+      }
+      if (moveFocus && focusManager.getCurrent() === field) {
+        var target = settingsView.isOpen() ? settingsView.importButton() : null;
+        if (target) {
+          focusManager.focus(target);
+        } else {
+          focusManager.move("right");
+        }
+      }
+    }
+    function handleFieldKey(event, field, action) {
+      if (event.keyCode === 8 || event.which === 8 || event.key === "Backspace") {
+        return true;
+      }
+      if (action === "enter" || action === "down") {
+        if (action === "enter" && event.repeat) {
+          return true;
+        }
+        event.preventDefault();
+        commitField(field, true);
+        return true;
+      }
+      if (action === "back") {
+        event.preventDefault();
+        commitField(field, false);
+        return true;
+      }
+      if (action === "left" || action === "right" || action === "up") {
+        return true;
+      }
+      return false;
+    }
     function onKeyDown(event) {
       var action = actionFromEvent(event);
       if (!action) {
         return;
       }
-      event.preventDefault();
+      var field = editableFieldOf(document.activeElement);
+      if (field && handleFieldKey(event, field, action)) {
+        return;
+      }
+      if (!field) {
+        event.preventDefault();
+      }
       var isTransition = action === "back" || action === "enter" || action === "exit";
       if (isTransition) {
         if (event.repeat) {
@@ -3108,6 +3210,11 @@
         return;
       }
       if (action === "enter") {
+        var current2 = focusManager.getCurrent();
+        if (editableFieldOf(current2)) {
+          commitField(current2, true);
+          return;
+        }
         focusManager.activate();
         return;
       }

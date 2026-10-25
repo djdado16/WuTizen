@@ -664,6 +664,79 @@ try {
   s = await snapshot();
   check('BACK closes settings', s.settingsOpen === false, String(s.settingsOpen));
 
+  /* ---- TV on-screen keyboard (Samsung IME) on the import field ------------
+     Reported on device: after typing the address, OK on "Import" re-opened the
+     keyboard instead of importing, because the <input> kept DOM focus (the IME
+     stays attached to it) and FAILED imports left focus nowhere. These checks
+     pin the whole chain: Done commits and moves to Import, OK imports once,
+     the keyboard never comes back, and BACKSPACE is text editing, not BACK. */
+  const isFocused = (sel) =>
+    evaluate(client, 'document.querySelector(' + JSON.stringify(sel) + ').classList.contains("is-focused")');
+  const domFocusIs = (sel) =>
+    evaluate(client, 'document.activeElement === document.querySelector(' + JSON.stringify(sel) + ')');
+  const addonCount = () => evaluate(client, 'window.WuTizenDebug.addon.list().length');
+  const statusText = () =>
+    evaluate(client, 'document.querySelector(".settings .addons__status").textContent');
+
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  await press(client, 'ArrowRight', 39);
+  check('remote navigation still works inside Settings', (await isFocused('[data-settings-action="import-file"]')) === true);
+  await press(client, 'ArrowLeft', 37);
+  await press(client, 'ArrowUp', 38); // Import -> URL field
+  check('UP moves from Import to the URL field and focuses it (IME attaches)', (await domFocusIs('.settings__url')) === true);
+
+  const typedUrl = '  http://127.0.0.1:' + ADDON_PORT + '/profile.json  ';
+  await evaluate(
+    client,
+    '(function(){var f=document.querySelector(".settings__url");f.value=' + JSON.stringify(typedUrl) + ';return true;})()'
+  );
+  await press(client, 'Unidentified', 8); // BACKSPACE while typing
+  check('BACKSPACE while typing does not close Settings', (await snapshot()).settingsOpen === true);
+  check('BACKSPACE leaves the keyboard attached to the field', (await domFocusIs('.settings__url')) === true);
+
+  const beforeDone = await addonCount();
+  await press(client, 'Enter', 13); // on-screen keyboard "Done"
+  const committed = await evaluate(client, 'document.querySelector(".settings__url").value');
+  check('Done commits the typed address', committed === typedUrl.trim(), JSON.stringify(committed));
+  check('Done closes the on-screen keyboard (field blurred)', (await domFocusIs('.settings__url')) === false);
+  check('Done moves focus to the Import action', (await isFocused('[data-settings-action="import-url"]')) === true);
+  check('Done does not start an import by itself', (await addonCount()) === beforeDone);
+
+  // One OK press (plus the echo a TV remote sends) must import exactly once.
+  await rawKey(client, 'down', 'Enter', 13, false);
+  await rawKey(client, 'down', 'Enter', 13, false); // echo: no keyup in between
+  await rawKey(client, 'up', 'Enter', 13, false);
+  const afterOk = await waitFor(
+    client,
+    'window.WuTizenDebug.addon.list().length > ' + beforeDone + ' ? window.WuTizenDebug.addon.list().length : 0',
+    12000
+  );
+  check('OK on Import imports exactly once', afterOk === beforeDone + 1, beforeDone + ' -> ' + afterOk);
+  check(
+    'the address that was typed is the one imported',
+    (await evaluate(client, 'window.WuTizenDebug.addon.list().map(function (a) { return a.url; }).join(",")')).indexOf(
+      'cfg-ime-token'
+    ) > -1
+  );
+  check('keyboard does not re-open after the import', (await domFocusIs('.settings__url')) === false);
+  check('focus stays on the Import action after the import', (await isFocused('[data-settings-action="import-url"]')) === true);
+  check('import reports its result in Settings', String(await statusText()).length > 0, String(await statusText()).slice(0, 40));
+
+  // Reported variant: the IME closes itself on Done, so the page only sees a
+  // later OK while the field is still the logical cursor.
+  await press(client, 'ArrowUp', 38);
+  await evaluate(client, 'document.activeElement.blur(); true'); // IME closed by Done
+  const beforeStray = await addonCount();
+  await press(client, 'Enter', 13);
+  check(
+    'OK on an already-closed keyboard commits and moves to Import',
+    (await isFocused('[data-settings-action="import-url"]')) === true && (await domFocusIs('.settings__url')) === false
+  );
+  check('that OK does not start an import by itself', (await addonCount()) === beforeStray);
+
+  await press(client, 'Unidentified', 10009);
+  check('BACK closes Settings after the keyboard flow', (await snapshot()).settingsOpen === false);
+
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
@@ -676,7 +749,7 @@ try {
     try {
       restoredRows = await evaluate(
         client,
-        'window.WuTizenDebug && window.WuTizenDebug.snapshot().addons === 1 ? document.querySelectorAll(".row").length : 0'
+        'window.WuTizenDebug && window.WuTizenDebug.snapshot().addons >= 1 ? document.querySelectorAll(".row").length : 0'
       );
     } catch (err) {
       restoredRows = 0;
