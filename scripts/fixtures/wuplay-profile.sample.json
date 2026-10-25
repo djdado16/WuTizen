@@ -1,0 +1,23 @@
+{
+  "fixture": "sanitized WuPlay-style profile export for automated tests",
+  "profiles": [
+    { "name": "Sanitized Profile", "avatar": "https://example.invalid/avatar.png" },
+    { "name": "Second Profile" }
+  ],
+  "addons": [
+    { "transportUrl": "http://127.0.0.1:8124/manifest.json", "name": "Mock add-on (reachable)" },
+    {
+      "transportUrl": "https://unsupported.invalid/manifest.json?token=SECRET-TOKEN-abc123",
+      "name": "Unsupported add-on (unreachable)"
+    }
+  ],
+  "addonsList": [
+    { "url": "https://logo.invalid/poster.png", "name": "image-only entry must be ignored" }
+  ],
+  "watchlist": [
+    { "id": "tt0000001", "name": "Fixture title one" },
+    { "id": "tt0000002", "name": "Fixture title two" }
+  ],
+  "continueWatching": [{ "id": "tt0000003", "progress": 0.4 }],
+  "notes": "This file is a synthetic fixture. SECRET-TOKEN-abc123 must never be stored or logged."
+}

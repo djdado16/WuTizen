@@ -31,6 +31,9 @@ import { createDetails } from './ui/views/detail.js';
 import { createAddonsView } from './ui/views/addons.js';
 import { addonClient, diagnosticsList, clearDiagnostics } from './data/addonClient.js';
 import { createDiagnosticsView } from './ui/views/diagnostics.js';
+import { createSettingsView } from './ui/views/settings.js';
+import { parseProfile, summarizeImport } from './data/profileImport.js';
+import { saveProfileSummary, getProfileSummary } from './state/profile.js';
 import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
 import {
   listAddons,
@@ -99,6 +102,9 @@ function boot() {
 
   var diagnosticsView = createDiagnosticsView();
   appEl.appendChild(diagnosticsView.el);
+
+  var settingsView = createSettingsView();
+  appEl.appendChild(settingsView.el);
 
   appEl.appendChild(toast.el);
 
@@ -285,6 +291,153 @@ function boot() {
       focusManager.setScope(null);
       var restored = addonsReturnFocus ? focusManager.focus(addonsReturnFocus) : false;
       addonsReturnFocus = null;
+      if (!restored) {
+        focusManager.focusFirst();
+      }
+    }
+  };
+
+  /* ---- settings screen (WuPlay profile import) -------------------------- */
+  var settingsReturnFocus = null;
+  var settingsFocusables = [];
+
+  function unregisterSettings() {
+    for (var i = 0; i < settingsFocusables.length; i++) {
+      focusManager.unregister(settingsFocusables[i]);
+    }
+    settingsFocusables = [];
+  }
+
+  function registerSettings() {
+    unregisterSettings();
+    var list = settingsView.focusables();
+    for (var i = 0; i < list.length; i++) {
+      settingsFocusables.push(list[i].el);
+      focusManager.register(list[i].el, list[i].activate);
+    }
+  }
+
+  function openSettings() {
+    settingsReturnFocus = focusManager.getCurrent();
+    router.push(settingsScreen);
+  }
+
+  /**
+   * Imports a parsed profile: installs its add-ons through the normal validated
+   * path and stores only a host-level summary. Never stores the raw export.
+   */
+  function importProfile(input) {
+    return new Promise(function (resolve, reject) {
+      var parsed = parseProfile(input);
+      if (!parsed.ok) {
+        reject(new Error(parsed.error));
+        return;
+      }
+      var urls = parsed.addons.slice(0, 12);
+      var imported = 0;
+      var skipped = Math.max(0, parsed.addons.length - urls.length);
+      var index = 0;
+
+      function next() {
+        if (index >= urls.length) {
+          saveProfileSummary(summarizeImport(parsed, imported, skipped));
+          loadAddonCatalogs();
+          resolve({
+            imported: imported,
+            skipped: skipped,
+            profiles: parsed.profiles.length,
+            lists: parsed.lists
+          });
+          return;
+        }
+        var url = urls[index];
+        index += 1;
+        addAddon(url, function (err) {
+          if (err) {
+            skipped += 1;
+          } else {
+            imported += 1;
+          }
+          next();
+        });
+      }
+
+      next();
+    });
+  }
+
+  function runImport(promiseSource) {
+    settingsView.setStatus(t('common.loading'));
+    promiseSource().then(
+      function (result) {
+        settingsView.setStatus(
+          t('settings.done') +
+            ' ' +
+            result.imported +
+            ' / ' +
+            (result.imported + result.skipped) +
+            (result.skipped ? ' · ' + t('settings.seeDiagnostics') : '')
+        );
+        settingsView.render();
+        registerSettings();
+        var list = settingsView.focusables();
+        if (list.length) {
+          focusManager.focus(list[0].el);
+        }
+      },
+      function (err) {
+        settingsView.setStatus(t('settings.invalid') + ' · ' + err.message, true);
+      }
+    );
+  }
+
+  settingsView.setHandlers({
+    onImportUrl: function (url) {
+      runImport(function () {
+        return new Promise(function (resolve, reject) {
+          addonClient.json(url, function (err, data) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve(data);
+            }
+          });
+        }).then(function (data) {
+          return importProfile(data);
+        });
+      });
+    },
+    onImportText: function (text) {
+      runImport(function () {
+        return importProfile(text);
+      });
+    },
+    onClose: function () {
+      router.pop();
+    }
+  });
+
+  var settingsScreen = {
+    name: 'settings',
+    show: function () {
+      settingsView.el.classList.add('is-open');
+      settingsView.render();
+      settingsView.setStatus('');
+      focusManager.setScope(settingsView.el);
+      registerSettings();
+      var list = settingsView.focusables();
+      if (list.length) {
+        focusManager.focus(list[0].el);
+      } else {
+        focusManager.focusFirst();
+      }
+    },
+    hide: function () {
+      settingsView.el.classList.remove('is-open');
+      unregisterSettings();
+      focusManager.setScope(null);
+      var restored = settingsReturnFocus ? focusManager.focus(settingsReturnFocus) : false;
+      settingsReturnFocus = null;
       if (!restored) {
         focusManager.focusFirst();
       }
@@ -541,6 +694,10 @@ function boot() {
       router.push(addonsScreen);
       return;
     }
+    if (id === 'settings') {
+      openSettings();
+      return;
+    }
     if (id === 'home') {
       if (shelves.length > 0 && shelves[0].cards.length > 0) {
         focusManager.focus(shelves[0].cards[0].el);
@@ -737,6 +894,21 @@ function boot() {
 
   /* ---- debug surface (read-only; drives scripts/browser-smoke.mjs) ----- */
   window.WuTizenDebug = {
+    profile: {
+      importText: function (text) {
+        return importProfile(text);
+      },
+      summary: function () {
+        return getProfileSummary();
+      }
+    },
+    openSettings: function () {
+      openSettings();
+      return true;
+    },
+    diagnostics: function () {
+      return diagnosticsList();
+    },
     addon: {
       add: function (url) {
         return addAddonAsync(url);
@@ -805,6 +977,8 @@ function boot() {
         diagnostics: diagnosticsList().length,
         errorRows: document.querySelectorAll('[data-error-row]').length,
         diagnosticsOpen: diagnosticsView.isOpen(),
+        settingsOpen: settingsView.isOpen(),
+        profileImported: (getProfileSummary() || {}).imported || 0,
         rowTitles: Array.prototype.map.call(document.querySelectorAll('.row__title'), function (n) {
           return n.textContent;
         }),

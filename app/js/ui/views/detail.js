@@ -201,19 +201,36 @@ export function createDetails() {
   }
 
   /** Stream list for the current item (display only in this milestone). */
+  function describeStream(stream) {
+    var label = String(stream.name || stream.title || stream.description || 'stream');
+    var filename =
+      stream.behaviorHints && stream.behaviorHints.filename
+        ? String(stream.behaviorHints.filename)
+        : '';
+    var haystack = label + ' ' + String(stream.description || '') + ' ' + filename;
+    var quality = /(2160p|1080p|720p|480p|\b4k\b|\bhdr\b|\buhd\b)/i.exec(haystack);
+    var language = /\b(hr|sr|bs|sl|en|de|fr|es|it|pl|ru|tr)\b/i.exec(haystack);
+    var parts = [label];
+    if (quality) {
+      parts.push(quality[1].toUpperCase());
+    }
+    if (language) {
+      parts.push(language[1].toUpperCase());
+    }
+    return parts.join(' · ');
+  }
+
   function setStreams(list) {
     while (sources.firstChild) {
       sources.removeChild(sources.firstChild);
     }
     var streams = list || [];
-    var visible = Math.min(streams.length, 4);
+    var visible = Math.min(streams.length, 5);
     sourcesHeading.style.display = visible > 0 ? '' : 'none';
     for (var i = 0; i < visible; i++) {
       var row = document.createElement('div');
       row.className = 'source-row';
-      var label = streams[i].name || streams[i].title || streams[i].description || 'stream';
-      var quality = streams[i].behaviorHints && streams[i].behaviorHints.filename;
-      row.textContent = quality ? label + ' · ' + quality : String(label);
+      row.textContent = describeStream(streams[i] || {});
       sources.appendChild(row);
     }
   }

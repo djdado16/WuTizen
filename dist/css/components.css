@@ -277,6 +277,27 @@
   transform: translate3d(-50%, 0, 0);
 }
 
+/* --- settings / profile import -------------------------------------------- */
+
+.settings__content {
+  top: 44px;
+  width: 1180px;
+}
+
+.settings__title {
+  font-size: 44px;
+}
+
+.settings__summary {
+  margin-top: 10px;
+  font-size: 19px;
+  color: var(--text-dim);
+}
+
+.settings__file {
+  display: none;
+}
+
 /* --- diagnostics + catalog error rows ------------------------------------- */
 
 .row--error .row__error {

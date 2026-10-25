@@ -315,6 +315,20 @@
     "diagnostics.empty": "Nema zabilježenih zahtjeva.",
     "diagnostics.retry": "Ponovi",
     "diagnostics.close": "Zatvori",
+    "settings.title": "Postavke",
+    "settings.importHint": "Uvezite WuPlay profil (JSON). Adresa se pohranjuje samo na ovom televizoru.",
+    "settings.importUrl": "Uvezi s adrese",
+    "settings.importFile": "Odaberi datoteku",
+    "settings.urlPlaceholder": "Adresa profile-data.json",
+    "settings.close": "Zatvori",
+    "settings.noProfile": "Profil još nije uvezen.",
+    "settings.imported": "Uvezeno dodataka:",
+    "settings.skipped": "Preskočeno:",
+    "settings.profiles": "profila",
+    "settings.listItems": "stavki na listama",
+    "settings.invalid": "Neispravna datoteka profila.",
+    "settings.done": "Uvoz završen.",
+    "settings.seeDiagnostics": "Pojedinosti: Dijagnostika",
     "row.error": "Katalog nije dostupan",
     "row.retryHint": "Provjerite vezu i pokušajte ponovno.",
     "addons.add": "Dodaj",
@@ -369,6 +383,20 @@
     "diagnostics.empty": "No requests recorded.",
     "diagnostics.retry": "Retry",
     "diagnostics.close": "Close",
+    "settings.title": "Settings",
+    "settings.importHint": "Import a WuPlay profile (JSON). The address is stored on this TV only.",
+    "settings.importUrl": "Import from address",
+    "settings.importFile": "Choose file",
+    "settings.urlPlaceholder": "profile-data.json address",
+    "settings.close": "Close",
+    "settings.noProfile": "No profile imported yet.",
+    "settings.imported": "Add-ons imported:",
+    "settings.skipped": "Skipped:",
+    "settings.profiles": "profiles",
+    "settings.listItems": "list items",
+    "settings.invalid": "Invalid profile file.",
+    "settings.done": "Import finished.",
+    "settings.seeDiagnostics": "Details: Diagnostics",
     "row.error": "Catalog unavailable",
     "row.retryHint": "Check the connection and try again.",
     "addons.add": "Add",
@@ -1499,19 +1527,32 @@
       renderText();
       renderEpisodes();
     }
+    function describeStream(stream) {
+      var label2 = String(stream.name || stream.title || stream.description || "stream");
+      var filename = stream.behaviorHints && stream.behaviorHints.filename ? String(stream.behaviorHints.filename) : "";
+      var haystack = label2 + " " + String(stream.description || "") + " " + filename;
+      var quality = /(2160p|1080p|720p|480p|\b4k\b|\bhdr\b|\buhd\b)/i.exec(haystack);
+      var language = /\b(hr|sr|bs|sl|en|de|fr|es|it|pl|ru|tr)\b/i.exec(haystack);
+      var parts = [label2];
+      if (quality) {
+        parts.push(quality[1].toUpperCase());
+      }
+      if (language) {
+        parts.push(language[1].toUpperCase());
+      }
+      return parts.join(" · ");
+    }
     function setStreams(list) {
       while (sources.firstChild) {
         sources.removeChild(sources.firstChild);
       }
       var streams = list || [];
-      var visible2 = Math.min(streams.length, 4);
+      var visible2 = Math.min(streams.length, 5);
       sourcesHeading.style.display = visible2 > 0 ? "" : "none";
       for (var i2 = 0; i2 < visible2; i2++) {
         var row = document.createElement("div");
         row.className = "source-row";
-        var label2 = streams[i2].name || streams[i2].title || streams[i2].description || "stream";
-        var quality = streams[i2].behaviorHints && streams[i2].behaviorHints.filename;
-        row.textContent = quality ? label2 + " · " + quality : String(label2);
+        row.textContent = describeStream(streams[i2] || {});
         sources.appendChild(row);
       }
     }
@@ -1556,8 +1597,20 @@
     if (!/^https?:\/\//i.test(url)) {
       return null;
     }
+    var hash = url.indexOf("#");
+    if (hash > -1) {
+      url = url.slice(0, hash);
+    }
+    var query = url.indexOf("?");
+    if (query > -1) {
+      url = url.slice(0, query);
+    }
     url = url.replace(/\/+$/, "");
     url = url.replace(/\/manifest\.json$/i, "");
+    url = url.replace(/\/+$/, "");
+    if (!/^https?:\/\/[^/]+/i.test(url)) {
+      return null;
+    }
     return url;
   }
   function requestJson(url, ctx, done) {
@@ -1693,6 +1746,15 @@
         { host: hostOf(root), resource: "subtitles", type, id },
         cb
       );
+    },
+    /** Arbitrary JSON GET (used by the profile-import-by-URL path). */
+    json: function(url, cb) {
+      var target = String(url || "").trim();
+      if (!/^https?:\/\//i.test(target)) {
+        cb(new Error("invalid url"));
+        return;
+      }
+      requestJson(target, { host: hostOf(target), resource: "import" }, cb);
     }
   };
 
@@ -2075,6 +2137,250 @@
     };
   }
 
+  // app/js/state/profile.js
+  var KEY2 = "profile";
+  function saveProfileSummary(summary) {
+    return setItem(KEY2, summary);
+  }
+  function getProfileSummary() {
+    return getItem(KEY2, null);
+  }
+
+  // app/js/ui/views/settings.js
+  function createSettingsView() {
+    var root = document.createElement("div");
+    root.className = "details settings";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-focus-region", "overlay");
+    var scrim = document.createElement("div");
+    scrim.className = "details__scrim";
+    var content = document.createElement("div");
+    content.className = "details__content settings__content";
+    var title = document.createElement("h1");
+    title.className = "details__title settings__title";
+    var hint = document.createElement("p");
+    hint.className = "details__desc addons__hint";
+    var status = document.createElement("div");
+    status.className = "addons__status";
+    var summary = document.createElement("div");
+    summary.className = "settings__summary";
+    var actions = document.createElement("div");
+    actions.className = "details__actions";
+    var urlInput = document.createElement("input");
+    urlInput.className = "addon-input settings__url";
+    urlInput.setAttribute("type", "text");
+    urlInput.setAttribute("spellcheck", "false");
+    urlInput.setAttribute("placeholder", t("settings.urlPlaceholder"));
+    var fileInput = document.createElement("input");
+    fileInput.setAttribute("type", "file");
+    fileInput.setAttribute("accept", ".json,application/json");
+    fileInput.className = "settings__file";
+    var focusables = [];
+    var handlers = { onImportUrl: null, onImportText: null, onClose: null };
+    function button(label, id, handler) {
+      var el = document.createElement("div");
+      el.className = "btn";
+      el.setAttribute("role", "button");
+      el.setAttribute("tabindex", "-1");
+      el.setAttribute("data-settings-action", id);
+      var span = document.createElement("span");
+      span.textContent = label;
+      el.appendChild(span);
+      el.addEventListener("click", handler);
+      focusables.push({ el, activate: handler });
+      actions.appendChild(el);
+      return el;
+    }
+    content.appendChild(title);
+    content.appendChild(hint);
+    content.appendChild(urlInput);
+    content.appendChild(status);
+    content.appendChild(summary);
+    content.appendChild(actions);
+    content.appendChild(fileInput);
+    root.appendChild(scrim);
+    root.appendChild(content);
+    fileInput.addEventListener("change", function() {
+      var file = fileInput.files && fileInput.files[0];
+      if (!file || !handlers.onImportText) {
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function() {
+        handlers.onImportText(String(reader.result || ""));
+      };
+      reader.readAsText(file);
+      fileInput.value = "";
+    });
+    function render() {
+      focusables = [];
+      actions.innerHTML = "";
+      title.textContent = t("settings.title");
+      hint.textContent = t("settings.importHint");
+      button(t("settings.importUrl"), "import-url", function() {
+        var value = String(urlInput.value || "").trim();
+        if (value && handlers.onImportUrl) {
+          handlers.onImportUrl(value);
+        }
+      });
+      button(t("settings.importFile"), "import-file", function() {
+        try {
+          fileInput.click();
+        } catch (err) {
+        }
+      });
+      button(t("settings.close"), "close", function() {
+        if (handlers.onClose) {
+          handlers.onClose();
+        }
+      });
+      var last = getProfileSummary();
+      if (!last) {
+        summary.textContent = t("settings.noProfile");
+      } else {
+        summary.textContent = t("settings.imported") + " " + last.imported + " · " + t("settings.skipped") + " " + last.skipped + " · " + (last.profiles || []).length + " " + t("settings.profiles") + " · " + last.lists + " " + t("settings.listItems");
+      }
+      focusables.push({ el: urlInput, activate: function() {
+      } });
+    }
+    return {
+      el: root,
+      render,
+      fileInput,
+      setStatus: function(message, isError) {
+        status.textContent = message || "";
+        status.className = "addons__status" + (isError ? " is-error" : "");
+      },
+      focusables: function() {
+        return focusables;
+      },
+      setHandlers: function(next) {
+        handlers.onImportUrl = next.onImportUrl || null;
+        handlers.onImportText = next.onImportText || null;
+        handlers.onClose = next.onClose || null;
+      },
+      isOpen: function() {
+        return root.classList.contains("is-open");
+      }
+    };
+  }
+
+  // app/js/data/profileImport.js
+  var MAX_DEPTH = 6;
+  var MAX_NODES = 5e3;
+  var MAX_ADDONS = 20;
+  var MAX_PROFILES = 8;
+  var ADDON_KEY = /^(transportUrl|transport_url|addonUrl|addon_url|manifestUrl|manifest_url|url|uri|src)$/i;
+  var MEDIA_KEY = /(logo|poster|background|image|avatar|icon|banner)/i;
+  var PROFILE_KEY = /^(profiles?|users?)$/i;
+  var LIST_KEY = /(lists?|watchlist|watchLater|bookmarks|favorites|library|history|continueWatching)/i;
+  function parseProfile(input) {
+    var data = input;
+    if (typeof input === "string") {
+      try {
+        data = JSON.parse(input);
+      } catch (err) {
+        return { ok: false, error: "invalid JSON" };
+      }
+    }
+    if (!data || typeof data !== "object") {
+      return { ok: false, error: "not a profile object" };
+    }
+    var addonUrls = [];
+    var seen = {};
+    var profiles = [];
+    var lists = 0;
+    var nodes = 0;
+    var skippedTooMany = 0;
+    function addAddon2(url) {
+      if (addonUrls.length >= MAX_ADDONS) {
+        skippedTooMany += 1;
+        return;
+      }
+      if (!seen[url]) {
+        seen[url] = true;
+        addonUrls.push(url);
+      }
+    }
+    function addProfile(name) {
+      var clean = String(name).trim().slice(0, 40);
+      if (clean && profiles.indexOf(clean) === -1 && profiles.length < MAX_PROFILES) {
+        profiles.push(clean);
+      }
+    }
+    function walk(node, depth) {
+      if (!node || typeof node !== "object") {
+        return;
+      }
+      if (nodes++ > MAX_NODES || depth > MAX_DEPTH) {
+        return;
+      }
+      if (Object.prototype.toString.call(node) === "[object Array]") {
+        for (var i = 0; i < node.length; i++) {
+          walk(node[i], depth + 1);
+        }
+        return;
+      }
+      for (var key in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, key)) {
+          continue;
+        }
+        var value = node[key];
+        if (typeof value === "string") {
+          var text = value.trim();
+          if (!MEDIA_KEY.test(key) && /^https?:\/\//i.test(text)) {
+            var base = normalizeBase(text);
+            if (base && (ADDON_KEY.test(key) || /\/manifest\.json$/i.test(text))) {
+              addAddon2(base);
+            }
+          }
+        } else if (value && typeof value === "object") {
+          if (Object.prototype.toString.call(value) === "[object Array]") {
+            if (LIST_KEY.test(key)) {
+              lists += value.length;
+            }
+            if (PROFILE_KEY.test(key)) {
+              for (var p = 0; p < value.length; p++) {
+                if (value[p] && (value[p].name || value[p].title)) {
+                  addProfile(value[p].name || value[p].title);
+                }
+              }
+            }
+          } else if (PROFILE_KEY.test(key) && (value.name || value.title)) {
+            addProfile(value.name || value.title);
+          }
+          walk(value, depth + 1);
+        }
+      }
+    }
+    walk(data, 0);
+    return {
+      ok: true,
+      addons: addonUrls,
+      profiles,
+      lists,
+      truncated: skippedTooMany
+    };
+  }
+  function summarizeImport(parsed, imported, skipped) {
+    var hosts = [];
+    for (var i = 0; i < parsed.addons.length; i++) {
+      var match = /^https?:\/\/[^/]+/i.exec(parsed.addons[i]);
+      if (match && hosts.indexOf(match[0]) === -1) {
+        hosts.push(match[0]);
+      }
+    }
+    return {
+      importedAt: Date.now(),
+      addonHosts: hosts,
+      profiles: parsed.profiles,
+      lists: parsed.lists,
+      imported,
+      skipped
+    };
+  }
+
   // app/js/data/catalogs.js
   function normalizeMeta(meta, addonUrl) {
     var source = meta || {};
@@ -2201,6 +2507,8 @@
     appEl.appendChild(addonsView.el);
     var diagnosticsView = createDiagnosticsView();
     appEl.appendChild(diagnosticsView.el);
+    var settingsView = createSettingsView();
+    appEl.appendChild(settingsView.el);
     appEl.appendChild(toast.el);
     function applyScroller() {
       scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
@@ -2361,6 +2669,133 @@
         focusManager.setScope(null);
         var restored = addonsReturnFocus ? focusManager.focus(addonsReturnFocus) : false;
         addonsReturnFocus = null;
+        if (!restored) {
+          focusManager.focusFirst();
+        }
+      }
+    };
+    var settingsReturnFocus = null;
+    var settingsFocusables = [];
+    function unregisterSettings() {
+      for (var i = 0; i < settingsFocusables.length; i++) {
+        focusManager.unregister(settingsFocusables[i]);
+      }
+      settingsFocusables = [];
+    }
+    function registerSettings() {
+      unregisterSettings();
+      var list = settingsView.focusables();
+      for (var i = 0; i < list.length; i++) {
+        settingsFocusables.push(list[i].el);
+        focusManager.register(list[i].el, list[i].activate);
+      }
+    }
+    function openSettings() {
+      settingsReturnFocus = focusManager.getCurrent();
+      router.push(settingsScreen);
+    }
+    function importProfile(input) {
+      return new Promise(function(resolve, reject) {
+        var parsed = parseProfile(input);
+        if (!parsed.ok) {
+          reject(new Error(parsed.error));
+          return;
+        }
+        var urls = parsed.addons.slice(0, 12);
+        var imported = 0;
+        var skipped = Math.max(0, parsed.addons.length - urls.length);
+        var index = 0;
+        function next() {
+          if (index >= urls.length) {
+            saveProfileSummary(summarizeImport(parsed, imported, skipped));
+            loadAddonCatalogs();
+            resolve({
+              imported,
+              skipped,
+              profiles: parsed.profiles.length,
+              lists: parsed.lists
+            });
+            return;
+          }
+          var url = urls[index];
+          index += 1;
+          addAddon(url, function(err) {
+            if (err) {
+              skipped += 1;
+            } else {
+              imported += 1;
+            }
+            next();
+          });
+        }
+        next();
+      });
+    }
+    function runImport(promiseSource) {
+      settingsView.setStatus(t("common.loading"));
+      promiseSource().then(
+        function(result) {
+          settingsView.setStatus(
+            t("settings.done") + " " + result.imported + " / " + (result.imported + result.skipped) + (result.skipped ? " · " + t("settings.seeDiagnostics") : "")
+          );
+          settingsView.render();
+          registerSettings();
+          var list = settingsView.focusables();
+          if (list.length) {
+            focusManager.focus(list[0].el);
+          }
+        },
+        function(err) {
+          settingsView.setStatus(t("settings.invalid") + " · " + err.message, true);
+        }
+      );
+    }
+    settingsView.setHandlers({
+      onImportUrl: function(url) {
+        runImport(function() {
+          return new Promise(function(resolve, reject) {
+            addonClient.json(url, function(err, data) {
+              if (err) {
+                reject(err);
+              } else {
+                resolve(data);
+              }
+            });
+          }).then(function(data) {
+            return importProfile(data);
+          });
+        });
+      },
+      onImportText: function(text) {
+        runImport(function() {
+          return importProfile(text);
+        });
+      },
+      onClose: function() {
+        router.pop();
+      }
+    });
+    var settingsScreen = {
+      name: "settings",
+      show: function() {
+        settingsView.el.classList.add("is-open");
+        settingsView.render();
+        settingsView.setStatus("");
+        focusManager.setScope(settingsView.el);
+        registerSettings();
+        var list = settingsView.focusables();
+        if (list.length) {
+          focusManager.focus(list[0].el);
+        } else {
+          focusManager.focusFirst();
+        }
+      },
+      hide: function() {
+        settingsView.el.classList.remove("is-open");
+        unregisterSettings();
+        focusManager.setScope(null);
+        var restored = settingsReturnFocus ? focusManager.focus(settingsReturnFocus) : false;
+        settingsReturnFocus = null;
         if (!restored) {
           focusManager.focusFirst();
         }
@@ -2580,6 +3015,10 @@
         router.push(addonsScreen);
         return;
       }
+      if (id === "settings") {
+        openSettings();
+        return;
+      }
       if (id === "home") {
         if (shelves.length > 0 && shelves[0].cards.length > 0) {
           focusManager.focus(shelves[0].cards[0].el);
@@ -2730,6 +3169,21 @@
     }
     loadAddonCatalogs();
     window.WuTizenDebug = {
+      profile: {
+        importText: function(text) {
+          return importProfile(text);
+        },
+        summary: function() {
+          return getProfileSummary();
+        }
+      },
+      openSettings: function() {
+        openSettings();
+        return true;
+      },
+      diagnostics: function() {
+        return diagnosticsList();
+      },
       addon: {
         add: function(url) {
           return addAddonAsync(url);
@@ -2795,6 +3249,8 @@
           diagnostics: diagnosticsList().length,
           errorRows: document.querySelectorAll("[data-error-row]").length,
           diagnosticsOpen: diagnosticsView.isOpen(),
+          settingsOpen: settingsView.isOpen(),
+          profileImported: (getProfileSummary() || {}).imported || 0,
           rowTitles: Array.prototype.map.call(document.querySelectorAll(".row__title"), function(n) {
             return n.textContent;
           }),

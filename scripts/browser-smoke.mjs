@@ -603,12 +603,72 @@ try {
     s.rowTitles.join(' | ')
   );
 
+  // ---- WuPlay profile import (sanitized fixture, token sentinel) -----------
+  const fixtureAddonUrl =
+    'http://127.0.0.1:' + ADDON_PORT + '/cfg-SECRET-TOKEN-abc123/manifest.json';
+  const fixture = JSON.stringify({
+    profiles: [{ name: 'Sanitized Profile' }],
+    addons: [
+      { transportUrl: fixtureAddonUrl, name: 'Mock add-on (configured path)' },
+      { transportUrl: 'https://unsupported.invalid/manifest.json?token=SECRET-TOKEN-abc123' }
+    ],
+    watchlist: [{ id: 'tt1' }, { id: 'tt2' }],
+    notes: 'SECRET-TOKEN-abc123'
+  });
+  const imported = await evaluate(
+    client,
+    'window.WuTizenDebug.profile.importText(' + JSON.stringify(fixture) + ')'
+  );
+  check('profile import installs reachable add-ons', imported && imported.imported === 1, JSON.stringify(imported));
+  check('unsupported add-on is skipped', imported && imported.skipped >= 1, String(imported && imported.skipped));
+
+  const storedProfile = await evaluate(client, 'localStorage.getItem("wuplay.profile")');
+  check(
+    'profile summary stores hosts only (no tokens)',
+    String(storedProfile).indexOf('SECRET-TOKEN') === -1 && String(storedProfile).indexOf('addonHosts') > -1,
+    String(storedProfile).slice(0, 60)
+  );
+
+  // Configured add-ons keep their configuration path in the ADD-ON store (needed
+  // for requests), while the redacted surfaces must not contain it.
+  const storedAddons = await evaluate(client, 'localStorage.getItem("wuplay.addons")');
+  check(
+    'configured add-on URL keeps its config path in the add-on store',
+    String(storedAddons).indexOf('/cfg-SECRET-TOKEN-abc123') > -1,
+    String(storedAddons).slice(0, 48)
+  );
+  const diagDump = await evaluate(client, 'JSON.stringify(window.WuTizenDebug.diagnostics())');
+  check(
+    'diagnostics never expose the config path',
+    String(diagDump).indexOf('cfg-SECRET') === -1 && String(diagDump).indexOf('127.0.0.1') > -1,
+    String(diagDump).slice(0, 56)
+  );
+
+  await waitFor(client, 'document.querySelectorAll(".row").length > 3', 8000);
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  await waitFor(client, 'document.querySelectorAll(".source-row").length > 0', 8000);
+  const streamText = await evaluate(
+    client,
+    'Array.prototype.map.call(document.querySelectorAll(".source-row"), function (n) { return n.textContent; }).join(" | ")'
+  );
+  check('stream list shows quality labels', /1080P/i.test(streamText), String(streamText).slice(0, 70));
+  await press(client, 'Unidentified', 10009);
+
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  check(
+    'settings screen opens with import actions',
+    (await evaluate(client, 'window.WuTizenDebug.snapshot().settingsOpen')) === true
+  );
+  await press(client, 'Unidentified', 10009);
+  s = await snapshot();
+  check('BACK closes settings', s.settingsOpen === false, String(s.settingsOpen));
+
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
 
   // ---- persistence across a reload (last: a reload resets console logs) ---
-  await evaluate(client, 'window.WuTizenDebug.addon.add(' + JSON.stringify('http://127.0.0.1:' + ADDON_PORT) + ')');
   await client.send('Page.reload');
   let restoredRows = 0;
   for (let i = 0; i < 80 && !restoredRows; i++) {
@@ -623,6 +683,19 @@ try {
     }
   }
   check('add-on survives a page reload', restoredRows > 0, restoredRows ? restoredRows + ' rows' : 'not restored');
+
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  const restoredSources = await waitFor(
+    client,
+    'document.querySelectorAll(".source-row").length > 0 ? document.querySelectorAll(".source-row").length : 0',
+    8000
+  );
+  check(
+    'manifest, catalog and stream resources work after restart',
+    !!restoredSources,
+    restoredSources ? restoredSources + ' sources' : 'none'
+  );
 
   const failedChecks = results.filter((r) => !r.ok);
   console.log('');

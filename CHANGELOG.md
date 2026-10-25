@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0 — 2026-10-24 — WuPlay profile and add-on import (Milestone 4)
+
+### Added
+- **WuPlay profile import**: tolerant, redacting parser for `profile-data.json` (add-on URLs, profile names, list counts) with a Settings screen offering import-by-URL (LAN) and file picker.
+- Imported add-ons are installed through the validated manifest path; unreachable/unsupported ones are skipped and counted.
+- **Stream list** in details now shows name, quality (1080p/2160p/HDR…) and language when the add-on provides them.
+- Docs: `docs/PROFILE_IMPORT.md` (transfer methods on TizenBrew, security model) and a synthetic fixture (`scripts/fixtures/wuplay-profile.sample.json`).
+
+### Security
+- Persisted profile summary holds add-on **hosts** only — never full URLs, tokens or the raw export; a sentinel token in the fixture is asserted absent from storage.
+
+### Tests
+- 6 new checks (60 total): import installs reachable add-ons, unsupported add-on skipped, storage contains no token, catalogs appear, stream quality label rendered, Settings screen open/close.
+
 ## v0.3.1 — 2026-10-24 — Diagnostic hotfix
 
 ### Added

@@ -70,7 +70,11 @@ const MANIFEST = {
 
 export function startMockAddon(port) {
   const server = createServer((req, res) => {
-    const url = (req.url || '/').split('?')[0];
+    let url = (req.url || '/').split('?')[0];
+    // Configured add-ons carry their configuration in the path: strip a
+    // "/cfg-<token>" prefix so the same fixtures serve them.
+    const stripped = url.replace(/^\/cfg-[^/]+/, '');
+    url = stripped || '/';
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
 

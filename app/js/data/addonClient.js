@@ -45,8 +45,23 @@ export function normalizeBase(input) {
   if (!/^https?:\/\//i.test(url)) {
     return null; // HTTP(S) transport only
   }
+  var hash = url.indexOf('#');
+  if (hash > -1) {
+    url = url.slice(0, hash);
+  }
+  // Configured add-ons put their configuration in the PATH (/<config>/manifest.json),
+  // which is preserved. A query string is not part of the Stremio base and would
+  // corrupt resource URLs ("…/manifest.json?k=v/catalog/…"), so it is dropped.
+  var query = url.indexOf('?');
+  if (query > -1) {
+    url = url.slice(0, query);
+  }
   url = url.replace(/\/+$/, '');
   url = url.replace(/\/manifest\.json$/i, '');
+  url = url.replace(/\/+$/, '');
+  if (!/^https?:\/\/[^/]+/i.test(url)) {
+    return null;
+  }
   return url;
 }
 
@@ -192,5 +207,15 @@ export var addonClient = {
       { host: hostOf(root), resource: 'subtitles', type: type, id: id },
       cb
     );
+  },
+
+  /** Arbitrary JSON GET (used by the profile-import-by-URL path). */
+  json: function (url, cb) {
+    var target = String(url || '').trim();
+    if (!/^https?:\/\//i.test(target)) {
+      cb(new Error('invalid url'));
+      return;
+    }
+    requestJson(target, { host: hostOf(target), resource: 'import' }, cb);
   }
 };

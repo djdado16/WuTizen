@@ -55,7 +55,7 @@ WuTizen will only use locally-entered keys or add-on-provided metadata.
 | Feature | Evidence | Status |
 |---|---|---|
 | Multiple profiles with per-profile settings | README "Profiles — multiple profiles with per-profile settings" | planned |
-| WuPlay JSON profile import | Configurator export (user-owned file) | planned (read-only, local, redacted) |
+| WuPlay JSON profile import | Configurator export (user-owned file) | **partial** — add-ons imported, redacted, host-only summary (PROFILE_IMPORT.md) |
 | Watchlists, history, continue watching, resume | README "Watchlists", "Watch history & progress tracking" | planned ("Continue watching" exists as placeholder row) |
 | Multi-device sync | README "Multi-device sync … Android TV devices" | **blocked** — no public API (WUPLAY_API_RESEARCH.md) |
 | Trakt / Simkl scrobbling | CHANGELOG "Episodes watched on Trakt or Simkl…", issue #104 | planned (public OAuth APIs, opt-in) |
@@ -65,7 +65,7 @@ WuTizen will only use locally-entered keys or add-on-provided metadata.
 
 | Feature | Evidence | Status |
 |---|---|---|
-| Stream picker with add-on filters | CHANGELOG "Stream picker: pressing right on an addon filter…" | partial (sources listed) |
+| Stream picker with add-on filters | CHANGELOG "Stream picker: pressing right on an addon filter…" | **partial** (sources listed with quality/language labels) |
 | Preferred audio/subtitle languages, Clean SDH | CHANGELOG "preferred languages, Clean SDH, subtitles only for foreign audio" | planned |
 | Subtitle styling | CHANGELOG "Subtitle Style panes" | planned |
 | Dolby Digital conversion / audio fallback | CHANGELOG "Dolby Digital Conversion", "falls back to standard audio" | planned (AVPlay only) |
