@@ -23,6 +23,22 @@ export function normalizeMeta(meta, addonUrl) {
     genres = String(source.genre);
   }
   var poster = source.poster ? String(source.poster) : '';
+  var videos = [];
+  if (source.videos && source.videos.length) {
+    for (var v = 0; v < source.videos.length && v < 60; v++) {
+      var video = source.videos[v] || {};
+      if (!video.id) {
+        continue;
+      }
+      videos.push({
+        id: String(video.id),
+        season: parseInt(video.season, 10) || 0,
+        episode: parseInt(video.episode, 10) || 0,
+        name: String(video.name || video.title || ''),
+        thumbnail: video.thumbnail ? String(video.thumbnail) : ''
+      });
+    }
+  }
   return {
     id: String(source.id || title),
     mock: false,
@@ -36,7 +52,8 @@ export function normalizeMeta(meta, addonUrl) {
     description: { hr: String(source.description || ''), en: String(source.description || '') },
     cast: source.cast && source.cast.length ? source.cast.slice(0, 3) : [],
     poster: poster,
-    image: source.background ? String(source.background) : poster
+    image: source.background ? String(source.background) : poster,
+    videos: videos
   };
 }
 

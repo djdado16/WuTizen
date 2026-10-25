@@ -71,6 +71,33 @@ export default {
 
   'unit.min': 'min',
 
+  'player.loading': 'Priprema reprodukcije…',
+  'player.hint': 'OK: pauza · ←/→: 10 s · BACK: izlaz',
+  'player.ended': 'Kraj reprodukcije.',
+  'player.torrent':
+    'Torrent izvori nisu podržani. Potreban je dodatak koji daje HTTP vezu (npr. TorBox ili Emby Bridge).',
+  'player.notWebReady': 'Ovaj izvor traži vanjski player i nije podržan.',
+  'player.external': 'Ovaj izvor se otvara u drugoj aplikaciji i nije podržan.',
+  'player.unsupported': 'Format nije podržan na ovom televizoru.',
+  'player.codec': 'Kodek nije podržan (npr. HEVC ili DTS). Pokušajte drugi izvor.',
+  'player.network': 'Veza s izvorom je prekinuta.',
+  'player.expired': 'Veza je istekla ili je izvor uklonjen. Osvježite popis izvora.',
+  'player.timeout': 'Izvor nije odgovorio na vrijeme.',
+  'player.noSources': 'Nema dostupnih izvora za ovu stavku.',
+  'player.titleFallback': 'Reprodukcija',
+  'player.backendAvplay': 'AVPlay',
+  'player.backendHtml5': 'HTML5',
+
+  'import.auth': 'traži autorizaciju',
+  'import.notFound': 'nije pronađen',
+  'import.server': 'greška poslužitelja',
+  'import.timeout': 'isteklo vrijeme',
+  'import.notAddon': 'nije Stremio dodatak',
+  'import.invalidUrl': 'neispravna adresa',
+  'import.unreachable': 'nedostupan',
+
+  'details.mockEpisode': 'Demo epizoda nema stvarni izvor.',
+
   'common.wip': 'Ova značajka još nije implementirana.',
   'common.loading': 'Učitavanje…',
   'common.media': 'Reprodukcija nije dio ovog milestona.',

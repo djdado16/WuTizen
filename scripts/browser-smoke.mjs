@@ -260,6 +260,8 @@ try {
       '--hide-scrollbars',
       '--force-device-scale-factor=1',
       '--window-size=1920,1080',
+      // HTML5 playback tests drive the real media stack without a user gesture.
+      '--autoplay-policy=no-user-gesture-required',
       'about:blank'
     ],
     { stdio: 'ignore' }
@@ -523,7 +525,7 @@ try {
   await waitFor(client, 'document.querySelectorAll(".source-row").length > 0', 8000);
   s = await snapshot();
   check('details fetch full meta from the add-on', s.detailsTitle === 'Mock Film 1 (Full)', s.detailsTitle);
-  check('stream resource rendered as sources', s.sources === 2, String(s.sources));
+  check('stream resource rendered as sources', s.sources === 3, String(s.sources));
   await press(client, 'Unidentified', 10009);
   s = await snapshot();
   check('BACK closes add-on details', s.detailsOpen === false, s.screen);
@@ -736,6 +738,302 @@ try {
 
   await press(client, 'Unidentified', 10009);
   check('BACK closes Settings after the keyboard flow', (await snapshot()).settingsOpen === false);
+
+  /* ---- Milestone 5: playback -------------------------------------------- */
+  const playerState = () => evaluate(client, 'window.WuTizenDebug.player.state()');
+  const sampleUrl = 'http://127.0.0.1:' + ADDON_PORT + '/media/sample.wav';
+
+  // End-to-end: details → Play → real HTML5 playback of the served sample.
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  await waitFor(client, 'document.querySelectorAll(".source-row").length', 8000);
+  await press(client, 'Enter', 13); // Play (primary action, already focused)
+  const firstPlay = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status==="playing"&&s.position>0?s:0;})()',
+    15000
+  );
+  check(
+    'Play starts real playback (HTML5 engine)',
+    !!firstPlay,
+    firstPlay ? firstPlay.backend + ' @' + firstPlay.position + 'ms' : 'no playback'
+  );
+  check(
+    'duration and progress are tracked',
+    !!firstPlay && firstPlay.duration > 2000 && firstPlay.position > 0,
+    firstPlay ? firstPlay.duration + 'ms' : ''
+  );
+  check(
+    'progress bar reflects the position',
+    (await evaluate(client, 'parseFloat(document.querySelector(".player__played").style.width)')) > 0
+  );
+
+  await press(client, 'Enter', 13); // OK = pause
+  const paused = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status==="paused"?s:0;})()',
+    4000
+  );
+  check('OK pauses playback', !!paused, paused ? 'paused' : 'still playing');
+  await press(client, 'Enter', 13); // OK = resume
+  const resumed = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status==="playing"?s:0;})()',
+    4000
+  );
+  check('OK resumes playback', !!resumed, resumed ? 'playing' : 'not resumed');
+
+  const beforeSeek = (await playerState()).position;
+  await press(client, 'ArrowRight', 39); // +10 s
+  const afterSeek = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.position>' +
+      (beforeSeek + 5000) +
+      '?s.position:0;})()',
+    10000
+  );
+  check('RIGHT seeks forward', !!afterSeek, beforeSeek + ' -> ' + afterSeek);
+  await press(client, 'ArrowLeft', 37); // -10 s
+  const backSeek = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status!=="error"&&s.position<5000?s.position:0;})()',
+    10000
+  );
+  check('LEFT seeks back', !!backSeek, String(backSeek));
+
+  await press(client, 'Unidentified', 10009); // BACK closes the player only
+  const afterBack = await snapshot();
+  check('BACK closes the player', (await playerState()).open === false);
+  check('details is still open after leaving the player', afterBack.detailsOpen === true, afterBack.screen);
+  check(
+    'closing the player releases the media element',
+    (await evaluate(client, 'document.querySelector(".player__video").getAttribute("src")')) === null &&
+      (await evaluate(client, 'document.querySelector(".player").className')).indexOf('is-open') === -1
+  );
+  check('remote focus is restored in details', afterBack.focusedZone === 'overlay', afterBack.focusedZone);
+  await press(client, 'Unidentified', 10009); // close details
+
+  // Torrent / magnet streams: explained, never attempted, no direct torrent playback.
+  const torrent = await evaluate(
+    client,
+    'window.WuTizenDebug.player.open({ name: "TorBox 1080p", infoHash: "deadbeefdeadbeef", fileIdx: 0 })'
+  );
+  check(
+    'torrent (infoHash) source is refused with a reason',
+    torrent.open === true && torrent.error === 'torrent',
+    JSON.stringify(torrent).slice(0, 70)
+  );
+  check(
+    'a refused source never loads a media URL',
+    (await evaluate(client, 'document.querySelector(".player__video").getAttribute("src")')) === null
+  );
+  check(
+    'the refusal is explained on screen',
+    (await evaluate(client, 'document.querySelector(".player__error").className')).indexOf('is-visible') > -1
+  );
+  const magnet = await evaluate(client, 'window.WuTizenDebug.player.open({ url: "magnet:?xt=urn:btih:abc" })');
+  check('magnet links are refused too', magnet.error === 'torrent', magnet.error);
+  const external = await evaluate(
+    client,
+    'window.WuTizenDebug.player.open({ externalUrl: "https://example.invalid/watch" })'
+  );
+  check('external-app streams are refused', external.error === 'external', external.error);
+  await evaluate(client, 'window.WuTizenDebug.player.close()');
+
+  // Broken/expired URL: the engine error is mapped to a readable message.
+  await evaluate(
+    client,
+    'window.WuTizenDebug.player.open({ url: ' +
+      JSON.stringify('http://127.0.0.1:' + ADDON_PORT + '/media/missing.mp4') +
+      ' })'
+  );
+  const broken = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status==="error"?s:0;})()',
+    15000
+  );
+  check('a broken/expired source ends in a clear error state', !!broken && !!broken.error, broken ? broken.error : 'no error');
+  await press(client, 'Unidentified', 10009); // BACK still works from the error
+  check('BACK closes the error state', (await playerState()).open === false);
+
+  /* ---- Milestone 5: AVPlay engine selection (stubbed Samsung API) --------
+     The real webapis.avplay only exists on the TV, so the adapter is driven with
+     a stub that records the calls it receives. The code under test is the real
+     adapter in playback/player.js. */
+  await evaluate(
+    client,
+    '(function(){window.__avplayCalls=[];var api={' +
+      'open:function(u){window.__avplayCalls.push("open");},' +
+      'setDisplayRect:function(){window.__avplayCalls.push("rect");},' +
+      'setListener:function(l){window.__avplayListener=l;},' +
+      'prepareAsync:function(ok){window.__avplayCalls.push("prepare");setTimeout(function(){ok();if(window.__avplayListener.onplaying){window.__avplayListener.onplaying();}},10);},' +
+      'play:function(){window.__avplayCalls.push("play");},' +
+      'pause:function(){window.__avplayCalls.push("pause");},' +
+      'seekTo:function(ms){window.__avplayCalls.push("seek");},' +
+      'stop:function(){window.__avplayCalls.push("stop");},' +
+      'close:function(){window.__avplayCalls.push("close");},' +
+      'getDuration:function(){return 60000;},' +
+      'getCurrentTime:function(){return 15000;},' +
+      'getBufferedAmount:function(){return 50;}};' +
+      'window.webapis=window.webapis||{};window.webapis.avplay=api;return true;})()'
+  );
+  const av = await evaluate(
+    client,
+    'window.WuTizenDebug.player.open({ url: ' + JSON.stringify(sampleUrl) + ' })'
+  );
+  check('AVPlay is selected when the shell exposes it', av.backend === 'avplay', av.backend);
+  const avPlaying = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.status==="playing"&&s.position>=14000&&s.duration>10000?s:0;})()',
+    6000
+  );
+  check('AVPlay adapter opens, prepares and plays', !!avPlaying, avPlaying ? avPlaying.status : 'not playing');
+  check(
+    'AVPlay receives open/rect/prepare/play',
+    (await evaluate(client, 'window.__avplayCalls.join(",")')).indexOf('open,rect,prepare,play') === 0,
+    String(await evaluate(client, 'window.__avplayCalls.join(",")')).slice(0, 40)
+  );
+  check(
+    'AVPlay position/duration come from the native getters',
+    !!avPlaying && avPlaying.position >= 14000 && avPlaying.duration === 60000,
+    avPlaying ? avPlaying.position + '/' + avPlaying.duration : ''
+  );
+  check(
+    'the native video plane is composited (is-avplay)',
+    (await evaluate(client, 'document.documentElement.className')).indexOf('is-avplay') > -1
+  );
+  await evaluate(client, 'window.WuTizenDebug.player.close()');
+  check(
+    'closing AVPlay stops and releases the native player',
+    (await evaluate(client, 'window.__avplayCalls.join(",")')).indexOf('stop,close') > -1 &&
+      (await evaluate(client, 'document.documentElement.className')).indexOf('is-avplay') === -1
+  );
+  await evaluate(client, '(function(){delete window.webapis;delete window.avplay;return true;})()');
+
+  /* ---- Milestone 5: add-on compatibility (stream-only / subtitle-only) ---- */
+  const streamOnly = await evaluate(
+    client,
+    'window.WuTizenDebug.addon.add(' +
+      JSON.stringify('http://127.0.0.1:' + ADDON_PORT + '/streamonly/manifest.json') +
+      ')'
+  );
+  check('stream-only add-on (no catalogs) installs', streamOnly.added === true, JSON.stringify(streamOnly).slice(0, 60));
+  const subOnly = await evaluate(
+    client,
+    'window.WuTizenDebug.addon.add(' +
+      JSON.stringify('http://127.0.0.1:' + ADDON_PORT + '/subonly/manifest.json') +
+      ')'
+  );
+  check('subtitle-only add-on with object-form resources installs', subOnly.added === true);
+  const capabilityDump = await evaluate(
+    client,
+    'JSON.stringify(window.WuTizenDebug.addon.list().map(function (a) { return { r: a.resources, c: (a.catalogs || []).length }; }))'
+  );
+  check(
+    'capabilities are recorded for catalog-less add-ons',
+    capabilityDump.indexOf('subtitles') > -1 && /"stream"/.test(capabilityDump) && /"c":0/.test(capabilityDump),
+    capabilityDump.slice(0, 70)
+  );
+
+  const stremioMapped = await evaluate(
+    client,
+    'window.WuTizenDebug.addon.add(' +
+      JSON.stringify('stremio:http://127.0.0.1:' + ADDON_PORT + '/manifest.json') +
+      ')'
+  );
+  check(
+    'Stremio-scheme add-on addresses are mapped and recognised',
+    stremioMapped.addon && stremioMapped.addon.url === 'http://127.0.0.1:' + ADDON_PORT,
+    JSON.stringify(stremioMapped).slice(0, 60)
+  );
+
+  /* ---- Milestone 5: import diagnostics (host + reason, no paths) -------- */
+  const brokenFixture = JSON.stringify({
+    profiles: [{ name: 'Broken Profile' }],
+    addons: [
+      { transportUrl: 'http://127.0.0.1:' + ADDON_PORT + '/missing/manifest.json' },
+      { transportUrl: 'http://127.0.0.1:' + ADDON_PORT + '/bad/manifest.json' },
+      { transportUrl: 'http://127.0.0.1:' + ADDON_PORT + '/streamonly/manifest.json' }
+    ]
+  });
+  const brokenImport = await evaluate(
+    client,
+    'window.WuTizenDebug.profile.importText(' + JSON.stringify(brokenFixture) + ')'
+  );
+  check(
+    'skipped add-ons report host + reason',
+    brokenImport.skipped === 2 && (brokenImport.failures || []).length === 2,
+    JSON.stringify(brokenImport.failures || []).slice(0, 80)
+  );
+  check(
+    'the reason identifies the failure',
+    /notFound/.test(JSON.stringify(brokenImport.failures)) &&
+      /notAddon/.test(JSON.stringify(brokenImport.failures)),
+    JSON.stringify(brokenImport.failures || []).slice(0, 60)
+  );
+  const storedSummary = String(await evaluate(client, 'localStorage.getItem("wuplay.profile")'));
+  check(
+    'stored diagnostics keep no paths, tokens or URLs',
+    storedSummary.indexOf('/missing') === -1 &&
+      storedSummary.indexOf('/bad') === -1 &&
+      storedSummary.indexOf('SECRET') === -1 &&
+      storedSummary.indexOf('failures') > -1
+  );
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  const failureRows = await evaluate(client, 'document.querySelectorAll(".settings__failure").length');
+  check('Settings lists skipped add-ons', failureRows > 0, String(failureRows));
+  await press(client, 'Unidentified', 10009);
+
+  /* ---- Milestone 5: episode playback + stream selection ------------------ */
+  // Rows are re-rendered asynchronously after an import, so wait for a stable
+  // card and walk down to the series catalog explicitly.
+  await waitFor(client, 'document.querySelectorAll(".card").length > 0', 10000);
+  let seriesRow = -1;
+  for (let attempt = 0; attempt < 8 && seriesRow < 0; attempt++) {
+    await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+    await sleep(150);
+    seriesRow = await evaluate(
+      client,
+      '(function(){var t=window.WuTizenDebug.snapshot().rowTitles||[];for(var i=0;i<t.length;i++){if(/Shows/i.test(t[i]))return i;}return -1;})()'
+    );
+  }
+  check('a series catalog row is available', seriesRow >= 0, String(seriesRow));
+  for (let down = 0; down < seriesRow; down++) {
+    await press(client, 'ArrowDown', 40);
+  }
+  await press(client, 'Enter', 13);
+  const episodeId = await waitFor(
+    client,
+    '(function(){var e=document.querySelector(".ep[data-episode-id]");return e&&e.getAttribute("data-episode-id")?e.getAttribute("data-episode-id"):0;})()',
+    10000
+  );
+  check('series details render real episodes from the add-on', /^show-1:1:1$/.test(String(episodeId)), String(episodeId));
+  await press(client, 'ArrowDown', 40); // Play -> episode cards
+  check(
+    'episode cards are reachable with the remote',
+    (await evaluate(client, 'document.querySelectorAll(".ep.is-focused").length')) === 1
+  );
+  await press(client, 'Enter', 13); // select the episode
+  const episodeSources = await waitFor(client, 'document.querySelectorAll(".source-row").length', 8000);
+  check('selecting an episode loads its sources', !!episodeSources, episodeSources ? episodeSources + ' sources' : 'none');
+  const episodeRequest = await evaluate(
+    client,
+    'JSON.stringify(window.WuTizenDebug.diagnostics().filter(function (d) { return d.id === "show-1:1:1"; }))'
+  );
+  check('sources were requested for the episode id', String(episodeRequest).indexOf('"stream"') > -1, String(episodeRequest).slice(0, 70));
+  check(
+    'the selected episode is reflected in the focus order',
+    (await evaluate(client, 'document.querySelectorAll(".source-row.is-focused").length')) === 1
+  );
+  await press(client, 'Enter', 13); // play the episode's first source
+  const episodePlay = await waitFor(
+    client,
+    '(function(){var s=window.WuTizenDebug.player.state();return s.open&&s.status==="playing"?s:0;})()',
+    15000
+  );
+  check('episode playback starts', !!episodePlay, episodePlay ? episodePlay.status : 'no playback');
+  await press(client, 'Unidentified', 10009); // close player
+  await press(client, 'Unidentified', 10009); // close details
 
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));

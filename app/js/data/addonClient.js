@@ -29,6 +29,43 @@ function hostOf(url) {
   return match ? match[0] : '(no host)';
 }
 
+/** Reason code for a failed manifest request (host-safe, no URL). */
+function reasonOfError(err) {
+  var message = String((err && err.message) || '');
+  if (message === 'timeout') {
+    return 'timeout';
+  }
+  var http = /^HTTP (\d{3})/.exec(message);
+  if (http) {
+    var status = parseInt(http[1], 10);
+    if (status === 401 || status === 403) {
+      return 'auth';
+    }
+    if (status === 404) {
+      return 'notFound';
+    }
+    return status >= 500 ? 'server' : 'http';
+  }
+  if (/invalid JSON/i.test(message)) {
+    return 'notAddon';
+  }
+  if (/not a Stremio add-on/i.test(message)) {
+    return 'notAddon';
+  }
+  if (/invalid add-on url/i.test(message)) {
+    return 'invalidUrl';
+  }
+  return 'unreachable';
+}
+
+/**
+ * Host-only description of why an add-on was skipped. Used by the import
+ * summary and Settings; never contains the URL, its path or its query string.
+ */
+export function describeFailure(url, err) {
+  return { host: hostOf(url), reason: (err && err.reason) || reasonOfError(err) };
+}
+
 function record(entry) {
   entry.when = Date.now();
   log.push(entry);
@@ -42,8 +79,15 @@ export function normalizeBase(input) {
   if (!url) {
     return null;
   }
+  // WuPlay/Stremio exports carry the base address both with the Stremio scheme
+  // prefix and with `https`. Both mean HTTPS to the same host.
+  if (/^stremio:https?:\/\//i.test(url)) {
+    url = url.replace(/^stremio:/i, '');
+  } else if (/^stremio:\/\//i.test(url)) {
+    url = url.replace(/^stremio:\/\//i, 'https://');
+  }
   if (!/^https?:\/\//i.test(url)) {
-    return null; // HTTP(S) transport only
+    return null; // HTTP(S) transport only (ipfs:// and friends are not fetchable)
   }
   var hash = url.indexOf('#');
   if (hash > -1) {

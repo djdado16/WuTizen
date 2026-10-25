@@ -71,6 +71,33 @@ export default {
 
   'unit.min': 'min',
 
+  'player.loading': 'Preparing playback…',
+  'player.hint': 'OK: pause · ←/→: 10 s · BACK: exit',
+  'player.ended': 'Playback finished.',
+  'player.torrent':
+    'Torrent sources are not supported. An add-on that returns an HTTP link is required (e.g. TorBox or Emby Bridge).',
+  'player.notWebReady': 'This source needs an external player and is not supported.',
+  'player.external': 'This source opens in another app and is not supported.',
+  'player.unsupported': 'This format is not supported on this TV.',
+  'player.codec': 'Unsupported codec (e.g. HEVC or DTS). Try another source.',
+  'player.network': 'The connection to the source dropped.',
+  'player.expired': 'The link expired or the source was removed. Refresh the source list.',
+  'player.timeout': 'The source did not respond in time.',
+  'player.noSources': 'No sources available for this item.',
+  'player.titleFallback': 'Playback',
+  'player.backendAvplay': 'AVPlay',
+  'player.backendHtml5': 'HTML5',
+
+  'import.auth': 'requires authorisation',
+  'import.notFound': 'not found',
+  'import.server': 'server error',
+  'import.timeout': 'timed out',
+  'import.notAddon': 'not a Stremio add-on',
+  'import.invalidUrl': 'invalid address',
+  'import.unreachable': 'unreachable',
+
+  'details.mockEpisode': 'Demo episodes have no real source.',
+
   'common.wip': 'This feature is not implemented yet.',
   'common.loading': 'Loading…',
   'common.media': 'Playback is not part of this milestone.',

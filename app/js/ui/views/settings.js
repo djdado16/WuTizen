@@ -10,6 +10,29 @@ import { t } from '../../i18n/index.js';
 import { getProfileSummary } from '../../state/profile.js';
 
 export function createSettingsView() {
+  /** Short label for an import failure reason (all keys are literal). */
+  function reasonLabel(reason) {
+    if (reason === 'auth') {
+      return t('import.auth');
+    }
+    if (reason === 'notFound') {
+      return t('import.notFound');
+    }
+    if (reason === 'server') {
+      return t('import.server');
+    }
+    if (reason === 'timeout') {
+      return t('import.timeout');
+    }
+    if (reason === 'notAddon' || reason === 'manifest') {
+      return t('import.notAddon');
+    }
+    if (reason === 'invalidUrl') {
+      return t('import.invalidUrl');
+    }
+    return t('import.unreachable');
+  }
+
   var root = document.createElement('div');
   root.className = 'details settings';
   root.setAttribute('role', 'dialog');
@@ -142,6 +165,20 @@ export function createSettingsView() {
         last.lists +
         ' ' +
         t('settings.listItems');
+      // Skipped add-ons, host + reason only (never the configured path/token).
+      var failures = last.failures || [];
+      if (failures.length) {
+        var list = document.createElement('div');
+        list.className = 'settings__failures';
+        for (var i = 0; i < failures.length; i++) {
+          var line = document.createElement('div');
+          line.className = 'settings__failure';
+          line.textContent =
+            failures[i].host + ' · ' + reasonLabel(failures[i].reason);
+          list.appendChild(line);
+        }
+        summary.appendChild(list);
+      }
     }
 
     focusables.push({

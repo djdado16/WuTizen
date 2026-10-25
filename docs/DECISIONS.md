@@ -154,3 +154,34 @@ character closed the whole Settings screen.
 **Consequences:** the remote never gets "stuck" on a text field; 16 new smoke
 checks pin the chain (total 79). The same handling applies to the custom-URL
 field in Add-ons, where *Done* moves to that row's Add action.
+
+## D17 — Playback engines: AVPlay first, HTML5 always (Milestone 5)
+**Context:** Milestone 5 must play what Stremio add-ons return, on a Q60R
+(Tizen 5.0, Chromium M63) inside TizenBrew, without pretending to support
+torrents.
+**Decision:**
+- **Two engines, one player API.** `platform.canUseAvPlay()` requires
+  `webapis.avplay` *and* a top-level document, because the AVPlay video plane is
+  composited *below* the page and cannot be shown from inside a host iframe. When
+  it is available the page switches to a transparent stage (`html.is-avplay`) and
+  hides the app UI; otherwise the player runs `<video>`.
+- **Order is AVPlay → HTML5**, and a failed AVPlay open/prepare falls through to
+  HTML5 automatically. The active engine is printed in the HUD so a device report
+  never has to guess which pipeline ran.
+- **DASH is AVPlay-only.** M63 `<video>` has no DASH support and shipping dash.js
+  would cost more than the feature is worth right now; documented instead.
+- **Streams are classified before anything is fetched** (`playback/sources.js`):
+  HTTP URLs by extension/hint (m3u8/mpd/progressive/auto), torrent metadata and
+  magnets as `torrent`, `externalUrl`/`ytId` as `external`. Refusals still open
+  the player — with the reason on screen — because a silent no-op looks like a
+  bug on the TV.
+- **Errors are typed, not raw.** Media errors map to `network` / `codec` /
+  `expired` / `unsupported`, plus `timeout` for a stalled open; `expired`
+  deliberately covers 403/404 signed links, since that is what they look like.
+- **Nothing is logged that identifies a stream**: only the classified type or the
+  refusal reason is logged.
+**Consequences:** 38 new smoke checks (117 total) drive the real HTML5 engine with
+a served 20 s WAV sample (play/pause/seek/progress/ended), exercise the AVPlay
+adapter against a stub of Samsung's API, and cover episode selection, torrent
+refusal and cleanup. Remaining device limits (subtitles, resume, DASH without
+AVPlay) are listed in `docs/PLAYBACK.md` rather than implied to work.

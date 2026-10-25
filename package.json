@@ -1,6 +1,6 @@
 {
   "name": "wutizen",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "description": "WuTizen — WuPlay-inspired Samsung Tizen TV client (Tizen 5.0 / Chromium M63)",
   "author": "djdado16",

@@ -18,12 +18,15 @@
     461: "back",
     10009: "back",
     10182: "exit",
-    415: "media",
-    19: "media",
-    10252: "media",
-    417: "media",
-    412: "media"
+    415: "media-play",
+    19: "media-pause",
+    10252: "media-toggle",
+    417: "media-ff",
+    412: "media-rew"
   };
+  function isMediaAction(action) {
+    return typeof action === "string" && action.indexOf("media-") === 0;
+  }
   var NAME_TO_ACTION = {
     ArrowLeft: "left",
     ArrowUp: "up",
@@ -343,6 +346,29 @@
     "addons.unreachable": "Dodatak nije dostupan.",
     "addons.invalid": "Neispravna adresa dodatka.",
     "unit.min": "min",
+    "player.loading": "Priprema reprodukcije…",
+    "player.hint": "OK: pauza · ←/→: 10 s · BACK: izlaz",
+    "player.ended": "Kraj reprodukcije.",
+    "player.torrent": "Torrent izvori nisu podržani. Potreban je dodatak koji daje HTTP vezu (npr. TorBox ili Emby Bridge).",
+    "player.notWebReady": "Ovaj izvor traži vanjski player i nije podržan.",
+    "player.external": "Ovaj izvor se otvara u drugoj aplikaciji i nije podržan.",
+    "player.unsupported": "Format nije podržan na ovom televizoru.",
+    "player.codec": "Kodek nije podržan (npr. HEVC ili DTS). Pokušajte drugi izvor.",
+    "player.network": "Veza s izvorom je prekinuta.",
+    "player.expired": "Veza je istekla ili je izvor uklonjen. Osvježite popis izvora.",
+    "player.timeout": "Izvor nije odgovorio na vrijeme.",
+    "player.noSources": "Nema dostupnih izvora za ovu stavku.",
+    "player.titleFallback": "Reprodukcija",
+    "player.backendAvplay": "AVPlay",
+    "player.backendHtml5": "HTML5",
+    "import.auth": "traži autorizaciju",
+    "import.notFound": "nije pronađen",
+    "import.server": "greška poslužitelja",
+    "import.timeout": "isteklo vrijeme",
+    "import.notAddon": "nije Stremio dodatak",
+    "import.invalidUrl": "neispravna adresa",
+    "import.unreachable": "nedostupan",
+    "details.mockEpisode": "Demo epizoda nema stvarni izvor.",
     "common.wip": "Ova značajka još nije implementirana.",
     "common.loading": "Učitavanje…",
     "common.media": "Reprodukcija nije dio ovog milestona.",
@@ -411,6 +437,29 @@
     "addons.unreachable": "Add-on is not reachable.",
     "addons.invalid": "Invalid add-on address.",
     "unit.min": "min",
+    "player.loading": "Preparing playback…",
+    "player.hint": "OK: pause · ←/→: 10 s · BACK: exit",
+    "player.ended": "Playback finished.",
+    "player.torrent": "Torrent sources are not supported. An add-on that returns an HTTP link is required (e.g. TorBox or Emby Bridge).",
+    "player.notWebReady": "This source needs an external player and is not supported.",
+    "player.external": "This source opens in another app and is not supported.",
+    "player.unsupported": "This format is not supported on this TV.",
+    "player.codec": "Unsupported codec (e.g. HEVC or DTS). Try another source.",
+    "player.network": "The connection to the source dropped.",
+    "player.expired": "The link expired or the source was removed. Refresh the source list.",
+    "player.timeout": "The source did not respond in time.",
+    "player.noSources": "No sources available for this item.",
+    "player.titleFallback": "Playback",
+    "player.backendAvplay": "AVPlay",
+    "player.backendHtml5": "HTML5",
+    "import.auth": "requires authorisation",
+    "import.notFound": "not found",
+    "import.server": "server error",
+    "import.timeout": "timed out",
+    "import.notAddon": "not a Stremio add-on",
+    "import.invalidUrl": "invalid address",
+    "import.unreachable": "unreachable",
+    "details.mockEpisode": "Demo episodes have no real source.",
     "common.wip": "This feature is not implemented yet.",
     "common.loading": "Loading…",
     "common.media": "Playback is not part of this milestone.",
@@ -563,6 +612,54 @@
       var hasWebapis = typeof window !== "undefined" && !!window.webapis;
       var hasAvplay = typeof window !== "undefined" && !!(window.avplay || window.webapis && window.webapis.avplay);
       return { webapis: hasWebapis, avplay: hasAvplay };
+    },
+    /**
+     * The AVPlay module object (`webapis.avplay`), or null.
+     * Samsung ships it as `webapis.avplay`; some shells expose it as `avplay`.
+     */
+    avplayApi: function() {
+      if (typeof window === "undefined") {
+        return null;
+      }
+      if (window.webapis && window.webapis.avplay) {
+        return window.webapis.avplay;
+      }
+      if (window.avplay) {
+        return window.avplay;
+      }
+      return null;
+    },
+    /**
+     * AVPlay renders into a *native* video plane below the web layer, so it can only
+     * be used when this document is the top-level document. Inside a host shell
+     * iframe (possible with TizenBrew) the plane cannot be composited and the
+     * result is a black screen — the player then uses the HTML5 engine instead.
+     */
+    canUseAvPlay: function() {
+      var api = this.avplayApi();
+      if (!api) {
+        return false;
+      }
+      try {
+        if (window.top && window.top !== window.self) {
+          return false;
+        }
+      } catch (err) {
+        return false;
+      }
+      return true;
+    },
+    /** Display rectangle (device pixels) for the AVPlay plane. */
+    displayRect: function() {
+      if (typeof window === "undefined") {
+        return { x: 0, y: 0, w: 1920, h: 1080 };
+      }
+      return {
+        x: 0,
+        y: 0,
+        w: window.innerWidth || 1920,
+        h: window.innerHeight || 1080
+      };
     },
     /** Called once at boot. */
     init: function() {
@@ -1455,6 +1552,9 @@
     var currentItem = null;
     var currentLang = "hr";
     var episodeImages = [];
+    var episodeCards = [];
+    var sourceRowList = [];
+    var streamList = [];
     function renderText() {
       if (!currentItem) {
         return;
@@ -1479,20 +1579,52 @@
         forgetImage(episodeImages[i2]);
       }
       episodeImages = [];
+      episodeCards = [];
       while (episodes.firstChild) {
         episodes.removeChild(episodes.firstChild);
       }
     }
     function renderEpisodes() {
       clearEpisodes();
-      var list = getEpisodes(currentItem);
-      var hasEpisodes = list.length > 0;
+      var cards = [];
+      var reals = currentItem && currentItem.videos && currentItem.videos.length ? currentItem.videos : null;
+      if (reals) {
+        for (var r = 0; r < reals.length && r < 24; r++) {
+          var video = reals[r];
+          var fallback = "S" + video.season + " E" + video.episode;
+          cards.push({
+            id: video.id,
+            number: video.episode,
+            season: video.season,
+            label: { hr: video.name || fallback, en: video.name || fallback },
+            minutes: 0,
+            image: video.thumbnail
+          });
+        }
+      } else {
+        var mockList = getEpisodes(currentItem);
+        for (var m = 0; m < mockList.length; m++) {
+          cards.push({
+            id: "",
+            number: mockList[m].number,
+            season: 0,
+            label: mockList[m].title,
+            minutes: mockList[m].minutes,
+            image: mockList[m].image
+          });
+        }
+      }
+      var hasEpisodes = cards.length > 0;
       section.style.display = hasEpisodes ? "" : "none";
       episodes.style.display = hasEpisodes ? "flex" : "none";
-      for (var i2 = 0; i2 < list.length; i2++) {
-        var ep = list[i2];
+      for (var i2 = 0; i2 < cards.length; i2++) {
+        var ep = cards[i2];
         var card = document.createElement("div");
         card.className = "ep";
+        card.setAttribute("role", "button");
+        card.setAttribute("tabindex", "-1");
+        card.setAttribute("data-episode-id", ep.id || "");
+        card.setAttribute("data-episode-number", String(ep.number || 0));
         var frame = document.createElement("div");
         frame.className = "ep__frame";
         var img = document.createElement("img");
@@ -1503,16 +1635,18 @@
         frame.appendChild(img);
         var badge = document.createElement("span");
         badge.className = "card__badge";
-        badge.textContent = "E" + ep.number;
+        badge.textContent = ep.season > 0 ? "S" + ep.season + "E" + ep.number : "E" + ep.number;
         frame.appendChild(badge);
         var label2 = document.createElement("div");
         label2.className = "ep__label";
-        label2.textContent = (ep.title[currentLang] || ep.title.hr) + " · " + ep.minutes + " " + t("unit.min");
+        var text = ep.label[currentLang] || ep.label.hr;
+        label2.textContent = ep.minutes > 0 ? text + " · " + ep.minutes + " " + t("unit.min") : text;
         card.appendChild(frame);
         card.appendChild(label2);
         episodes.appendChild(card);
         observeImage(img);
         episodeImages.push(img);
+        episodeCards.push({ el: card, videoId: ep.id || "", label: text });
       }
     }
     function setItem2(item, lang) {
@@ -1542,18 +1676,31 @@
       }
       return parts.join(" · ");
     }
-    function setStreams(list) {
+    function setStreams(list, settled) {
       while (sources.firstChild) {
         sources.removeChild(sources.firstChild);
       }
-      var streams = list || [];
-      var visible2 = Math.min(streams.length, 5);
-      sourcesHeading.style.display = visible2 > 0 ? "" : "none";
+      sourceRowList = [];
+      streamList = list || [];
+      var visible2 = Math.min(streamList.length, 8);
+      var isReal = !!(currentItem && currentItem.addonUrl);
+      sourcesHeading.style.display = visible2 > 0 || isReal && settled === true ? "" : "none";
+      if (visible2 === 0 && isReal && settled === true) {
+        var empty = document.createElement("div");
+        empty.className = "details__empty";
+        empty.textContent = t("player.noSources");
+        sources.appendChild(empty);
+        return;
+      }
       for (var i2 = 0; i2 < visible2; i2++) {
         var row = document.createElement("div");
         row.className = "source-row";
-        row.textContent = describeStream(streams[i2] || {});
+        row.setAttribute("role", "button");
+        row.setAttribute("tabindex", "-1");
+        row.setAttribute("data-stream-index", String(i2));
+        row.textContent = describeStream(streamList[i2] || {});
         sources.appendChild(row);
+        sourceRowList.push({ el: row, stream: streamList[i2] || {}, index: i2 });
       }
     }
     return {
@@ -1562,6 +1709,21 @@
       setItem: setItem2,
       setLanguage: setLanguage2,
       setStreams,
+      title: function() {
+        if (!currentItem) {
+          return "";
+        }
+        return currentItem.title[currentLang] || currentItem.title.hr;
+      },
+      currentItem: function() {
+        return currentItem;
+      },
+      sourceRows: function() {
+        return sourceRowList;
+      },
+      episodeCards: function() {
+        return episodeCards;
+      },
       isOpen: function() {
         return root.classList.contains("is-open");
       }
@@ -1582,6 +1744,36 @@
     var match = /^https?:\/\/[^/]+/i.exec(url || "");
     return match ? match[0] : "(no host)";
   }
+  function reasonOfError(err) {
+    var message = String(err && err.message || "");
+    if (message === "timeout") {
+      return "timeout";
+    }
+    var http = /^HTTP (\d{3})/.exec(message);
+    if (http) {
+      var status = parseInt(http[1], 10);
+      if (status === 401 || status === 403) {
+        return "auth";
+      }
+      if (status === 404) {
+        return "notFound";
+      }
+      return status >= 500 ? "server" : "http";
+    }
+    if (/invalid JSON/i.test(message)) {
+      return "notAddon";
+    }
+    if (/not a Stremio add-on/i.test(message)) {
+      return "notAddon";
+    }
+    if (/invalid add-on url/i.test(message)) {
+      return "invalidUrl";
+    }
+    return "unreachable";
+  }
+  function describeFailure(url, err) {
+    return { host: hostOf(url), reason: err && err.reason || reasonOfError(err) };
+  }
   function record(entry) {
     entry.when = Date.now();
     log.push(entry);
@@ -1593,6 +1785,11 @@
     var url = String(input || "").trim();
     if (!url) {
       return null;
+    }
+    if (/^stremio:https?:\/\//i.test(url)) {
+      url = url.replace(/^stremio:/i, "");
+    } else if (/^stremio:\/\//i.test(url)) {
+      url = url.replace(/^stremio:\/\//i, "https://");
     }
     if (!/^https?:\/\//i.test(url)) {
       return null;
@@ -1767,9 +1964,11 @@
   function summarize(url, manifest) {
     var resources = [];
     var raw = manifest.resources || [];
-    for (var i = 0; i < raw.length; i++) {
-      if (typeof raw[i] === "string") {
-        resources.push(raw[i]);
+    for (var i = 0; i < raw.length && resources.length < 8; i++) {
+      var entry = raw[i];
+      var name = typeof entry === "string" ? entry : entry && entry.name ? String(entry.name) : "";
+      if (name && resources.indexOf(name) === -1) {
+        resources.push(name);
       }
     }
     var catalogs = [];
@@ -1781,6 +1980,13 @@
         name: rawCats[c].name || rawCats[c].id
       });
     }
+    var types = [];
+    var rawTypes = manifest.types || [];
+    for (var t2 = 0; t2 < rawTypes.length && types.length < 6; t2++) {
+      if (typeof rawTypes[t2] === "string") {
+        types.push(rawTypes[t2]);
+      }
+    }
     return {
       url,
       id: String(manifest.id || url),
@@ -1789,6 +1995,7 @@
       description: String(manifest.description || ""),
       logo: manifest.logo ? String(manifest.logo) : "",
       resources,
+      types,
       catalogs
     };
   }
@@ -1812,7 +2019,9 @@
   function addAddon(url, cb) {
     var base = normalizeBase(url);
     if (!base) {
-      cb(new Error("invalid add-on url"));
+      var invalidUrl = new Error("invalid add-on url");
+      invalidUrl.reason = "invalidUrl";
+      cb(invalidUrl);
       return;
     }
     if (hasAddon(base)) {
@@ -1824,8 +2033,19 @@
         cb(err);
         return;
       }
-      if (!manifest || !manifest.id || !manifest.resources) {
-        cb(new Error("not a Stremio add-on manifest"));
+      if (!manifest || !manifest.id) {
+        var notAddon = new Error("not a Stremio add-on manifest");
+        notAddon.reason = "notAddon";
+        cb(notAddon);
+        return;
+      }
+      var hasResources = !!manifest.resources && manifest.resources.length > 0;
+      var hasCatalogs = !!manifest.catalogs && manifest.catalogs.length > 0;
+      var hasTypes = !!manifest.types && manifest.types.length > 0;
+      if (!hasResources && !hasCatalogs && !hasTypes) {
+        var empty = new Error("manifest declares no resources, catalogs or types");
+        empty.reason = "manifest";
+        cb(empty);
         return;
       }
       var entry = summarize(base, manifest);
@@ -2148,6 +2368,27 @@
 
   // app/js/ui/views/settings.js
   function createSettingsView() {
+    function reasonLabel(reason) {
+      if (reason === "auth") {
+        return t("import.auth");
+      }
+      if (reason === "notFound") {
+        return t("import.notFound");
+      }
+      if (reason === "server") {
+        return t("import.server");
+      }
+      if (reason === "timeout") {
+        return t("import.timeout");
+      }
+      if (reason === "notAddon" || reason === "manifest") {
+        return t("import.notAddon");
+      }
+      if (reason === "invalidUrl") {
+        return t("import.invalidUrl");
+      }
+      return t("import.unreachable");
+    }
     var root = document.createElement("div");
     root.className = "details settings";
     root.setAttribute("role", "dialog");
@@ -2248,6 +2489,18 @@
         summary.textContent = t("settings.noProfile");
       } else {
         summary.textContent = t("settings.imported") + " " + last.imported + " · " + t("settings.skipped") + " " + last.skipped + " · " + (last.profiles || []).length + " " + t("settings.profiles") + " · " + last.lists + " " + t("settings.listItems");
+        var failures = last.failures || [];
+        if (failures.length) {
+          var list = document.createElement("div");
+          list.className = "settings__failures";
+          for (var i = 0; i < failures.length; i++) {
+            var line = document.createElement("div");
+            line.className = "settings__failure";
+            line.textContent = failures[i].host + " · " + reasonLabel(failures[i].reason);
+            list.appendChild(line);
+          }
+          summary.appendChild(list);
+        }
       }
       focusables.push({
         el: urlInput,
@@ -2294,6 +2547,7 @@
   var MEDIA_KEY = /(logo|poster|background|image|avatar|icon|banner)/i;
   var PROFILE_KEY = /^(profiles?|users?)$/i;
   var LIST_KEY = /(lists?|watchlist|watchLater|bookmarks|favorites|library|history|continueWatching)/i;
+  var ADDON_URL = /^(?:https?|stremio):\/\//i;
   function parseProfile(input) {
     var data = input;
     if (typeof input === "string") {
@@ -2348,9 +2602,9 @@
         var value = node[key];
         if (typeof value === "string") {
           var text = value.trim();
-          if (!MEDIA_KEY.test(key) && /^https?:\/\//i.test(text)) {
+          if (!MEDIA_KEY.test(key) && ADDON_URL.test(text)) {
             var base = normalizeBase(text);
-            if (base && (ADDON_KEY.test(key) || /\/manifest\.json$/i.test(text))) {
+            if (base && (ADDON_KEY.test(key) || /\/manifest\.json(?:[?#]|$)/i.test(text))) {
               addAddon2(base);
             }
           }
@@ -2382,7 +2636,7 @@
       truncated: skippedTooMany
     };
   }
-  function summarizeImport(parsed, imported, skipped) {
+  function summarizeImport(parsed, imported, skipped, failures) {
     var hosts = [];
     for (var i = 0; i < parsed.addons.length; i++) {
       var match = /^https?:\/\/[^/]+/i.exec(parsed.addons[i]);
@@ -2396,7 +2650,10 @@
       profiles: parsed.profiles,
       lists: parsed.lists,
       imported,
-      skipped
+      skipped,
+      // Host + reason only: enough to see *which* add-on was skipped without
+      // storing its path, configuration or token.
+      failures: (failures || []).slice(0, 8)
     };
   }
 
@@ -2417,6 +2674,22 @@
       genres = String(source.genre);
     }
     var poster = source.poster ? String(source.poster) : "";
+    var videos = [];
+    if (source.videos && source.videos.length) {
+      for (var v = 0; v < source.videos.length && v < 60; v++) {
+        var video = source.videos[v] || {};
+        if (!video.id) {
+          continue;
+        }
+        videos.push({
+          id: String(video.id),
+          season: parseInt(video.season, 10) || 0,
+          episode: parseInt(video.episode, 10) || 0,
+          name: String(video.name || video.title || ""),
+          thumbnail: video.thumbnail ? String(video.thumbnail) : ""
+        });
+      }
+    }
     return {
       id: String(source.id || title),
       mock: false,
@@ -2430,7 +2703,8 @@
       description: { hr: String(source.description || ""), en: String(source.description || "") },
       cast: source.cast && source.cast.length ? source.cast.slice(0, 3) : [],
       poster,
-      image: source.background ? String(source.background) : poster
+      image: source.background ? String(source.background) : poster,
+      videos
     };
   }
   function fetchCatalogPage(addon, catalog, skip, cb) {
@@ -2481,6 +2755,822 @@
     }
   }
 
+  // app/js/playback/player.js
+  var TICK_MS = 400;
+  var HUD_HIDE_MS = 5e3;
+  var OPEN_TIMEOUT_MS = 25e3;
+  var PREPARE_TIMEOUT_MS = 12e3;
+  var SEEK_STEP_MS = 1e4;
+  var FF_STEP_MS = 3e4;
+  function formatTime(ms) {
+    var total = Math.max(0, Math.round((ms || 0) / 1e3));
+    var minutes = Math.floor(total / 60);
+    var seconds = total % 60;
+    return minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+  }
+  function reasonText(reason) {
+    if (reason === "torrent" || reason === "magnet" || reason === "infoHash") {
+      return t("player.torrent");
+    }
+    if (reason === "notWebReady") {
+      return t("player.notWebReady");
+    }
+    if (reason === "external" || reason === "yt" || reason === "scheme") {
+      return t("player.external");
+    }
+    if (reason === "expired") {
+      return t("player.expired");
+    }
+    if (reason === "codec") {
+      return t("player.codec");
+    }
+    if (reason === "network") {
+      return t("player.network");
+    }
+    if (reason === "timeout") {
+      return t("player.timeout");
+    }
+    if (reason === "empty" || reason === "noUrl") {
+      return t("player.noSources");
+    }
+    return t("player.unsupported");
+  }
+  function html5Reason(error) {
+    if (!error) {
+      return "unsupported";
+    }
+    if (error.code === 2) {
+      return "network";
+    }
+    if (error.code === 3) {
+      return "codec";
+    }
+    if (error.code === 4) {
+      return "expired";
+    }
+    return "unsupported";
+  }
+  function createPlayer(options) {
+    var opts = options || {};
+    var root = document.createElement("div");
+    root.className = "player";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-player", "1");
+    var video = document.createElement("video");
+    video.className = "player__video";
+    video.setAttribute("playsinline", "");
+    video.setAttribute("preload", "metadata");
+    video.setAttribute("data-backend", "html5");
+    var hud = document.createElement("div");
+    hud.className = "player__hud";
+    var top = document.createElement("div");
+    top.className = "player__top";
+    var titleEl = document.createElement("h2");
+    titleEl.className = "player__title";
+    var backendEl = document.createElement("span");
+    backendEl.className = "player__backend";
+    top.appendChild(titleEl);
+    top.appendChild(backendEl);
+    var center = document.createElement("div");
+    center.className = "player__center";
+    var spinner = document.createElement("div");
+    spinner.className = "player__spinner";
+    var errorBox = document.createElement("div");
+    errorBox.className = "player__error";
+    var errorText = document.createElement("div");
+    errorText.className = "player__errorText";
+    var errorHint = document.createElement("div");
+    errorHint.className = "player__errorHint";
+    errorBox.appendChild(errorText);
+    errorBox.appendChild(errorHint);
+    center.appendChild(spinner);
+    center.appendChild(errorBox);
+    var bottom = document.createElement("div");
+    bottom.className = "player__bottom";
+    var bar = document.createElement("div");
+    bar.className = "player__bar";
+    var buffered = document.createElement("div");
+    buffered.className = "player__buffered";
+    var played = document.createElement("div");
+    played.className = "player__played";
+    var knob = document.createElement("div");
+    knob.className = "player__knob";
+    bar.appendChild(buffered);
+    bar.appendChild(played);
+    bar.appendChild(knob);
+    var row = document.createElement("div");
+    row.className = "player__row";
+    var timeEl = document.createElement("span");
+    timeEl.className = "player__time";
+    var statusEl = document.createElement("span");
+    statusEl.className = "player__status";
+    var hintEl = document.createElement("span");
+    hintEl.className = "player__hint";
+    hintEl.textContent = t("player.hint");
+    row.appendChild(timeEl);
+    row.appendChild(statusEl);
+    row.appendChild(hintEl);
+    bottom.appendChild(bar);
+    bottom.appendChild(row);
+    hud.appendChild(top);
+    hud.appendChild(center);
+    hud.appendChild(bottom);
+    root.appendChild(video);
+    root.appendChild(hud);
+    var state = {
+      open: false,
+      backend: "",
+      status: "idle",
+      // idle | loading | buffering | playing | paused | ended | error
+      position: 0,
+      duration: 0,
+      buffered: 0,
+      error: "",
+      url: "",
+      type: "",
+      title: ""
+    };
+    var backend = null;
+    var backendOrder = [];
+    var ticker = null;
+    var hudTimer = null;
+    var openTimer = null;
+    var onClose = opts.onClose || null;
+    var forcedBackend = opts.forceBackend || "";
+    function avplayActive() {
+      return state.backend === "avplay";
+    }
+    function rootClass() {
+      return "player" + (state.open ? " is-open" : "") + (state.error ? " has-error" : "") + (avplayActive() ? " is-avplay" : "") + (hud.className.indexOf("is-idle") > -1 ? " is-idle" : "");
+    }
+    function paint() {
+      if (!state.open) {
+        return;
+      }
+      var pct = state.duration > 0 ? Math.min(100, state.position / state.duration * 100) : 0;
+      var bPct = state.duration > 0 ? Math.min(100, state.buffered / state.duration * 100) : 0;
+      played.style.width = pct + "%";
+      buffered.style.width = bPct + "%";
+      knob.style.left = pct + "%";
+      bar.className = "player__bar" + (state.duration > 0 ? "" : " is-live");
+      timeEl.textContent = formatTime(state.position) + " / " + formatTime(state.duration);
+      var statusText = "";
+      if (state.status === "buffering" || state.status === "loading") {
+        statusText = t("player.loading");
+      } else if (state.status === "ended") {
+        statusText = t("player.ended");
+      }
+      statusEl.textContent = statusText;
+      var busy = state.status === "buffering" || state.status === "loading";
+      spinner.className = "player__spinner" + (busy && !state.error ? "" : " is-hidden");
+      errorBox.className = "player__error" + (state.error ? " is-visible" : "");
+      root.className = rootClass();
+      backendEl.textContent = state.backend === "avplay" ? t("player.backendAvplay") : t("player.backendHtml5");
+    }
+    function showHud() {
+      hud.className = "player__hud";
+      if (hudTimer) {
+        clearTimeout(hudTimer);
+        hudTimer = null;
+      }
+      root.className = rootClass();
+      if (state.status === "playing") {
+        hudTimer = setTimeout(function() {
+          hud.className = "player__hud is-idle";
+          root.className = rootClass();
+        }, HUD_HIDE_MS);
+      }
+    }
+    var html5 = {
+      name: "html5",
+      open: function(url, type, done) {
+        video.setAttribute("data-type", type || "auto");
+        try {
+          video.setAttribute("src", url);
+          video.load();
+          var attempt = video.play();
+          if (attempt && typeof attempt.catch === "function") {
+            attempt.catch(function() {
+            });
+          }
+        } catch (err) {
+          done(err);
+          return;
+        }
+        done(null);
+      },
+      play: function() {
+        var attempt = video.play();
+        if (attempt && typeof attempt.catch === "function") {
+          attempt.catch(function() {
+          });
+        }
+      },
+      pause: function() {
+        try {
+          video.pause();
+        } catch (err) {
+        }
+      },
+      seek: function(ms) {
+        try {
+          video.currentTime = ms / 1e3;
+        } catch (err) {
+        }
+      },
+      stop: function() {
+        try {
+          video.pause();
+          video.removeAttribute("src");
+          video.load();
+        } catch (err) {
+        }
+      },
+      time: function() {
+        return (video.currentTime || 0) * 1e3;
+      },
+      duration: function() {
+        var value = video.duration;
+        return isFinite(value) ? value * 1e3 : 0;
+      },
+      buffered: function() {
+        try {
+          if (video.buffered && video.buffered.length > 0) {
+            return video.buffered.end(video.buffered.length - 1) * 1e3;
+          }
+        } catch (err) {
+        }
+        return 0;
+      }
+    };
+    video.addEventListener("loadedmetadata", function() {
+      state.duration = html5.duration();
+      if (state.status === "loading") {
+        state.status = "buffering";
+      }
+      paint();
+    });
+    video.addEventListener("playing", function() {
+      clearOpenTimer();
+      state.status = "playing";
+      showHud();
+      paint();
+    });
+    video.addEventListener("pause", function() {
+      if (state.status === "ended" || state.status === "error") {
+        return;
+      }
+      state.status = "paused";
+      showHud();
+      paint();
+    });
+    video.addEventListener("waiting", function() {
+      if (state.status === "playing") {
+        state.status = "buffering";
+        paint();
+      }
+    });
+    video.addEventListener("progress", function() {
+      state.buffered = html5.buffered();
+      paint();
+    });
+    video.addEventListener("ended", function() {
+      state.status = "ended";
+      state.position = state.duration;
+      stopTicker();
+      showHud();
+      paint();
+    });
+    video.addEventListener("error", function() {
+      if (!state.open || avplayActive()) {
+        return;
+      }
+      fail(html5Reason(video.error), video.error ? String(video.error.message || "") : "");
+    });
+    function createAvPlay(api) {
+      var rect = platform.displayRect ? platform.displayRect() : { x: 0, y: 0, w: 1920, h: 1080 };
+      var listener = {
+        onbufferingstart: function() {
+          state.status = "buffering";
+          paint();
+        },
+        onbufferingprogress: function() {
+          state.status = "buffering";
+        },
+        onbufferingcomplete: function() {
+          state.status = "playing";
+          showHud();
+          paint();
+        },
+        oncurrentplaytime: function(ms) {
+          state.position = ms;
+        },
+        onstreamcompleted: function() {
+          state.status = "ended";
+          state.position = state.duration;
+          stopTicker();
+          showHud();
+          paint();
+        },
+        onerror: function(err) {
+          var code = err && (err.code || err.error_code);
+          fail(code === 1 ? "network" : "unsupported", String(err && err.message || code || ""));
+        },
+        onplaying: function() {
+          clearOpenTimer();
+          state.status = "playing";
+          showHud();
+          paint();
+        }
+      };
+      return {
+        name: "avplay",
+        open: function(url, type, done) {
+          var settled = false;
+          try {
+            api.open(url);
+            if (api.setDisplayRect) {
+              api.setDisplayRect(rect.x, rect.y, rect.w, rect.h);
+            }
+            if (api.setListener) {
+              api.setListener(listener);
+            }
+          } catch (err) {
+            done(err);
+            return;
+          }
+          var guard = setTimeout(function() {
+            if (!settled) {
+              settled = true;
+              done(new Error("prepare timeout"));
+            }
+          }, PREPARE_TIMEOUT_MS);
+          try {
+            api.prepareAsync(
+              function() {
+                if (settled) {
+                  return;
+                }
+                settled = true;
+                clearTimeout(guard);
+                try {
+                  state.duration = api.getDuration ? api.getDuration() : 0;
+                  api.play();
+                } catch (err) {
+                  done(err);
+                  return;
+                }
+                done(null);
+              },
+              function(err) {
+                if (settled) {
+                  return;
+                }
+                settled = true;
+                clearTimeout(guard);
+                done(err || new Error("prepare failed"));
+              }
+            );
+          } catch (err2) {
+            settled = true;
+            clearTimeout(guard);
+            done(err2);
+          }
+        },
+        play: function() {
+          try {
+            api.play();
+          } catch (err) {
+          }
+        },
+        pause: function() {
+          try {
+            api.pause();
+          } catch (err) {
+          }
+        },
+        seek: function(ms) {
+          try {
+            api.seekTo(ms);
+          } catch (err) {
+          }
+        },
+        stop: function() {
+          try {
+            api.stop();
+          } catch (err) {
+          }
+          try {
+            api.close();
+          } catch (err2) {
+          }
+        },
+        time: function() {
+          try {
+            return api.getCurrentTime ? api.getCurrentTime() : state.position;
+          } catch (err) {
+            return state.position;
+          }
+        },
+        duration: function() {
+          try {
+            return api.getDuration ? api.getDuration() : state.duration;
+          } catch (err) {
+            return state.duration;
+          }
+        },
+        buffered: function() {
+          try {
+            if (api.getBufferedAmount) {
+              return api.getBufferedAmount() / 100 * state.duration;
+            }
+          } catch (err) {
+          }
+          return 0;
+        }
+      };
+    }
+    function clearOpenTimer() {
+      if (openTimer) {
+        clearTimeout(openTimer);
+        openTimer = null;
+      }
+    }
+    function stopTicker() {
+      if (ticker) {
+        clearInterval(ticker);
+        ticker = null;
+      }
+    }
+    function startTicker() {
+      stopTicker();
+      ticker = setInterval(function() {
+        if (!backend || !state.open || state.status === "error") {
+          return;
+        }
+        var time = backend.time();
+        var duration = backend.duration();
+        if (duration > 0) {
+          state.duration = duration;
+        }
+        if (time >= 0) {
+          state.position = time;
+        }
+        var bufferedAmount = backend.buffered();
+        if (bufferedAmount > 0) {
+          state.buffered = bufferedAmount;
+        }
+        paint();
+      }, TICK_MS);
+    }
+    function teardown() {
+      stopTicker();
+      clearOpenTimer();
+      if (hudTimer) {
+        clearTimeout(hudTimer);
+        hudTimer = null;
+      }
+      if (backend) {
+        try {
+          backend.stop();
+        } catch (err) {
+          logWarn("player: backend stop failed", err && err.message);
+        }
+        backend = null;
+      }
+      var html = document.documentElement;
+      if (html.className.indexOf("is-avplay") > -1) {
+        html.className = html.className.replace(/\s*is-avplay/g, "").replace(/^\s+/, "");
+      }
+    }
+    function fail(reason, detail) {
+      stopTicker();
+      clearOpenTimer();
+      state.status = "error";
+      state.error = reason;
+      errorText.textContent = reasonText(reason);
+      errorHint.textContent = detail ? String(detail).slice(0, 120) : t("player.hint");
+      spinner.className = "player__spinner is-hidden";
+      errorBox.className = "player__error is-visible";
+      hud.className = "player__hud";
+      root.className = "player is-open has-error" + (avplayActive() ? " is-avplay" : "");
+      if (detail) {
+        logWarn("player: " + reason);
+      }
+    }
+    function tryBackend(index) {
+      if (index >= backendOrder.length) {
+        fail(state.error || "unsupported", "");
+        return;
+      }
+      var name = backendOrder[index];
+      if (name === "avplay") {
+        var api = platform.avplayApi ? platform.avplayApi() : null;
+        if (!api) {
+          tryBackend(index + 1);
+          return;
+        }
+        backend = createAvPlay(api);
+        state.backend = "avplay";
+        video.setAttribute("data-backend", "avplay");
+        video.removeAttribute("src");
+        document.documentElement.className = (document.documentElement.className + " is-avplay").replace(/^\s+/, "");
+      } else {
+        backend = html5;
+        state.backend = "html5";
+        video.setAttribute("data-backend", "html5");
+      }
+      state.status = "loading";
+      paint();
+      backend.open(state.url, state.type, function(err) {
+        if (!state.open) {
+          return;
+        }
+        if (err) {
+          logWarn("player: " + name + " could not open the source", err && err.message);
+          try {
+            backend.stop();
+          } catch (stopErr) {
+          }
+          backend = null;
+          tryBackend(index + 1);
+          return;
+        }
+        startTicker();
+        paint();
+      });
+    }
+    function open(source, meta) {
+      if (state.open) {
+        close(false);
+      }
+      var info = meta || {};
+      state.open = true;
+      state.backend = "";
+      state.status = "loading";
+      state.position = 0;
+      state.duration = 0;
+      state.buffered = 0;
+      state.error = "";
+      state.url = source && source.url ? source.url : "";
+      state.type = source && source.type ? source.type : "auto";
+      state.title = info.title || t("player.titleFallback");
+      titleEl.textContent = state.title;
+      errorText.textContent = "";
+      errorHint.textContent = "";
+      hud.className = "player__hud";
+      root.className = "player is-open";
+      backendEl.textContent = "";
+      paint();
+      if (!source || source.ok !== true || !state.url) {
+        fail(source && source.reason || "noUrl", "");
+        return;
+      }
+      backendOrder = [];
+      if (forcedBackend === "html5") {
+        backendOrder.push("html5");
+      } else if (forcedBackend === "avplay") {
+        backendOrder.push("avplay", "html5");
+      } else {
+        if (platform.canUseAvPlay && platform.canUseAvPlay()) {
+          backendOrder.push("avplay");
+        }
+        backendOrder.push("html5");
+      }
+      logInfo("player: engines " + backendOrder.join(",") + " type=" + state.type);
+      clearOpenTimer();
+      openTimer = setTimeout(function() {
+        if (state.open && state.status !== "playing" && state.status !== "paused" && !state.error) {
+          fail("timeout", state.status);
+        }
+      }, OPEN_TIMEOUT_MS);
+      tryBackend(0);
+    }
+    function play() {
+      if (!backend || state.error) {
+        return;
+      }
+      backend.play();
+      state.status = "playing";
+      showHud();
+      paint();
+    }
+    function pause() {
+      if (!backend || state.error) {
+        return;
+      }
+      backend.pause();
+      state.status = "paused";
+      showHud();
+      paint();
+    }
+    function toggle() {
+      if (!backend || state.error) {
+        return;
+      }
+      if (state.status === "playing") {
+        pause();
+      } else {
+        play();
+      }
+    }
+    function seekTo(ms) {
+      if (!backend || state.error) {
+        return;
+      }
+      var limit = state.duration > 0 ? state.duration - 1e3 : ms;
+      var target = Math.max(0, Math.min(ms || 0, limit));
+      backend.seek(target);
+      state.position = target;
+      showHud();
+      paint();
+    }
+    function seekBy(deltaMs) {
+      seekTo(state.position + deltaMs);
+    }
+    function close(notify) {
+      var wasOpen = state.open;
+      teardown();
+      state.open = false;
+      state.status = "idle";
+      state.backend = "";
+      state.error = "";
+      state.position = 0;
+      state.duration = 0;
+      state.buffered = 0;
+      state.url = "";
+      root.className = "player";
+      hud.className = "player__hud";
+      errorBox.className = "player__error";
+      timeEl.textContent = "";
+      statusEl.textContent = "";
+      if (wasOpen && notify !== false && onClose) {
+        onClose();
+      }
+    }
+    function handleAction(action) {
+      if (!state.open) {
+        return false;
+      }
+      if (action === "enter") {
+        toggle();
+        return true;
+      }
+      if (action === "left") {
+        seekBy(-SEEK_STEP_MS);
+        return true;
+      }
+      if (action === "right") {
+        seekBy(SEEK_STEP_MS);
+        return true;
+      }
+      if (action === "up" || action === "down") {
+        showHud();
+        return true;
+      }
+      if (action === "media-play") {
+        play();
+        return true;
+      }
+      if (action === "media-pause") {
+        pause();
+        return true;
+      }
+      if (action === "media-toggle") {
+        toggle();
+        return true;
+      }
+      if (action === "media-ff") {
+        seekBy(FF_STEP_MS);
+        return true;
+      }
+      if (action === "media-rew") {
+        seekBy(-FF_STEP_MS);
+        return true;
+      }
+      return false;
+    }
+    return {
+      el: root,
+      video,
+      isOpen: function() {
+        return state.open;
+      },
+      open,
+      close,
+      play,
+      pause,
+      toggle,
+      seekBy,
+      seekTo,
+      handleAction,
+      showHud,
+      state: function() {
+        return {
+          open: state.open,
+          backend: state.backend,
+          status: state.status,
+          position: Math.round(state.position),
+          duration: Math.round(state.duration),
+          buffered: Math.round(state.buffered),
+          error: state.error,
+          type: state.type,
+          title: state.title
+        };
+      },
+      setOnClose: function(fn) {
+        onClose = fn;
+      }
+    };
+  }
+
+  // app/js/playback/sources.js
+  var HLS = /\.m3u8(?:[?#]|$)/i;
+  var DASH = /\.mpd(?:[?#]|$)/i;
+  var PROGRESSIVE = /\.(?:mp4|m4v|mov|webm|mkv|ts|avi|mp3|m4a|aac|wav|ogg)(?:[?#]|$)/i;
+  var HLS_HINT = /(?:type=m3u8|format=hls|\/hls\/|:hls)/i;
+  var DASH_HINT = /(?:type=mpd|format=dash|\/dash\/|:dash)/i;
+  var KIND = {
+    HTTP: "http",
+    TORRENT: "torrent",
+    EXTERNAL: "external",
+    INVALID: "invalid"
+  };
+  function typeOf(text) {
+    var value = String(text || "");
+    if (HLS.test(value) || HLS_HINT.test(value)) {
+      return "hls";
+    }
+    if (DASH.test(value) || DASH_HINT.test(value)) {
+      return "dash";
+    }
+    if (PROGRESSIVE.test(value)) {
+      return "progressive";
+    }
+    return "auto";
+  }
+  function labelOf(stream) {
+    var s = stream || {};
+    var hints = s.behaviorHints || {};
+    var parts = [];
+    if (s.name) {
+      parts.push(String(s.name));
+    }
+    if (s.title && String(s.title) !== String(s.name || "")) {
+      parts.push(String(s.title));
+    }
+    if (!parts.length && hints.filename) {
+      parts.push(String(hints.filename));
+    }
+    if (!parts.length) {
+      parts.push("stream");
+    }
+    return parts.join(" · ");
+  }
+  function classifyStream(stream) {
+    var s = stream || {};
+    var hints = s.behaviorHints || {};
+    var label = labelOf(s);
+    if (!s || typeof s !== "object") {
+      return { ok: false, kind: KIND.INVALID, url: "", type: "", label, reason: "empty" };
+    }
+    var url = s.url ? String(s.url).trim() : "";
+    if (!url) {
+      if (s.infoHash || s.btih || typeof s.fileIdx === "number" || s.sources) {
+        return { ok: false, kind: KIND.TORRENT, url: "", type: "", label, reason: "torrent" };
+      }
+      if (s.ytId) {
+        return { ok: false, kind: KIND.EXTERNAL, url: "", type: "", label, reason: "yt" };
+      }
+      if (s.externalUrl) {
+        return {
+          ok: false,
+          kind: KIND.EXTERNAL,
+          url: String(s.externalUrl),
+          type: "",
+          label,
+          reason: "external"
+        };
+      }
+      return { ok: false, kind: KIND.INVALID, url: "", type: "", label, reason: "noUrl" };
+    }
+    if (/^magnet:/i.test(url)) {
+      return { ok: false, kind: KIND.TORRENT, url: "", type: "", label, reason: "torrent" };
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      return { ok: false, kind: KIND.INVALID, url: "", type: "", label, reason: "scheme" };
+    }
+    if (hints.notWebReady === true) {
+      return { ok: false, kind: KIND.EXTERNAL, url, type: "", label, reason: "notWebReady" };
+    }
+    var type = typeOf(url);
+    if (type === "auto" && hints.filename) {
+      type = typeOf(hints.filename);
+    }
+    return { ok: true, kind: KIND.HTTP, url, type, label, reason: "" };
+  }
+
   // app/js/main.js
   var STAGE_WIDTH = 1920;
   var STAGE_HEIGHT = 1080;
@@ -2528,6 +3618,8 @@
     appEl.appendChild(diagnosticsView.el);
     var settingsView = createSettingsView();
     appEl.appendChild(settingsView.el);
+    var player = createPlayer();
+    appEl.appendChild(player.el);
     appEl.appendChild(toast.el);
     function applyScroller() {
       scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
@@ -2600,7 +3692,14 @@
         }
       },
       hide: function() {
+        if (player.isOpen()) {
+          player.close(false);
+        }
         details.el.classList.remove("is-open");
+        unregisterList(streamFocusables);
+        streamFocusables = [];
+        unregisterList(episodeFocusables);
+        episodeFocusables = [];
         focusManager.setScope(null);
         var restored = previousFocus ? focusManager.focus(previousFocus) : false;
         previousFocus = null;
@@ -2614,8 +3713,12 @@
         return;
       }
       previousFocus = focusManager.getCurrent();
+      selectedVideoId = item.id;
+      selectedVideoLabel = "";
       details.setItem(item, getLanguage());
       details.setStreams([]);
+      syncEpisodeFocusables();
+      syncStreamFocusables();
       router.push(detailsScreen);
       if (!item.addonUrl) {
         return;
@@ -2624,11 +3727,13 @@
       addonClient.meta(item.addonUrl, type, item.id, function(err, data) {
         if (!err && data && data.meta && details.isOpen()) {
           details.setItem(normalizeMeta(data.meta, item.addonUrl), getLanguage());
+          syncEpisodeFocusables();
         }
       });
       addonClient.streams(item.addonUrl, type, item.id, function(err, data) {
         if (details.isOpen()) {
-          details.setStreams(!err && data && data.streams ? data.streams : []);
+          details.setStreams(!err && data && data.streams ? data.streams : [], true);
+          syncStreamFocusables();
         }
       });
     }
@@ -2636,6 +3741,118 @@
       while (router.depth() > 0) {
         router.pop();
       }
+    }
+    var playerReturnFocus = null;
+    var streamFocusables = [];
+    var episodeFocusables = [];
+    var selectedVideoId = "";
+    var selectedVideoLabel = "";
+    function playerTitle() {
+      var item = details.currentItem();
+      var parts = [];
+      if (item) {
+        parts.push(details.title());
+      }
+      if (selectedVideoLabel) {
+        parts.push(selectedVideoLabel);
+      }
+      return parts.join(" · ");
+    }
+    function playStream(stream) {
+      var info = classifyStream(stream);
+      playerReturnFocus = focusManager.getCurrent();
+      player.open(info, { title: playerTitle() });
+      logInfo("playback: " + (info.ok ? info.type : "refused:" + info.reason));
+      return info;
+    }
+    function firstPlayableStream() {
+      var rows = details.sourceRows();
+      for (var i = 0; i < rows.length; i++) {
+        if (classifyStream(rows[i].stream).ok) {
+          return rows[i].stream;
+        }
+      }
+      return rows.length > 0 ? rows[0].stream : null;
+    }
+    function playCurrent() {
+      var item = details.currentItem();
+      if (!item || !item.addonUrl) {
+        toast.show(t("common.wip"));
+        return;
+      }
+      var stream = firstPlayableStream();
+      if (!stream) {
+        player.open({ ok: false, reason: "noUrl", url: "", type: "", label: "" }, {
+          title: playerTitle()
+        });
+        return;
+      }
+      playStream(stream);
+    }
+    player.setOnClose(function() {
+      focusManager.setScope(details.el);
+      var restored = playerReturnFocus ? focusManager.focus(playerReturnFocus) : false;
+      playerReturnFocus = null;
+      if (!restored && details.sourceRows().length) {
+        focusManager.focus(details.sourceRows()[0].el);
+      }
+    });
+    function unregisterList(list) {
+      for (var i = 0; i < list.length; i++) {
+        focusManager.unregister(list[i]);
+      }
+    }
+    function syncStreamFocusables() {
+      unregisterList(streamFocusables);
+      streamFocusables = [];
+      var rows = details.sourceRows();
+      for (var i = 0; i < rows.length; i++) {
+        (function(row) {
+          focusManager.register(row.el, function() {
+            playStream(row.stream);
+          });
+          streamFocusables.push(row.el);
+        })(rows[i]);
+      }
+    }
+    function syncEpisodeFocusables() {
+      unregisterList(episodeFocusables);
+      episodeFocusables = [];
+      var cards = details.episodeCards();
+      for (var i = 0; i < cards.length; i++) {
+        (function(card) {
+          card.el.__reveal = null;
+          focusManager.register(card.el, function() {
+            if (!card.videoId) {
+              toast.show(t("details.mockEpisode"));
+              return;
+            }
+            selectEpisode(card);
+          });
+          episodeFocusables.push(card.el);
+        })(cards[i]);
+      }
+    }
+    function selectEpisode(card) {
+      var item = details.currentItem();
+      if (!item || !item.addonUrl) {
+        return;
+      }
+      selectedVideoId = card.videoId;
+      selectedVideoLabel = card.label || "";
+      details.setStreams([], false);
+      syncStreamFocusables();
+      addonClient.streams(item.addonUrl, item.kind, card.videoId, function(err, data) {
+        if (!details.isOpen()) {
+          return;
+        }
+        details.setStreams(!err && data && data.streams ? data.streams : [], true);
+        syncStreamFocusables();
+        var rows = details.sourceRows();
+        if (rows.length) {
+          focusManager.focus(rows[0].el);
+        }
+      });
     }
     var addonsReturnFocus = null;
     var addonFocusables = [];
@@ -2736,19 +3953,21 @@
           reject(new Error(parsed.error));
           return;
         }
-        var urls = parsed.addons.slice(0, 12);
+        var urls = parsed.addons;
         var imported = 0;
-        var skipped = Math.max(0, parsed.addons.length - urls.length);
+        var skipped = 0;
+        var failures = [];
         var index = 0;
         function next() {
           if (index >= urls.length) {
-            saveProfileSummary(summarizeImport(parsed, imported, skipped));
+            saveProfileSummary(summarizeImport(parsed, imported, skipped, failures));
             loadAddonCatalogs();
             resolve({
               imported,
               skipped,
               profiles: parsed.profiles.length,
-              lists: parsed.lists
+              lists: parsed.lists,
+              failures: failures.slice(0, 8)
             });
             return;
           }
@@ -2757,6 +3976,8 @@
           addAddon(url, function(err) {
             if (err) {
               skipped += 1;
+              var failure = describeFailure(url, err);
+              failures.push({ host: failure.host, reason: failure.reason });
             } else {
               imported += 1;
             }
@@ -3095,7 +4316,11 @@
     for (var b = 0; b < details.buttons.length; b++) {
       (function(button) {
         focusManager.register(button.el, function() {
-          toast.show(button.id === "play" ? t("common.media") : t("common.wip"));
+          if (button.id === "play") {
+            playCurrent();
+            return;
+          }
+          toast.show(t("common.wip"));
         });
       })(details.buttons[b]);
     }
@@ -3178,6 +4403,31 @@
       if (!action) {
         return;
       }
+      if (player.isOpen()) {
+        var isPlayerTransition = action === "back" || action === "enter" || action === "exit";
+        if (isPlayerTransition) {
+          if (event.repeat) {
+            return;
+          }
+          var playerKey = keyIdOf(event);
+          if (pressed[playerKey]) {
+            return;
+          }
+          clearPressed();
+          pressed[playerKey] = true;
+        }
+        event.preventDefault();
+        if (action === "back") {
+          player.close();
+          return;
+        }
+        if (action === "exit") {
+          platform.exitApp();
+          return;
+        }
+        player.handleAction(action);
+        return;
+      }
       var field = editableFieldOf(document.activeElement);
       if (field && handleFieldKey(event, field, action)) {
         return;
@@ -3205,7 +4455,7 @@
         platform.exitApp();
         return;
       }
-      if (action === "media") {
+      if (isMediaAction(action)) {
         toast.show(t("common.media"));
         return;
       }
@@ -3290,6 +4540,33 @@
       },
       diagnostics: function() {
         return diagnosticsList();
+      },
+      player: {
+        state: function() {
+          return player.state();
+        },
+        open: function(stream) {
+          player.open(classifyStream(stream), { title: "Debug" });
+          return player.state();
+        },
+        close: function() {
+          player.close();
+          return player.state();
+        },
+        toggle: function() {
+          player.toggle();
+          return player.state();
+        },
+        seek: function(ms) {
+          player.seekTo(ms);
+          return player.state();
+        },
+        handle: function(action) {
+          return player.handleAction(action);
+        },
+        classify: function(stream) {
+          return classifyStream(stream);
+        }
       },
       addon: {
         add: function(url) {

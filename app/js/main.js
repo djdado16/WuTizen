@@ -1,14 +1,12 @@
 /**
- * main.js — application entry point (Milestone 2, WuPlay-style redesign).
+ * main.js — application entry point.
  *
  * Owns: shell composition (rail / hero / rows / details), the focus manager,
- * the router, vertical + horizontal scrolling, language switching and the
- * read-only debug snapshot used by the smoke test.
- *
- * Still no network, no playback and no profile data.
+ * the router, vertical + horizontal scrolling, language switching, playback
+ * (Milestone 5) and the read-only debug snapshot used by the smoke test.
  */
 
-import { actionFromEvent } from './core/keys.js';
+import { actionFromEvent, isMediaAction } from './core/keys.js';
 import { FocusManager } from './core/focus.js';
 import { createRouter } from './core/router.js';
 import { logInfo, logError } from './core/log.js';
@@ -29,12 +27,14 @@ import { createHero } from './ui/components/hero.js';
 import { createToast } from './ui/components/toast.js';
 import { createDetails } from './ui/views/detail.js';
 import { createAddonsView } from './ui/views/addons.js';
-import { addonClient, diagnosticsList, clearDiagnostics } from './data/addonClient.js';
+import { addonClient, diagnosticsList, clearDiagnostics, describeFailure } from './data/addonClient.js';
 import { createDiagnosticsView } from './ui/views/diagnostics.js';
 import { createSettingsView } from './ui/views/settings.js';
 import { parseProfile, summarizeImport } from './data/profileImport.js';
 import { saveProfileSummary, getProfileSummary } from './state/profile.js';
 import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
+import { createPlayer } from './playback/player.js';
+import { classifyStream } from './playback/sources.js';
 import {
   listAddons,
   addAddon,
@@ -105,6 +105,9 @@ function boot() {
 
   var settingsView = createSettingsView();
   appEl.appendChild(settingsView.el);
+
+  var player = createPlayer();
+  appEl.appendChild(player.el);
 
   appEl.appendChild(toast.el);
 
@@ -195,7 +198,14 @@ function boot() {
       }
     },
     hide: function () {
+      if (player.isOpen()) {
+        player.close(false); // leaving details must never leave video running
+      }
       details.el.classList.remove('is-open');
+      unregisterList(streamFocusables);
+      streamFocusables = [];
+      unregisterList(episodeFocusables);
+      episodeFocusables = [];
       focusManager.setScope(null);
       // Never leave the app without a focused element: a null cursor makes OK
       // do nothing and the remote feel dead.
@@ -214,8 +224,12 @@ function boot() {
       return;
     }
     previousFocus = focusManager.getCurrent();
+    selectedVideoId = item.id;
+    selectedVideoLabel = '';
     details.setItem(item, getLanguage());
     details.setStreams([]);
+    syncEpisodeFocusables();
+    syncStreamFocusables();
     router.push(detailsScreen);
 
     if (!item.addonUrl) {
@@ -226,11 +240,13 @@ function boot() {
     addonClient.meta(item.addonUrl, type, item.id, function (err, data) {
       if (!err && data && data.meta && details.isOpen()) {
         details.setItem(normalizeMeta(data.meta, item.addonUrl), getLanguage());
+        syncEpisodeFocusables();
       }
     });
     addonClient.streams(item.addonUrl, type, item.id, function (err, data) {
       if (details.isOpen()) {
-        details.setStreams(!err && data && data.streams ? data.streams : []);
+        details.setStreams(!err && data && data.streams ? data.streams : [], true);
+        syncStreamFocusables();
       }
     });
   }
@@ -240,6 +256,144 @@ function boot() {
     while (router.depth() > 0) {
       router.pop();
     }
+  }
+
+  /* ---- playback (Milestone 5) -------------------------------------------
+     Two engines: AVPlay when the shell exposes it, HTML5 <video> otherwise.
+     Stream rows and episodes are ordinary focusables; the player itself is a
+     modal that takes the remote, so BACK closes it without touching the details
+     layer underneath and focus returns to the row that started playback. */
+
+  var playerReturnFocus = null;
+  var streamFocusables = [];
+  var episodeFocusables = [];
+  var selectedVideoId = '';
+  var selectedVideoLabel = '';
+
+  function playerTitle() {
+    var item = details.currentItem();
+    var parts = [];
+    if (item) {
+      parts.push(details.title());
+    }
+    if (selectedVideoLabel) {
+      parts.push(selectedVideoLabel);
+    }
+    return parts.join(' · ');
+  }
+
+  /**
+   * Plays one Stremio stream object. Refusals (torrent, external, unsupported)
+   * still open the player: it explains *why* instead of failing silently.
+   */
+  function playStream(stream) {
+    var info = classifyStream(stream);
+    playerReturnFocus = focusManager.getCurrent();
+    player.open(info, { title: playerTitle() });
+    logInfo('playback: ' + (info.ok ? info.type : 'refused:' + info.reason));
+    return info;
+  }
+
+  function firstPlayableStream() {
+    var rows = details.sourceRows();
+    for (var i = 0; i < rows.length; i++) {
+      if (classifyStream(rows[i].stream).ok) {
+        return rows[i].stream;
+      }
+    }
+    return rows.length > 0 ? rows[0].stream : null;
+  }
+
+  /** Play button: first playable source of the current item/episode. */
+  function playCurrent() {
+    var item = details.currentItem();
+    if (!item || !item.addonUrl) {
+      toast.show(t('common.wip'));
+      return;
+    }
+    var stream = firstPlayableStream();
+    if (!stream) {
+      player.open({ ok: false, reason: 'noUrl', url: '', type: '', label: '' }, {
+        title: playerTitle()
+      });
+      return;
+    }
+    playStream(stream);
+  }
+
+  player.setOnClose(function () {
+    focusManager.setScope(details.el);
+    var restored = playerReturnFocus ? focusManager.focus(playerReturnFocus) : false;
+    playerReturnFocus = null;
+    if (!restored && details.sourceRows().length) {
+      focusManager.focus(details.sourceRows()[0].el);
+    }
+  });
+
+  /* ---- stream rows ------------------------------------------------------ */
+
+  function unregisterList(list) {
+    for (var i = 0; i < list.length; i++) {
+      focusManager.unregister(list[i]);
+    }
+  }
+
+  function syncStreamFocusables() {
+    unregisterList(streamFocusables);
+    streamFocusables = [];
+    var rows = details.sourceRows();
+    for (var i = 0; i < rows.length; i++) {
+      (function (row) {
+        focusManager.register(row.el, function () {
+          playStream(row.stream);
+        });
+        streamFocusables.push(row.el);
+      })(rows[i]);
+    }
+  }
+
+  /* ---- episodes --------------------------------------------------------- */
+
+  function syncEpisodeFocusables() {
+    unregisterList(episodeFocusables);
+    episodeFocusables = [];
+    var cards = details.episodeCards();
+    for (var i = 0; i < cards.length; i++) {
+      (function (card) {
+        card.el.__reveal = null;
+        focusManager.register(card.el, function () {
+          if (!card.videoId) {
+            toast.show(t('details.mockEpisode'));
+            return;
+          }
+          selectEpisode(card);
+        });
+        episodeFocusables.push(card.el);
+      })(cards[i]);
+    }
+  }
+
+  /** Episode picked: fetch that episode's sources and focus the first one. */
+  function selectEpisode(card) {
+    var item = details.currentItem();
+    if (!item || !item.addonUrl) {
+      return;
+    }
+    selectedVideoId = card.videoId;
+    selectedVideoLabel = card.label || '';
+    details.setStreams([], false);
+    syncStreamFocusables();
+    addonClient.streams(item.addonUrl, item.kind, card.videoId, function (err, data) {
+      if (!details.isOpen()) {
+        return;
+      }
+      details.setStreams(!err && data && data.streams ? data.streams : [], true);
+      syncStreamFocusables();
+      var rows = details.sourceRows();
+      if (rows.length) {
+        focusManager.focus(rows[0].el);
+      }
+    });
   }
 
   /* ---- add-on manager screen -------------------------------------------- */
@@ -357,20 +511,22 @@ function boot() {
         reject(new Error(parsed.error));
         return;
       }
-      var urls = parsed.addons.slice(0, 12);
+      var urls = parsed.addons;
       var imported = 0;
-      var skipped = Math.max(0, parsed.addons.length - urls.length);
+      var skipped = 0;
+      var failures = [];
       var index = 0;
 
       function next() {
         if (index >= urls.length) {
-          saveProfileSummary(summarizeImport(parsed, imported, skipped));
+          saveProfileSummary(summarizeImport(parsed, imported, skipped, failures));
           loadAddonCatalogs();
           resolve({
             imported: imported,
             skipped: skipped,
             profiles: parsed.profiles.length,
-            lists: parsed.lists
+            lists: parsed.lists,
+            failures: failures.slice(0, 8)
           });
           return;
         }
@@ -379,6 +535,9 @@ function boot() {
         addAddon(url, function (err) {
           if (err) {
             skipped += 1;
+            // Host + reason only: never the URL, its path or its token.
+            var failure = describeFailure(url, err);
+            failures.push({ host: failure.host, reason: failure.reason });
           } else {
             imported += 1;
           }
@@ -771,7 +930,11 @@ function boot() {
   for (var b = 0; b < details.buttons.length; b++) {
     (function (button) {
       focusManager.register(button.el, function () {
-        toast.show(button.id === 'play' ? t('common.media') : t('common.wip'));
+        if (button.id === 'play') {
+          playCurrent();
+          return;
+        }
+        toast.show(t('common.wip'));
       });
     })(details.buttons[b]);
   }
@@ -897,6 +1060,34 @@ function boot() {
       return;
     }
 
+    /* The player is modal: it takes every remote key while it is open, so BACK
+       closes playback and not the details layer underneath. */
+    if (player.isOpen()) {
+      var isPlayerTransition = action === 'back' || action === 'enter' || action === 'exit';
+      if (isPlayerTransition) {
+        if (event.repeat) {
+          return;
+        }
+        var playerKey = keyIdOf(event);
+        if (pressed[playerKey]) {
+          return;
+        }
+        clearPressed();
+        pressed[playerKey] = true;
+      }
+      event.preventDefault();
+      if (action === 'back') {
+        player.close();
+        return;
+      }
+      if (action === 'exit') {
+        platform.exitApp();
+        return;
+      }
+      player.handleAction(action);
+      return;
+    }
+
     /* While the TV keyboard is typing, the field owns the keys: Backspace
        deletes, LEFT/RIGHT move the caret, Done commits and moves to Import.
        Only real remote navigation (DOWN / BACK) leaves the field. */
@@ -929,7 +1120,7 @@ function boot() {
       platform.exitApp();
       return;
     }
-    if (action === 'media') {
+    if (isMediaAction(action)) {
       toast.show(t('common.media'));
       return;
     }
@@ -1031,6 +1222,33 @@ function boot() {
     },
     diagnostics: function () {
       return diagnosticsList();
+    },
+    player: {
+      state: function () {
+        return player.state();
+      },
+      open: function (stream) {
+        player.open(classifyStream(stream), { title: 'Debug' });
+        return player.state();
+      },
+      close: function () {
+        player.close();
+        return player.state();
+      },
+      toggle: function () {
+        player.toggle();
+        return player.state();
+      },
+      seek: function (ms) {
+        player.seekTo(ms);
+        return player.state();
+      },
+      handle: function (action) {
+        return player.handleAction(action);
+      },
+      classify: function (stream) {
+        return classifyStream(stream);
+      }
     },
     addon: {
       add: function (url) {

@@ -45,12 +45,17 @@ var CODE_TO_ACTION = {
   461: 'back',
   10009: 'back',
   10182: 'exit',
-  415: 'media',
-  19: 'media',
-  10252: 'media',
-  417: 'media',
-  412: 'media'
+  415: 'media-play',
+  19: 'media-pause',
+  10252: 'media-toggle',
+  417: 'media-ff',
+  412: 'media-rew'
 };
+
+/** Every media key shares this prefix (the player maps them individually). */
+export function isMediaAction(action) {
+  return typeof action === 'string' && action.indexOf('media-') === 0;
+}
 
 // Fallback for synthetic events (tests) and non-Samsung keyboards.
 var NAME_TO_ACTION = {

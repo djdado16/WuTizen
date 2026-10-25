@@ -451,7 +451,240 @@
 
 .source-row {
   margin-top: 6px;
+  padding: 6px 10px;
   font-size: 19px;
+  color: var(--text-dim);
+  border-left: 4px solid transparent;
+}
+
+.source-row.is-focused {
+  color: var(--text);
+  border-left-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.details__empty {
+  margin-top: 8px;
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+/* --- player (Milestone 5) -------------------------------------------------- */
+
+.player {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  display: none;
+  z-index: 40;
+}
+
+.player.is-open {
+  display: block;
+}
+
+.player__video {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  object-fit: contain;
+}
+
+/* AVPlay draws into a native plane *below* the page: make the page transparent
+   and hide the app UI underneath so the video is visible. */
+html.is-avplay body,
+html.is-avplay .stage {
+  background: transparent;
+}
+
+html.is-avplay .app > *:not([data-player]) {
+  visibility: hidden;
+}
+
+html.is-avplay .player__video {
+  display: none;
+}
+
+.player__hud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+.player__hud.is-idle {
+  opacity: 0;
+}
+
+.player__top {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  padding: 40px 60px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+}
+
+.player__title {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.player__backend {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.player__center {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.player__spinner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border: 6px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: player-spin 900ms linear infinite;
+}
+
+.player__spinner.is-hidden {
+  display: none;
+}
+
+@keyframes player-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.player__error {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 900px;
+  margin: -90px 0 0 -450px;
+  padding: 34px 40px;
+  background: rgba(10, 11, 16, 0.94);
+  border-left: 6px solid var(--accent);
+  display: none;
+}
+
+.player__error.is-visible {
+  display: block;
+}
+
+.player__errorText {
+  font-size: 26px;
+  line-height: 1.4;
+  color: #fff;
+}
+
+.player__errorHint {
+  margin-top: 14px;
+  font-size: 18px;
+  color: var(--text-dim);
+  word-wrap: break-word;
+  overflow: hidden;
+}
+
+.player__bottom {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  padding: 40px 60px 44px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0));
+}
+
+.player__bar {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.player__bar.is-live {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.player__buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.player__played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.player__knob {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.player__row {
+  margin-top: 16px;
+  font-size: 20px;
+  color: var(--text-dim);
+}
+
+.player__row span {
+  margin-right: 28px;
+}
+
+.player__time {
+  color: #fff;
+}
+
+/* --- settings: skipped add-ons (host + reason only) ------------------------ */
+
+.settings__failures {
+  margin-top: 10px;
+}
+
+.settings__failure {
+  font-size: 17px;
   color: var(--text-dim);
 }
 

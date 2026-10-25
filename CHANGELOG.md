@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.5.0 — 2026-10-25 — Video playback (Milestone 5)
+
+### Added
+- **Video player** (`app/js/playback/`): AVPlay first (DASH/HLS/HEVC on the TV), HTML5 `<video>` fallback (MP4 + HLS everywhere, including desktop Chrome). The active engine is shown in the HUD.
+- Play/pause, ±10 s seeking (FF/REW ±30 s on media keys), progress bar with buffered range, buffering spinner, auto-hiding controls, ended state and a typed error overlay.
+- **Stream selection**: stream rows are focusable — OK plays that source; the **Play** button plays the first playable one.
+- **Episode playback**: real `videos[]` metadata from the add-on renders as episode cards; selecting one fetches that episode's sources (`tt…:S:E`) and plays them. Demo items keep placeholder episodes.
+- **Torrent/infoHash/magnet streams are refused with a clear message** — no direct torrent playback is claimed or attempted. External-app (`externalUrl`, `ytId`) and `notWebReady` sources are refused too.
+- Error mapping for network loss, unsupported codecs, expired/403 links (`MEDIA_ERR_SRC_NOT_SUPPORTED`), prepare/open timeouts and unknown containers.
+- Cleanup on exit: engine stop/close, media `src` released, AVPlay transparent-stage mode removed, focus restored to the originating row.
+- Docs: `docs/PLAYBACK.md` (engines, formats, keys, failure codes, device verification, limitations).
+
+### Fixed / changed (add-on import)
+- **Stream-only and subtitle-only add-ons are accepted** (`resources: ['stream']` with no catalogs, object-form `resources: [{ name }]`). The previous check required `manifest.resources` and rejected manifests that declare only catalogs.
+- **Stremio-scheme add-on addresses are mapped to HTTPS** instead of being dropped — a cause of "detected N, imported fewer".
+- The import no longer stops at 12 add-ons (the parser's cap is 20 and every detected URL is attempted).
+- **Import diagnostics**: skipped add-ons are recorded and shown in Settings as **host · reason** (`auth`, `notFound`, `server`, `notAddon`, `invalidUrl`, `timeout`, `unreachable`). No URL, path, token or stream link is stored, logged or shown.
+
+### Tests
+- 38 new browser checks (117 total): real HTML5 playback of a served sample (play/pause/seek/progress/ended), BACK lifecycle + media release + focus restore, torrent/magnet/external refusals, broken-URL error state, AVPlay adapter against a stubbed Samsung API (open/rect/prepare/play/stop/close, `is-avplay` plane), episode metadata + per-episode stream fetch + episode playback, stream-only/subtitle-only installs, Stremio-scheme mapping, host+reason import diagnostics and their redaction.
+
 ## v0.4.1 — 2026-10-25 — Samsung IME / import hotfix
 
 ### Fixed

@@ -20,9 +20,13 @@ export var PRESETS = [
 function summarize(url, manifest) {
   var resources = [];
   var raw = manifest.resources || [];
-  for (var i = 0; i < raw.length; i++) {
-    if (typeof raw[i] === 'string') {
-      resources.push(raw[i]);
+  for (var i = 0; i < raw.length && resources.length < 8; i++) {
+    // Resources may be plain strings or Stremio's object form
+    // ({ name:'stream', types:[…], idPrefixes:[…] }).
+    var entry = raw[i];
+    var name = typeof entry === 'string' ? entry : entry && entry.name ? String(entry.name) : '';
+    if (name && resources.indexOf(name) === -1) {
+      resources.push(name);
     }
   }
   var catalogs = [];
@@ -34,6 +38,13 @@ function summarize(url, manifest) {
       name: rawCats[c].name || rawCats[c].id
     });
   }
+  var types = [];
+  var rawTypes = manifest.types || [];
+  for (var t = 0; t < rawTypes.length && types.length < 6; t++) {
+    if (typeof rawTypes[t] === 'string') {
+      types.push(rawTypes[t]);
+    }
+  }
   return {
     url: url,
     id: String(manifest.id || url),
@@ -42,6 +53,7 @@ function summarize(url, manifest) {
     description: String(manifest.description || ''),
     logo: manifest.logo ? String(manifest.logo) : '',
     resources: resources,
+    types: types,
     catalogs: catalogs
   };
 }
@@ -70,7 +82,9 @@ export function hasAddon(url) {
 export function addAddon(url, cb) {
   var base = normalizeBase(url);
   if (!base) {
-    cb(new Error('invalid add-on url'));
+    var invalidUrl = new Error('invalid add-on url');
+    invalidUrl.reason = 'invalidUrl';
+    cb(invalidUrl);
     return;
   }
   if (hasAddon(base)) {
@@ -82,8 +96,21 @@ export function addAddon(url, cb) {
       cb(err);
       return;
     }
-    if (!manifest || !manifest.id || !manifest.resources) {
-      cb(new Error('not a Stremio add-on manifest'));
+    if (!manifest || !manifest.id) {
+      var notAddon = new Error('not a Stremio add-on manifest');
+      notAddon.reason = 'notAddon';
+      cb(notAddon);
+      return;
+    }
+    // Stream-only and subtitle-only add-ons are first-class: they carry no
+    // catalogs at all. Anything with at least one declarable capability counts.
+    var hasResources = !!manifest.resources && manifest.resources.length > 0;
+    var hasCatalogs = !!manifest.catalogs && manifest.catalogs.length > 0;
+    var hasTypes = !!manifest.types && manifest.types.length > 0;
+    if (!hasResources && !hasCatalogs && !hasTypes) {
+      var empty = new Error('manifest declares no resources, catalogs or types');
+      empty.reason = 'manifest';
+      cb(empty);
       return;
     }
     var entry = summarize(base, manifest);

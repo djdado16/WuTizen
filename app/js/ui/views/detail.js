@@ -113,6 +113,9 @@ export function createDetails() {
   var currentItem = null;
   var currentLang = 'hr';
   var episodeImages = [];
+  var episodeCards = [];
+  var sourceRowList = [];
+  var streamList = [];
 
   function renderText() {
     if (!currentItem) {
@@ -140,6 +143,7 @@ export function createDetails() {
       forgetImage(episodeImages[i]);
     }
     episodeImages = [];
+    episodeCards = [];
     while (episodes.firstChild) {
       episodes.removeChild(episodes.firstChild);
     }
@@ -147,16 +151,49 @@ export function createDetails() {
 
   function renderEpisodes() {
     clearEpisodes();
-    var list = getEpisodes(currentItem);
-    var hasEpisodes = list.length > 0;
+    var cards = [];
+    var reals = currentItem && currentItem.videos && currentItem.videos.length ? currentItem.videos : null;
+    if (reals) {
+      // Real series metadata from the add-on: one card per video (episode).
+      for (var r = 0; r < reals.length && r < 24; r++) {
+        var video = reals[r];
+        var fallback = 'S' + video.season + ' E' + video.episode;
+        cards.push({
+          id: video.id,
+          number: video.episode,
+          season: video.season,
+          label: { hr: video.name || fallback, en: video.name || fallback },
+          minutes: 0,
+          image: video.thumbnail
+        });
+      }
+    } else {
+      var mockList = getEpisodes(currentItem);
+      for (var m = 0; m < mockList.length; m++) {
+        cards.push({
+          id: '',
+          number: mockList[m].number,
+          season: 0,
+          label: mockList[m].title,
+          minutes: mockList[m].minutes,
+          image: mockList[m].image
+        });
+      }
+    }
+
+    var hasEpisodes = cards.length > 0;
     section.style.display = hasEpisodes ? '' : 'none';
     episodes.style.display = hasEpisodes ? 'flex' : 'none';
 
-    for (var i = 0; i < list.length; i++) {
-      var ep = list[i];
+    for (var i = 0; i < cards.length; i++) {
+      var ep = cards[i];
 
       var card = document.createElement('div');
       card.className = 'ep';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '-1');
+      card.setAttribute('data-episode-id', ep.id || '');
+      card.setAttribute('data-episode-number', String(ep.number || 0));
 
       var frame = document.createElement('div');
       frame.className = 'ep__frame';
@@ -170,19 +207,20 @@ export function createDetails() {
 
       var badge = document.createElement('span');
       badge.className = 'card__badge';
-      badge.textContent = 'E' + ep.number;
+      badge.textContent = ep.season > 0 ? 'S' + ep.season + 'E' + ep.number : 'E' + ep.number;
       frame.appendChild(badge);
 
       var label = document.createElement('div');
       label.className = 'ep__label';
-      label.textContent =
-        (ep.title[currentLang] || ep.title.hr) + ' · ' + ep.minutes + ' ' + t('unit.min');
+      var text = ep.label[currentLang] || ep.label.hr;
+      label.textContent = ep.minutes > 0 ? text + ' · ' + ep.minutes + ' ' + t('unit.min') : text;
 
       card.appendChild(frame);
       card.appendChild(label);
       episodes.appendChild(card);
       observeImage(img);
       episodeImages.push(img);
+      episodeCards.push({ el: card, videoId: ep.id || '', label: text });
     }
   }
 
@@ -220,18 +258,38 @@ export function createDetails() {
     return parts.join(' · ');
   }
 
-  function setStreams(list) {
+  /**
+   * Stream list for the current item. Rows are focusable: activating one plays
+   * that stream (main.js registers them). Kept to 8 rows so the details screen
+   * stays navigable with a remote.
+   */
+  function setStreams(list, settled) {
     while (sources.firstChild) {
       sources.removeChild(sources.firstChild);
     }
-    var streams = list || [];
-    var visible = Math.min(streams.length, 5);
-    sourcesHeading.style.display = visible > 0 ? '' : 'none';
+    sourceRowList = [];
+    streamList = list || [];
+    var visible = Math.min(streamList.length, 8);
+    var isReal = !!(currentItem && currentItem.addonUrl);
+    sourcesHeading.style.display = visible > 0 || (isReal && settled === true) ? '' : 'none';
+
+    if (visible === 0 && isReal && settled === true) {
+      var empty = document.createElement('div');
+      empty.className = 'details__empty';
+      empty.textContent = t('player.noSources');
+      sources.appendChild(empty);
+      return;
+    }
+
     for (var i = 0; i < visible; i++) {
       var row = document.createElement('div');
       row.className = 'source-row';
-      row.textContent = describeStream(streams[i] || {});
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '-1');
+      row.setAttribute('data-stream-index', String(i));
+      row.textContent = describeStream(streamList[i] || {});
       sources.appendChild(row);
+      sourceRowList.push({ el: row, stream: streamList[i] || {}, index: i });
     }
   }
 
@@ -241,6 +299,21 @@ export function createDetails() {
     setItem: setItem,
     setLanguage: setLanguage,
     setStreams: setStreams,
+    title: function () {
+      if (!currentItem) {
+        return '';
+      }
+      return currentItem.title[currentLang] || currentItem.title.hr;
+    },
+    currentItem: function () {
+      return currentItem;
+    },
+    sourceRows: function () {
+      return sourceRowList;
+    },
+    episodeCards: function () {
+      return episodeCards;
+    },
     isOpen: function () {
       return root.classList.contains('is-open');
     }

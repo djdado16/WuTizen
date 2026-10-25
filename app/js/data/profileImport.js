@@ -21,6 +21,8 @@ var ADDON_KEY = /^(transportUrl|transport_url|addonUrl|addon_url|manifestUrl|man
 var MEDIA_KEY = /(logo|poster|background|image|avatar|icon|banner)/i;
 var PROFILE_KEY = /^(profiles?|users?)$/i;
 var LIST_KEY = /(lists?|watchlist|watchLater|bookmarks|favorites|library|history|continueWatching)/i;
+/** Add-on transports in an export: https, but also Stremio's own scheme. */
+var ADDON_URL = /^(?:https?|stremio):\/\//i;
 
 export function parseProfile(input) {
   var data = input;
@@ -80,9 +82,9 @@ export function parseProfile(input) {
       var value = node[key];
       if (typeof value === 'string') {
         var text = value.trim();
-        if (!MEDIA_KEY.test(key) && /^https?:\/\//i.test(text)) {
+        if (!MEDIA_KEY.test(key) && ADDON_URL.test(text)) {
           var base = normalizeBase(text);
-          if (base && (ADDON_KEY.test(key) || /\/manifest\.json$/i.test(text))) {
+          if (base && (ADDON_KEY.test(key) || /\/manifest\.json(?:[?#]|$)/i.test(text))) {
             addAddon(base);
           }
         }
@@ -118,7 +120,7 @@ export function parseProfile(input) {
 }
 
 /** Host-only summary (never the full add-on URL). */
-export function summarizeImport(parsed, imported, skipped) {
+export function summarizeImport(parsed, imported, skipped, failures) {
   var hosts = [];
   for (var i = 0; i < parsed.addons.length; i++) {
     var match = /^https?:\/\/[^/]+/i.exec(parsed.addons[i]);
@@ -132,6 +134,15 @@ export function summarizeImport(parsed, imported, skipped) {
     profiles: parsed.profiles,
     lists: parsed.lists,
     imported: imported,
-    skipped: skipped
+    skipped: skipped,
+    // Host + reason only: enough to see *which* add-on was skipped without
+    // storing its path, configuration or token.
+    failures: (failures || []).slice(0, 8)
   };
+}
+
+/** Host of an add-on URL (for failure descriptions). */
+export function hostOfUrl(url) {
+  var match = /^https?:\/\/[^/]+/i.exec(String(url || ''));
+  return match ? match[0] : '(no host)';
 }

@@ -9,6 +9,32 @@
 
 import { createServer } from 'node:http';
 
+/** 3 s of 8 kHz 8-bit mono PCM — real decodable media for the player tests. */
+function wavSample() {
+  var rate = 8000;
+  var seconds = 20;
+  var samples = rate * seconds;
+  var buffer = Buffer.alloc(44 + samples);
+  buffer.write('RIFF', 0, 'ascii');
+  buffer.writeUInt32LE(36 + samples, 4);
+  buffer.write('WAVE', 8, 'ascii');
+  buffer.write('fmt ', 12, 'ascii');
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20); // PCM
+  buffer.writeUInt16LE(1, 22); // mono
+  buffer.writeUInt32LE(rate, 24);
+  buffer.writeUInt32LE(rate, 28);
+  buffer.writeUInt16LE(1, 32);
+  buffer.writeUInt16LE(8, 34);
+  buffer.write('data', 36, 'ascii');
+  buffer.writeUInt32LE(samples, 40);
+  for (var i = 0; i < samples; i++) {
+    // 440 Hz tone, centred on 128 (8-bit unsigned).
+    buffer[44 + i] = 128 + Math.round(40 * Math.sin((2 * Math.PI * 440 * i) / rate));
+  }
+  return buffer;
+}
+
 function poster(label) {
   var svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180">' +
@@ -40,9 +66,10 @@ const SHOWS = [
 ];
 
 function metaFor(id) {
+  var isSeries = id.indexOf('show') === 0;
   return {
     id: id,
-    type: id.indexOf('show') === 0 ? 'series' : 'movie',
+    type: isSeries ? 'series' : 'movie',
     name: id === 'mock-1' ? 'Mock Film 1 (Full)' : 'Mock ' + id,
     poster: poster('M'),
     background: poster('B'),
@@ -51,7 +78,14 @@ function metaFor(id) {
     runtime: '112 min',
     imdbRating: '7.5',
     genres: ['Drama', 'Sci-Fi'],
-    cast: ['Test Actor', 'Second Actor']
+    cast: ['Test Actor', 'Second Actor'],
+    // Real episode metadata (Stremio `videos`), so episode selection is real.
+    videos: isSeries
+      ? [
+          { id: id + ':1:1', season: 1, episode: 1, name: 'Pilot' },
+          { id: id + ':1:2', season: 1, episode: 2, name: 'Second' }
+        ]
+      : []
   };
 }
 
@@ -108,6 +142,53 @@ export function startMockAddon(port) {
       return;
     }
 
+    // Real media for the player tests (no network, no encoder needed).
+    if (url === '/media/sample.wav') {
+      const body = wavSample();
+      const range = req.headers.range;
+      res.setHeader('Content-Type', 'audio/wav');
+      res.setHeader('Accept-Ranges', 'bytes');
+      if (range) {
+        const parts = /bytes=(\d*)-(\d*)/.exec(range);
+        const start = parts && parts[1] ? parseInt(parts[1], 10) : 0;
+        const end = parts && parts[2] ? parseInt(parts[2], 10) : body.length - 1;
+        res.statusCode = 206;
+        res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + body.length);
+        res.setHeader('Content-Length', String(end - start + 1));
+        res.end(body.slice(start, end + 1));
+        return;
+      }
+      res.setHeader('Content-Length', String(body.length));
+      res.end(body);
+      return;
+    }
+
+    // Stream-only and subtitle-only add-ons: no catalogs at all (the shape that
+    // used to be skipped during import).
+    if (url === '/streamonly/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.streamonly',
+        version: '1.0.0',
+        name: 'Stream Only',
+        description: 'No catalog, only streams',
+        resources: ['stream'],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+
+    if (url === '/subonly/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.subonly',
+        version: '1.0.0',
+        name: 'Subtitles Only',
+        description: 'Object-form resources, subtitles only',
+        resources: [{ name: 'subtitles', types: ['movie'] }],
+        types: ['movie']
+      });
+      return;
+    }
+
     // Failing add-on: manifest is valid, every catalog request returns HTTP 500.
     if (url === '/fail/manifest.json') {
       send(200, {
@@ -150,8 +231,11 @@ export function startMockAddon(port) {
     if (match) {
       send(200, {
         streams: [
-          { name: 'Mock 1080p', url: 'https://example.invalid/mock-1080.mp4' },
-          { name: 'Mock 720p', url: 'https://example.invalid/mock-720.mp4' }
+          // Playable: a real WAV the HTML5 engine decodes in the smoke test.
+          { name: 'Mock 1080p', title: 'Mock 1080p (direct)', url: 'http://127.0.0.1:' + port + '/media/sample.wav' },
+          { name: 'Mock 720p', url: 'https://example.invalid/mock-720.mp4' },
+          // Refusal path: torrent metadata without an HTTP link.
+          { name: 'TorBox 1080p', title: 'TorBox 1080p (torrent)', infoHash: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', fileIdx: 0 }
         ]
       });
       return;
