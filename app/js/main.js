@@ -29,7 +29,8 @@ import { createHero } from './ui/components/hero.js';
 import { createToast } from './ui/components/toast.js';
 import { createDetails } from './ui/views/detail.js';
 import { createAddonsView } from './ui/views/addons.js';
-import { addonClient } from './data/addonClient.js';
+import { addonClient, diagnosticsList, clearDiagnostics } from './data/addonClient.js';
+import { createDiagnosticsView } from './ui/views/diagnostics.js';
 import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
 import {
   listAddons,
@@ -95,6 +96,9 @@ function boot() {
 
   var addonsView = createAddonsView();
   appEl.appendChild(addonsView.el);
+
+  var diagnosticsView = createDiagnosticsView();
+  appEl.appendChild(diagnosticsView.el);
 
   appEl.appendChild(toast.el);
 
@@ -256,7 +260,8 @@ function boot() {
       addonsView.render();
       refocusAddons();
       loadAddonCatalogs();
-    }
+    },
+    onDiagnostics: openDiagnostics
   });
 
   var addonsScreen = {
@@ -286,6 +291,81 @@ function boot() {
     }
   };
 
+  /* ---- diagnostics screen ----------------------------------------------- */
+  var diagnosticsReturnFocus = null;
+  var diagnosticsFocusables = [];
+
+  function unregisterDiagnostics() {
+    for (var i = 0; i < diagnosticsFocusables.length; i++) {
+      focusManager.unregister(diagnosticsFocusables[i]);
+    }
+    diagnosticsFocusables = [];
+  }
+
+  function envSummary() {
+    var probe = platform.probeAvPlay();
+    return (
+      'origin=' +
+      (typeof location !== 'undefined' ? location.origin : '?') +
+      ' · avplay=' +
+      (probe.avplay ? 'yes' : 'no') +
+      ' · webapis=' +
+      (probe.webapis ? 'yes' : 'no') +
+      ' · ' +
+      (typeof navigator !== 'undefined' ? navigator.userAgent : '')
+    );
+  }
+
+  function renderDiagnostics() {
+    diagnosticsView.render({ environment: envSummary(), entries: diagnosticsList() });
+  }
+
+  function openDiagnostics() {
+    diagnosticsReturnFocus = focusManager.getCurrent();
+    router.push(diagnosticsScreen);
+  }
+
+  var diagnosticsScreen = {
+    name: 'diagnostics',
+    show: function () {
+      diagnosticsView.el.classList.add('is-open');
+      renderDiagnostics();
+      unregisterDiagnostics();
+      var list = diagnosticsView.focusables();
+      for (var i = 0; i < list.length; i++) {
+        diagnosticsFocusables.push(list[i].el);
+        focusManager.register(list[i].el, list[i].activate);
+      }
+      focusManager.setScope(diagnosticsView.el);
+      if (list.length) {
+        focusManager.focus(list[0].el);
+      } else {
+        focusManager.focusFirst();
+      }
+    },
+    hide: function () {
+      diagnosticsView.el.classList.remove('is-open');
+      unregisterDiagnostics();
+      focusManager.setScope(null);
+      var restored = diagnosticsReturnFocus ? focusManager.focus(diagnosticsReturnFocus) : false;
+      diagnosticsReturnFocus = null;
+      if (!restored) {
+        focusManager.focusFirst();
+      }
+    }
+  };
+
+  diagnosticsView.setHandlers({
+    onRetry: function () {
+      clearDiagnostics();
+      loadAddonCatalogs();
+      renderDiagnostics();
+    },
+    onClose: function () {
+      router.pop();
+    }
+  });
+
   /* ---- add-on catalog rows ---------------------------------------------- */
   var catalogLoading = false;
 
@@ -300,6 +380,10 @@ function boot() {
       }
     }
     shelves = [];
+    var errors = rowsEl.querySelectorAll('[data-error-row]');
+    for (var e = 0; e < errors.length; e++) {
+      rowsEl.removeChild(errors[e]);
+    }
   }
 
   /** Fetches the next catalog page when focus reaches the end of a row. */
@@ -360,6 +444,36 @@ function boot() {
     }
   }
 
+  function appendErrorRows(failures) {
+    if (!failures || !failures.length) {
+      return;
+    }
+    for (var i = 0; i < failures.length; i++) {
+      (function (failure) {
+        var row = document.createElement('section');
+        row.className = 'row row--error';
+        row.setAttribute('data-error-row', '1');
+
+        var title = document.createElement('h2');
+        title.className = 'row__title';
+        title.textContent = (failure.catalog && failure.catalog.name) || t('row.error');
+
+        var message = document.createElement('div');
+        message.className = 'row__error';
+        message.textContent = t('row.error') + ' · ' + failure.error;
+
+        var hint = document.createElement('div');
+        hint.className = 'row__hint';
+        hint.textContent = t('row.retryHint');
+
+        row.appendChild(title);
+        row.appendChild(message);
+        row.appendChild(hint);
+        rowsEl.appendChild(row);
+      })(failures[i]);
+    }
+  }
+
   function loadAddonCatalogs() {
     var addons = listAddons();
     if (!addons.length) {
@@ -371,13 +485,24 @@ function boot() {
       return;
     }
     catalogLoading = true;
-    loadCatalogRows(addons, 3, 2, function (rows) {
+    loadCatalogRows(addons, 3, 2, function (result) {
       catalogLoading = false;
-      if (!rows.length) {
-        toast.show(t('addons.unreachable'));
-        return;
+      if (result.rows.length) {
+        renderAddonRows(result.rows);
+      } else {
+        // Add-ons are installed but nothing loaded: never silently keep the
+        // placeholder rows, show the failure instead.
+        clearShelves();
+        scrollY = 0;
+        applyScroller();
       }
-      renderAddonRows(rows);
+      appendErrorRows(result.failures);
+      if (!result.rows.length) {
+        var focused = focusManager.getCurrent();
+        if (!focused || !focused.parentNode) {
+          focusManager.focusFirst();
+        }
+      }
     });
   }
 
@@ -626,6 +751,10 @@ function boot() {
         loadAddonCatalogs();
         return true;
       },
+      openDiagnostics: function () {
+        openDiagnostics();
+        return true;
+      },
       focusFirstCard: function () {
         if (shelves.length && shelves[0].cards.length) {
           return focusManager.focus(shelves[0].cards[0].el);
@@ -673,6 +802,9 @@ function boot() {
         episodes: document.querySelectorAll('.ep').length,
         sources: document.querySelectorAll('.source-row').length,
         addons: listAddons().length,
+        diagnostics: diagnosticsList().length,
+        errorRows: document.querySelectorAll('[data-error-row]').length,
+        diagnosticsOpen: diagnosticsView.isOpen(),
         rowTitles: Array.prototype.map.call(document.querySelectorAll('.row__title'), function (n) {
           return n.textContent;
         }),

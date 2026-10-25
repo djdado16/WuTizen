@@ -61,6 +61,7 @@ export function fetchCatalogPage(addon, catalog, skip, cb) {
 /** First page of every catalog of every installed add-on (bounded). */
 export function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
   var rows = [];
+  var failures = [];
   var pending = 0;
   var startCount = 0;
 
@@ -72,11 +73,15 @@ export function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
       (function (addon, catalog) {
         fetchCatalogPage(addon, catalog, 0, function (err, items) {
           pending -= 1;
-          if (!err && items.length) {
+          if (err) {
+            failures.push({ addon: addon, catalog: catalog, error: err.message });
+          } else if (!items.length) {
+            failures.push({ addon: addon, catalog: catalog, error: 'empty catalog' });
+          } else {
             rows.push({ addon: addon, catalog: catalog, items: items });
           }
           if (pending === 0) {
-            done(rows, startCount);
+            done({ rows: rows, failures: failures, attempted: startCount });
           }
         });
       })(addons[a], catalogs[c]);
@@ -84,6 +89,6 @@ export function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
   }
 
   if (startCount === 0) {
-    done(rows, 0);
+    done({ rows: rows, failures: failures, attempted: 0 });
   }
 }

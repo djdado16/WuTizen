@@ -21,6 +21,7 @@ Status legend: **done** (implemented + tested) · **partial** · **planned** ·
 | Local persistence | — | `localStorage` | **done** |
 | Add-on auto-update | README "Add-ons auto update" | periodic manifest refetch | planned |
 | Custom URL entry | — | TV IME / keyboard | **verify** (presets avoid typing) |
+| Diagnostics screen (host-only request log, AVPlay probe) | — | — | **done** (temporary, for the TV investigation) |
 
 Key-free presets shipped in the UI: **Cinemeta** (`v3-cinemeta.strem.io`) and
 **OpenSubtitles v3** (`opensubtitles-v3.strem.io`). Add-ons that need credentials

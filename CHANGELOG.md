@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.1 — 2026-10-24 — Diagnostic hotfix
+
+### Added
+- **Diagnostics screen** (Add-ons → Diagnostics): add-on host (scheme+host only), per-request HTTP status or network error, item counts, request duration, AVPlay/`webapis` availability, origin and user agent, plus Retry/Close.
+- In-memory request log in the add-on client — records host, resource, type/id, status, item count; **never** the full add-on URL or query string.
+
+### Changed
+- When add-ons are installed but every catalog fails, the placeholder rows are now replaced by **explicit error rows** (catalog name, reason, hint) instead of staying silently on screen as if nothing was configured.
+
+### Tests
+- 5 new checks (54 total): failing add-on (valid manifest, HTTP 500 catalog), explicit error row with no mock fallback, diagnostics log entry, diagnostics screen open/close, placeholder restore after removing the failing add-on.
+
 ## v0.3.0 — 2026-10-24 — Add-on engine (Milestone 3)
 
 ### Added

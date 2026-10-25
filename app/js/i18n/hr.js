@@ -32,6 +32,16 @@ export default {
   'addons.presets': 'Preporučeni javni dodaci',
   'addons.custom': 'Dodaj po adresi',
   'addons.urlPlaceholder': 'URL dodatka',
+  'addons.diagnostics': 'Dijagnostika',
+
+  'diagnostics.title': 'Dijagnostika',
+  'diagnostics.items': 'stavki',
+  'diagnostics.empty': 'Nema zabilježenih zahtjeva.',
+  'diagnostics.retry': 'Ponovi',
+  'diagnostics.close': 'Zatvori',
+
+  'row.error': 'Katalog nije dostupan',
+  'row.retryHint': 'Provjerite vezu i pokušajte ponovno.',
   'addons.add': 'Dodaj',
   'addons.remove': 'Ukloni',
   'addons.empty': 'Nema instaliranih dodataka.',

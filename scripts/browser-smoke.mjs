@@ -561,6 +561,48 @@ try {
     s.rowTitles.join(' | ')
   );
 
+  // ---- failure path: add-on installed, every catalog request fails ---------
+  const failingUrl = 'http://127.0.0.1:' + ADDON_PORT + '/fail';
+  await evaluate(client, 'window.WuTizenDebug.addon.add(' + JSON.stringify(failingUrl) + ')');
+  await evaluate(client, 'window.WuTizenDebug.addon.reload()');
+  await waitFor(client, 'document.querySelectorAll("[data-error-row]").length > 0', 8000);
+  s = await snapshot();
+  check(
+    'failed catalog shows an explicit error row (no mock fallback)',
+    s.errorRows > 0 && s.rowTitles.indexOf('Najbolje od najboljeg – filmovi') === -1,
+    s.rowTitles.join(' | ')
+  );
+  check('diagnostics records the failed request', s.diagnostics > 0, String(s.diagnostics));
+
+  await evaluate(client, 'window.WuTizenDebug.addon.openDiagnostics()');
+  const diagOpen = await evaluate(client, 'window.WuTizenDebug.snapshot().diagnosticsOpen');
+  const diagEnv = await evaluate(
+    client,
+    'document.querySelector(".diagnostics__env").textContent'
+  );
+  const diagErrors = await evaluate(
+    client,
+    'document.querySelectorAll(".diagnostics__row.is-error").length'
+  );
+  check(
+    'diagnostics screen opens with environment + error entry',
+    diagOpen === true && String(diagEnv).indexOf('avplay=') > -1 && diagErrors > 0,
+    String(diagEnv).slice(0, 48)
+  );
+  await press(client, 'Unidentified', 10009);
+  s = await snapshot();
+  check('BACK closes diagnostics', s.diagnosticsOpen === false, String(s.diagnosticsOpen));
+
+  await evaluate(client, 'window.WuTizenDebug.addon.remove(' + JSON.stringify(failingUrl) + ')');
+  await evaluate(client, 'window.WuTizenDebug.addon.reload()');
+  await sleep(300);
+  s = await snapshot();
+  check(
+    'removing the failing add-on restores placeholders',
+    s.rowTitles.length === 3 && s.errorRows === 0,
+    s.rowTitles.join(' | ')
+  );
+
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));

@@ -162,6 +162,18 @@ export function createAddonsView() {
       })
     );
     customSection.appendChild(customRow);
+
+    var diagRow = document.createElement('div');
+    diagRow.className = 'addon-row';
+    diagRow.appendChild(
+      actionButton(t('addons.diagnostics'), 'diagnostics', function () {
+        if (handlers.onDiagnostics) {
+          handlers.onDiagnostics();
+        }
+      })
+    );
+    customSection.appendChild(diagRow);
+
     focusables.push({ el: customInput, activate: function () {} });
   }
 
@@ -181,6 +193,7 @@ export function createAddonsView() {
     setHandlers: function (next) {
       handlers.onAdd = next.onAdd || null;
       handlers.onRemove = next.onRemove || null;
+      handlers.onDiagnostics = next.onDiagnostics || null;
     },
     isOpen: function () {
       return root.classList.contains('is-open');

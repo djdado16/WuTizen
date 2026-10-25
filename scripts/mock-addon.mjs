@@ -90,6 +90,26 @@ export function startMockAddon(port) {
       return;
     }
 
+    // Failing add-on: manifest is valid, every catalog request returns HTTP 500.
+    if (url === '/fail/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.fail',
+        version: '1.0.0',
+        name: 'WuTizen Failing Add-on',
+        description: 'Always fails (error-path fixture)',
+        resources: ['catalog'],
+        types: ['movie'],
+        catalogs: [{ type: 'movie', id: 'broken', name: 'Test Broken' }]
+      });
+      return;
+    }
+
+    if (url === '/catalog/movie/broken.json') {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: 'boom' }));
+      return;
+    }
+
     let match = /^\/catalog\/movie\/top(?:\/skip=(\d+))?\.json$/.exec(url);
     if (match) {
       const skip = match[1] ? parseInt(match[1], 10) : 0;

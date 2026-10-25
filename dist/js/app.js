@@ -309,6 +309,14 @@
     "addons.presets": "Preporučeni javni dodaci",
     "addons.custom": "Dodaj po adresi",
     "addons.urlPlaceholder": "URL dodatka",
+    "addons.diagnostics": "Dijagnostika",
+    "diagnostics.title": "Dijagnostika",
+    "diagnostics.items": "stavki",
+    "diagnostics.empty": "Nema zabilježenih zahtjeva.",
+    "diagnostics.retry": "Ponovi",
+    "diagnostics.close": "Zatvori",
+    "row.error": "Katalog nije dostupan",
+    "row.retryHint": "Provjerite vezu i pokušajte ponovno.",
     "addons.add": "Dodaj",
     "addons.remove": "Ukloni",
     "addons.empty": "Nema instaliranih dodataka.",
@@ -355,6 +363,14 @@
     "addons.presets": "Recommended public add-ons",
     "addons.custom": "Add by address",
     "addons.urlPlaceholder": "Add-on URL",
+    "addons.diagnostics": "Diagnostics",
+    "diagnostics.title": "Diagnostics",
+    "diagnostics.items": "items",
+    "diagnostics.empty": "No requests recorded.",
+    "diagnostics.retry": "Retry",
+    "diagnostics.close": "Close",
+    "row.error": "Catalog unavailable",
+    "row.retryHint": "Check the connection and try again.",
     "addons.add": "Add",
     "addons.remove": "Remove",
     "addons.empty": "No add-ons installed.",
@@ -1513,6 +1529,25 @@
 
   // app/js/data/addonClient.js
   var TIMEOUT = 9e3;
+  var LOG_LIMIT = 40;
+  var log = [];
+  function diagnosticsList() {
+    return log.slice(0);
+  }
+  function clearDiagnostics() {
+    log = [];
+  }
+  function hostOf(url) {
+    var match = /^https?:\/\/[^/]+/i.exec(url || "");
+    return match ? match[0] : "(no host)";
+  }
+  function record(entry) {
+    entry.when = Date.now();
+    log.push(entry);
+    if (log.length > LOG_LIMIT) {
+      log.shift();
+    }
+  }
   function normalizeBase(input) {
     var url = String(input || "").trim();
     if (!url) {
@@ -1525,14 +1560,39 @@
     url = url.replace(/\/manifest\.json$/i, "");
     return url;
   }
-  function requestJson(url, done) {
+  function requestJson(url, ctx, done) {
+    var started = Date.now();
     var xhr = new XMLHttpRequest();
     var finished = false;
+    var status = 0;
     function finish(err, data) {
       if (finished) {
         return;
       }
       finished = true;
+      var items = -1;
+      if (!err && data) {
+        if (data.metas) {
+          items = data.metas.length;
+        } else if (data.meta) {
+          items = 1;
+        } else if (data.streams) {
+          items = data.streams.length;
+        } else if (data.subtitles) {
+          items = data.subtitles.length;
+        }
+      }
+      record({
+        host: ctx.host,
+        resource: ctx.resource,
+        type: ctx.type || "",
+        id: ctx.id || "",
+        skip: ctx.skip || 0,
+        status,
+        error: err ? err.message : "",
+        items,
+        ms: Date.now() - started
+      });
       done(err, data);
     }
     try {
@@ -1542,6 +1602,7 @@
         if (xhr.readyState !== 4) {
           return;
         }
+        status = xhr.status;
         if (xhr.status >= 200 && xhr.status < 300) {
           var data = null;
           try {
@@ -1552,7 +1613,7 @@
           }
           finish(null, data);
         } else if (xhr.status === 0) {
-          finish(new Error("network error"));
+          finish(new Error("network or TLS error"));
         } else {
           finish(new Error("HTTP " + xhr.status));
         }
@@ -1561,7 +1622,7 @@
         finish(new Error("timeout"));
       };
       xhr.onerror = function() {
-        finish(new Error("network error"));
+        finish(new Error("network or TLS error"));
       };
       xhr.send();
     } catch (err) {
@@ -1582,7 +1643,7 @@
         cb(new Error("invalid add-on url"));
         return;
       }
-      requestJson(root + "/manifest.json", cb);
+      requestJson(root + "/manifest.json", { host: hostOf(root), resource: "manifest" }, cb);
     },
     catalog: function(base, type, id, skip, cb) {
       var root = normalizeBase(base);
@@ -1591,7 +1652,11 @@
         return;
       }
       var extra = skip > 0 ? "skip=" + skip : "";
-      requestJson(resourceUrl(root, "catalog", type, id, extra), cb);
+      requestJson(
+        resourceUrl(root, "catalog", type, id, extra),
+        { host: hostOf(root), resource: "catalog", type, id, skip: skip || 0 },
+        cb
+      );
     },
     meta: function(base, type, id, cb) {
       var root = normalizeBase(base);
@@ -1599,7 +1664,11 @@
         cb(new Error("invalid add-on url"));
         return;
       }
-      requestJson(resourceUrl(root, "meta", type, id, ""), cb);
+      requestJson(
+        resourceUrl(root, "meta", type, id, ""),
+        { host: hostOf(root), resource: "meta", type, id },
+        cb
+      );
     },
     streams: function(base, type, id, cb) {
       var root = normalizeBase(base);
@@ -1607,7 +1676,11 @@
         cb(new Error("invalid add-on url"));
         return;
       }
-      requestJson(resourceUrl(root, "stream", type, id, ""), cb);
+      requestJson(
+        resourceUrl(root, "stream", type, id, ""),
+        { host: hostOf(root), resource: "stream", type, id },
+        cb
+      );
     },
     subtitles: function(base, type, id, extra, cb) {
       var root = normalizeBase(base);
@@ -1615,7 +1688,11 @@
         cb(new Error("invalid add-on url"));
         return;
       }
-      requestJson(resourceUrl(root, "subtitles", type, id, extra), cb);
+      requestJson(
+        resourceUrl(root, "subtitles", type, id, extra),
+        { host: hostOf(root), resource: "subtitles", type, id },
+        cb
+      );
     }
   };
 
@@ -1864,6 +1941,16 @@
         })
       );
       customSection.appendChild(customRow);
+      var diagRow = document.createElement("div");
+      diagRow.className = "addon-row";
+      diagRow.appendChild(
+        actionButton(t("addons.diagnostics"), "diagnostics", function() {
+          if (handlers.onDiagnostics) {
+            handlers.onDiagnostics();
+          }
+        })
+      );
+      customSection.appendChild(diagRow);
       focusables.push({ el: customInput, activate: function() {
       } });
     }
@@ -1882,6 +1969,105 @@
       setHandlers: function(next) {
         handlers.onAdd = next.onAdd || null;
         handlers.onRemove = next.onRemove || null;
+        handlers.onDiagnostics = next.onDiagnostics || null;
+      },
+      isOpen: function() {
+        return root.classList.contains("is-open");
+      }
+    };
+  }
+
+  // app/js/ui/views/diagnostics.js
+  function createDiagnosticsView() {
+    var root = document.createElement("div");
+    root.className = "details diagnostics";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-focus-region", "overlay");
+    var scrim = document.createElement("div");
+    scrim.className = "details__scrim";
+    var content = document.createElement("div");
+    content.className = "details__content diagnostics__content";
+    var title = document.createElement("h1");
+    title.className = "details__title diagnostics__title";
+    var env = document.createElement("div");
+    env.className = "diagnostics__env";
+    var list = document.createElement("div");
+    list.className = "diagnostics__list";
+    var actions = document.createElement("div");
+    actions.className = "details__actions";
+    var focusables = [];
+    var handlers = { onRetry: null, onClose: null };
+    function button(label, id, handler) {
+      var el = document.createElement("div");
+      el.className = "btn";
+      el.setAttribute("role", "button");
+      el.setAttribute("tabindex", "-1");
+      el.setAttribute("data-diagnostics-action", id);
+      var span = document.createElement("span");
+      span.textContent = label;
+      el.appendChild(span);
+      el.addEventListener("click", handler);
+      focusables.push({ el, activate: handler });
+      actions.appendChild(el);
+      return el;
+    }
+    content.appendChild(title);
+    content.appendChild(env);
+    content.appendChild(list);
+    content.appendChild(actions);
+    root.appendChild(scrim);
+    root.appendChild(content);
+    function render(info) {
+      focusables = [];
+      actions.innerHTML = "";
+      list.innerHTML = "";
+      title.textContent = t("diagnostics.title");
+      env.textContent = info.environment;
+      button(t("diagnostics.retry"), "retry", function() {
+        if (handlers.onRetry) {
+          handlers.onRetry();
+        }
+      });
+      button(t("diagnostics.close"), "close", function() {
+        if (handlers.onClose) {
+          handlers.onClose();
+        }
+      });
+      if (!info.entries.length) {
+        var empty = document.createElement("div");
+        empty.className = "diagnostics__row";
+        empty.textContent = t("diagnostics.empty");
+        list.appendChild(empty);
+        return;
+      }
+      for (var i = 0; i < info.entries.length; i++) {
+        var entry = info.entries[i];
+        var row = document.createElement("div");
+        row.className = "diagnostics__row" + (entry.error ? " is-error" : "");
+        var head = document.createElement("span");
+        head.className = "diagnostics__head";
+        var label = entry.resource;
+        if (entry.type) {
+          label += " " + entry.type + "/" + entry.id;
+        }
+        if (entry.skip) {
+          label += " skip=" + entry.skip;
+        }
+        head.textContent = entry.host + " · " + label + " · " + (entry.error ? entry.error + (entry.status ? " (" + entry.status + ")" : "") : entry.status) + " · " + entry.items + " " + t("diagnostics.items") + " · " + entry.ms + " ms";
+        row.appendChild(head);
+        list.appendChild(row);
+      }
+    }
+    return {
+      el: root,
+      render,
+      focusables: function() {
+        return focusables;
+      },
+      setHandlers: function(next) {
+        handlers.onRetry = next.onRetry || null;
+        handlers.onClose = next.onClose || null;
       },
       isOpen: function() {
         return root.classList.contains("is-open");
@@ -1940,6 +2126,7 @@
   }
   function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
     var rows = [];
+    var failures = [];
     var pending = 0;
     var startCount = 0;
     for (var a = 0; a < addons.length && a < maxAddons; a++) {
@@ -1950,18 +2137,22 @@
         (function(addon, catalog) {
           fetchCatalogPage(addon, catalog, 0, function(err, items) {
             pending -= 1;
-            if (!err && items.length) {
+            if (err) {
+              failures.push({ addon, catalog, error: err.message });
+            } else if (!items.length) {
+              failures.push({ addon, catalog, error: "empty catalog" });
+            } else {
               rows.push({ addon, catalog, items });
             }
             if (pending === 0) {
-              done(rows, startCount);
+              done({ rows, failures, attempted: startCount });
             }
           });
         })(addons[a], catalogs[c]);
       }
     }
     if (startCount === 0) {
-      done(rows, 0);
+      done({ rows, failures, attempted: 0 });
     }
   }
 
@@ -2008,6 +2199,8 @@
     appEl.appendChild(details.el);
     var addonsView = createAddonsView();
     appEl.appendChild(addonsView.el);
+    var diagnosticsView = createDiagnosticsView();
+    appEl.appendChild(diagnosticsView.el);
     appEl.appendChild(toast.el);
     function applyScroller() {
       scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
@@ -2144,7 +2337,8 @@
         addonsView.render();
         refocusAddons();
         loadAddonCatalogs();
-      }
+      },
+      onDiagnostics: openDiagnostics
     });
     var addonsScreen = {
       name: "addons",
@@ -2172,6 +2366,64 @@
         }
       }
     };
+    var diagnosticsReturnFocus = null;
+    var diagnosticsFocusables = [];
+    function unregisterDiagnostics() {
+      for (var i = 0; i < diagnosticsFocusables.length; i++) {
+        focusManager.unregister(diagnosticsFocusables[i]);
+      }
+      diagnosticsFocusables = [];
+    }
+    function envSummary() {
+      var probe = platform.probeAvPlay();
+      return "origin=" + (typeof location !== "undefined" ? location.origin : "?") + " · avplay=" + (probe.avplay ? "yes" : "no") + " · webapis=" + (probe.webapis ? "yes" : "no") + " · " + (typeof navigator !== "undefined" ? navigator.userAgent : "");
+    }
+    function renderDiagnostics() {
+      diagnosticsView.render({ environment: envSummary(), entries: diagnosticsList() });
+    }
+    function openDiagnostics() {
+      diagnosticsReturnFocus = focusManager.getCurrent();
+      router.push(diagnosticsScreen);
+    }
+    var diagnosticsScreen = {
+      name: "diagnostics",
+      show: function() {
+        diagnosticsView.el.classList.add("is-open");
+        renderDiagnostics();
+        unregisterDiagnostics();
+        var list = diagnosticsView.focusables();
+        for (var i = 0; i < list.length; i++) {
+          diagnosticsFocusables.push(list[i].el);
+          focusManager.register(list[i].el, list[i].activate);
+        }
+        focusManager.setScope(diagnosticsView.el);
+        if (list.length) {
+          focusManager.focus(list[0].el);
+        } else {
+          focusManager.focusFirst();
+        }
+      },
+      hide: function() {
+        diagnosticsView.el.classList.remove("is-open");
+        unregisterDiagnostics();
+        focusManager.setScope(null);
+        var restored = diagnosticsReturnFocus ? focusManager.focus(diagnosticsReturnFocus) : false;
+        diagnosticsReturnFocus = null;
+        if (!restored) {
+          focusManager.focusFirst();
+        }
+      }
+    };
+    diagnosticsView.setHandlers({
+      onRetry: function() {
+        clearDiagnostics();
+        loadAddonCatalogs();
+        renderDiagnostics();
+      },
+      onClose: function() {
+        router.pop();
+      }
+    });
     var catalogLoading = false;
     function clearShelves() {
       for (var i = 0; i < shelves.length; i++) {
@@ -2184,6 +2436,10 @@
         }
       }
       shelves = [];
+      var errors = rowsEl.querySelectorAll("[data-error-row]");
+      for (var e = 0; e < errors.length; e++) {
+        rowsEl.removeChild(errors[e]);
+      }
     }
     function makePager(rowDef, source) {
       var loading = false;
@@ -2238,6 +2494,31 @@
         }
       }
     }
+    function appendErrorRows(failures) {
+      if (!failures || !failures.length) {
+        return;
+      }
+      for (var i = 0; i < failures.length; i++) {
+        (function(failure) {
+          var row = document.createElement("section");
+          row.className = "row row--error";
+          row.setAttribute("data-error-row", "1");
+          var title = document.createElement("h2");
+          title.className = "row__title";
+          title.textContent = failure.catalog && failure.catalog.name || t("row.error");
+          var message = document.createElement("div");
+          message.className = "row__error";
+          message.textContent = t("row.error") + " · " + failure.error;
+          var hint = document.createElement("div");
+          hint.className = "row__hint";
+          hint.textContent = t("row.retryHint");
+          row.appendChild(title);
+          row.appendChild(message);
+          row.appendChild(hint);
+          rowsEl.appendChild(row);
+        })(failures[i]);
+      }
+    }
     function loadAddonCatalogs() {
       var addons = listAddons();
       if (!addons.length) {
@@ -2248,13 +2529,22 @@
         return;
       }
       catalogLoading = true;
-      loadCatalogRows(addons, 3, 2, function(rows) {
+      loadCatalogRows(addons, 3, 2, function(result) {
         catalogLoading = false;
-        if (!rows.length) {
-          toast.show(t("addons.unreachable"));
-          return;
+        if (result.rows.length) {
+          renderAddonRows(result.rows);
+        } else {
+          clearShelves();
+          scrollY = 0;
+          applyScroller();
         }
-        renderAddonRows(rows);
+        appendErrorRows(result.failures);
+        if (!result.rows.length) {
+          var focused = focusManager.getCurrent();
+          if (!focused || !focused.parentNode) {
+            focusManager.focusFirst();
+          }
+        }
       });
     }
     function buildMockRows() {
@@ -2454,6 +2744,10 @@
           loadAddonCatalogs();
           return true;
         },
+        openDiagnostics: function() {
+          openDiagnostics();
+          return true;
+        },
         focusFirstCard: function() {
           if (shelves.length && shelves[0].cards.length) {
             return focusManager.focus(shelves[0].cards[0].el);
@@ -2498,6 +2792,9 @@
           episodes: document.querySelectorAll(".ep").length,
           sources: document.querySelectorAll(".source-row").length,
           addons: listAddons().length,
+          diagnostics: diagnosticsList().length,
+          errorRows: document.querySelectorAll("[data-error-row]").length,
+          diagnosticsOpen: diagnosticsView.isOpen(),
           rowTitles: Array.prototype.map.call(document.querySelectorAll(".row__title"), function(n) {
             return n.textContent;
           }),

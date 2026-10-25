@@ -277,6 +277,59 @@
   transform: translate3d(-50%, 0, 0);
 }
 
+/* --- diagnostics + catalog error rows ------------------------------------- */
+
+.row--error .row__error {
+  margin-top: 8px;
+  font-size: 20px;
+  color: #ff8a8a;
+}
+
+.row--error .row__hint {
+  margin-top: 4px;
+  font-size: 18px;
+  color: var(--text-muted);
+}
+
+.diagnostics__content {
+  top: 40px;
+  width: 1500px;
+}
+
+.diagnostics__title {
+  font-size: 40px;
+}
+
+.diagnostics__env {
+  margin-top: 10px;
+  font-size: 18px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diagnostics__list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+  max-height: 560px;
+  overflow: hidden;
+}
+
+.diagnostics__row {
+  margin-top: 6px;
+  font-size: 17px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diagnostics__row.is-error {
+  color: #ff8a8a;
+}
+
 /* --- add-on manager ------------------------------------------------------- */
 
 .addons__content {

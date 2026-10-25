@@ -32,6 +32,16 @@ export default {
   'addons.presets': 'Recommended public add-ons',
   'addons.custom': 'Add by address',
   'addons.urlPlaceholder': 'Add-on URL',
+  'addons.diagnostics': 'Diagnostics',
+
+  'diagnostics.title': 'Diagnostics',
+  'diagnostics.items': 'items',
+  'diagnostics.empty': 'No requests recorded.',
+  'diagnostics.retry': 'Retry',
+  'diagnostics.close': 'Close',
+
+  'row.error': 'Catalog unavailable',
+  'row.retryHint': 'Check the connection and try again.',
   'addons.add': 'Add',
   'addons.remove': 'Remove',
   'addons.empty': 'No add-ons installed.',
