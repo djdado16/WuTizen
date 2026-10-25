@@ -228,8 +228,17 @@ export function resolveStreams(options, done) {
           continue; // same source from two providers
         }
         seen[key] = true;
-        kept.push(stream);
-        streams.push(stream);
+        // Annotate a copy so the picker can group by add-on without mutating the
+        // provider's object. `provider` is a display name, never a URL.
+        var copy = {};
+        for (var field in stream) {
+          if (Object.prototype.hasOwnProperty.call(stream, field)) {
+            copy[field] = stream[field];
+          }
+        }
+        copy.provider = String(entry.name || 'Add-on');
+        kept.push(copy);
+        streams.push(copy);
       }
     }
     var logEntry = statusFor(entry);

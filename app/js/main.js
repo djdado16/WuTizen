@@ -36,6 +36,9 @@ import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalog
 import { resolveStreams, streamProviders, lastStreamReport } from './data/streamResolver.js';
 import { createPlayer } from './playback/player.js';
 import { classifyStream } from './playback/sources.js';
+import { metaOf } from './playback/streamMeta.js';
+import { createPicker } from './ui/views/picker.js';
+import { candidateSubtitles, fetchText, parseCues } from './data/subtitles.js';
 import {
   listAddons,
   addAddon,
@@ -132,6 +135,11 @@ function boot() {
 
   var player = createPlayer();
   appEl.appendChild(player.el);
+
+  var sourcePicker = createPicker({ name: 'sources' });
+  appEl.appendChild(sourcePicker.el);
+  var subtitlePicker = createPicker({ name: 'subtitles' });
+  appEl.appendChild(subtitlePicker.el);
 
   appEl.appendChild(toast.el);
 
@@ -301,43 +309,319 @@ function boot() {
     return parts.join(' · ');
   }
 
-  /**
-   * Plays one Stremio stream object. Refusals (torrent, external, unsupported)
-   * still open the player: it explains *why* instead of failing silently.
-   */
-  function playStream(stream) {
+  /* ---- source picker (all streams, grouped by add-on) -------------------- */
+
+  var pickerFocusables = [];
+
+  function unregisterPickerFocusables() {
+    for (var i = 0; i < pickerFocusables.length; i++) {
+      focusManager.unregister(pickerFocusables[i]);
+    }
+    pickerFocusables = [];
+  }
+
+  function registerPickerFocusables(picker) {
+    unregisterPickerFocusables();
+    var list = picker.focusables();
+    for (var i = 0; i < list.length; i++) {
+      focusManager.register(list[i].el, list[i].activate);
+      pickerFocusables.push(list[i].el);
+    }
+    if (list.length) {
+      focusManager.focus(list[0].el);
+    }
+  }
+
+  function closePickers() {
+    if (!sourcePicker.isOpen() && !subtitlePicker.isOpen()) {
+      return;
+    }
+    sourcePicker.close();
+    subtitlePicker.close();
+    unregisterPickerFocusables();
+    if (!player.isOpen()) {
+      focusManager.setScope(details.el);
+      var rows = details.sourceRows();
+      if (rows.length) {
+        focusManager.focus(rows[0].el);
+      } else {
+        focusManager.focus(details.buttons[0].el);
+      }
+    }
+  }
+
+  var playback = { provider: '', type: '', reason: '', title: '' };
+
+  /** Play the stream at `index` of the current details list. */
+  function playStreamAt(index, switching) {
+    var streams = details.allStreams();
+    var stream = streams[index];
+    if (!stream) {
+      return null;
+    }
     var info = classifyStream(stream);
-    playerReturnFocus = focusManager.getCurrent();
-    player.open(info, { title: playerTitle() });
-    logInfo('playback: ' + (info.ok ? info.type : 'refused:' + info.reason));
+    if (!switching) {
+      playerReturnFocus = focusManager.getCurrent();
+    }
+    playback = {
+      provider: String(stream.provider || ''),
+      type: info.type || '',
+      reason: info.reason || '',
+      title: info.label || ''
+    };
+    player.open(info, { title: playerTitle(), sourceIndex: index });
+    applySelectedSubtitle();
+    logInfo('playback: ' + (info.ok ? info.type : 'refused:' + info.reason) + ' source=' + index);
     return info;
   }
 
-  function firstPlayableStream() {
-    var rows = details.sourceRows();
-    for (var i = 0; i < rows.length; i++) {
-      if (classifyStream(rows[i].stream).ok) {
-        return rows[i].stream;
-      }
+  function openSourcePicker(switching) {
+    var streams = details.allStreams();
+    if (!streams.length) {
+      toast.show(t('player.noSources'));
+      return;
     }
-    return rows.length > 0 ? rows[0].stream : null;
+    var current = player.isOpen() ? player.state().sourceIndex : -1;
+    var rows = [];
+    var lastProvider = null;
+    for (var i = 0; i < streams.length; i++) {
+      var info = classifyStream(streams[i]);
+      var meta = metaOf(streams[i]);
+      var provider = String(streams[i].provider || '');
+      if (provider && provider !== lastProvider) {
+        rows.push({ group: true, label: provider });
+      }
+      lastProvider = provider;
+      rows.push({
+        id: i,
+        active: i === current,
+        label: info.label,
+        meta: [meta.label, info.ok ? '' : t('player.sourceBlocked')].filter(Boolean).join(' · '),
+        onActivate: (function (index) {
+          return function () {
+            var wasPlaying = player.isOpen();
+            if (wasPlaying) {
+              player.close(false); // switching source: keep the details focus
+            }
+            sourcePicker.close();
+            unregisterPickerFocusables();
+            playStreamAt(index, wasPlaying);
+          };
+        })(i)
+      });
+    }
+    sourcePicker.show({
+      title: t('picker.sources'),
+      note: streams.length + ' ' + t('picker.sourcesHint'),
+      rows: rows
+    });
+    focusManager.setScope(sourcePicker.el);
+    registerPickerFocusables(sourcePicker);
   }
 
-  /** Play button: first playable source of the current item/episode. */
+  /* ---- subtitles --------------------------------------------------------- */
+
+  var subtitleItems = [];
+  var subtitleSelected = -1;
+  var subtitleCues = [];
+  var subtitleLoading = false;
+
+  function currentStreamSubs() {
+    var index = player.isOpen() ? player.state().sourceIndex : -1;
+    var streams = details.allStreams();
+    var stream = index >= 0 ? streams[index] : null;
+    return stream && stream.subtitles ? stream.subtitles : [];
+  }
+
+  function posLabel(position) {
+    if (position === 'middle') {
+      return t('picker.posMiddle');
+    }
+    if (position === 'top') {
+      return t('picker.posTop');
+    }
+    return t('picker.posBottom');
+  }
+
+  function applySelectedSubtitle() {
+    if (subtitleSelected >= 0 && subtitleCues.length && player.isOpen()) {
+      player.setCues(subtitleCues, subtitleItems[subtitleSelected].label);
+    }
+  }
+
+  function selectSubtitle(index) {
+    if (index < 0) {
+      subtitleSelected = -1;
+      subtitleCues = [];
+      player.clearCues();
+      return true;
+    }
+    var item = subtitleItems[index];
+    if (!item) {
+      return false;
+    }
+    subtitleSelected = index;
+    fetchText(item.url, function (err, text) {
+      if (err) {
+        toast.show(t('player.subtitleFailed'));
+        return;
+      }
+      var cues = parseCues(text);
+      if (!cues.length) {
+        toast.show(t('player.subtitleEmpty'));
+        return;
+      }
+      subtitleCues = cues;
+      applySelectedSubtitle();
+      toast.show(item.label + ' · ' + cues.length);
+    });
+    return true;
+  }
+
+  function showSubtitlePicker() {
+    var cueState = player.isOpen()
+      ? player.cueState()
+      : { size: 'm', position: 'bottom', offset: 0 };
+    var rows = [
+      {
+        id: 'off',
+        label: t('player.subtitlesOff'),
+        active: subtitleSelected === -1,
+        onActivate: function () {
+          selectSubtitle(-1);
+          showSubtitlePicker();
+        }
+      }
+    ];
+    var seen = {};
+    for (var i = 0; i < subtitleItems.length; i++) {
+      (function (index) {
+        var item = subtitleItems[index];
+        var key = item.label + '|' + item.provider;
+        if (seen[key]) {
+          return;
+        }
+        seen[key] = true;
+        rows.push({
+          id: 'sub-' + index,
+          label: item.label,
+          meta: item.provider,
+          active: subtitleSelected === index,
+          onActivate: function () {
+            selectSubtitle(index);
+            showSubtitlePicker();
+          }
+        });
+      })(i);
+    }
+    if (subtitleSelected >= 0) {
+      rows.push({
+        id: 'size',
+        label: t('picker.subtitleSize'),
+        meta: cueState.size.toUpperCase(),
+        onActivate: function () {
+          if (player.isOpen()) {
+            player.cycleCueSize();
+          }
+          showSubtitlePicker();
+        }
+      });
+      rows.push({
+        id: 'position',
+        label: t('picker.subtitlePosition'),
+        meta: posLabel(cueState.position),
+        onActivate: function () {
+          if (player.isOpen()) {
+            player.cycleCuePosition();
+          }
+          showSubtitlePicker();
+        }
+      });
+      rows.push({
+        id: 'offset-up',
+        label: t('picker.subtitleOffsetUp'),
+        meta: (cueState.offset / 1000).toFixed(1) + ' s',
+        onActivate: function () {
+          if (player.isOpen()) {
+            player.setCueOffset(cueState.offset + 500);
+          }
+          showSubtitlePicker();
+        }
+      });
+      rows.push({
+        id: 'offset-down',
+        label: t('picker.subtitleOffsetDown'),
+        meta: (cueState.offset / 1000).toFixed(1) + ' s',
+        onActivate: function () {
+          if (player.isOpen()) {
+            player.setCueOffset(cueState.offset - 500);
+          }
+          showSubtitlePicker();
+        }
+      });
+    }
+    subtitlePicker.show({
+      title: t('picker.subtitles'),
+      note: subtitleItems.length
+        ? subtitleItems.length + ' ' + t('picker.subtitlesHint')
+        : t('player.subtitleNone'),
+      rows: rows
+    });
+    focusManager.setScope(subtitlePicker.el);
+    registerPickerFocusables(subtitlePicker);
+  }
+
+  function openSubtitlePicker() {
+    if (subtitleItems.length) {
+      showSubtitlePicker();
+      return;
+    }
+    if (subtitleLoading) {
+      toast.show(t('common.loading'));
+      return;
+    }
+    subtitleLoading = true;
+    var item = details.currentItem() || {};
+    candidateSubtitles(
+      {
+        addons: listAddons(),
+        type: item.kind || 'movie',
+        id: selectedVideoId || item.id,
+        streamSubs: currentStreamSubs()
+      },
+      function (result) {
+        subtitleLoading = false;
+        subtitleItems = result.items;
+        showSubtitlePicker();
+      }
+    );
+  }
+
+  /** Play button: one stream plays directly, several open the picker. */
   function playCurrent() {
     var item = details.currentItem();
     if (!item || !item.addonUrl) {
       toast.show(t('common.wip'));
       return;
     }
-    var stream = firstPlayableStream();
-    if (!stream) {
+    var streams = details.allStreams();
+    if (!streams.length) {
       player.open({ ok: false, reason: 'noUrl', url: '', type: '', label: '' }, {
         title: playerTitle()
       });
       return;
     }
-    playStream(stream);
+    var playable = [];
+    for (var i = 0; i < streams.length; i++) {
+      if (classifyStream(streams[i]).ok) {
+        playable.push(i);
+      }
+    }
+    if (playable.length > 1) {
+      openSourcePicker(false);
+      return;
+    }
+    playStreamAt(playable.length ? playable[0] : 0, false);
   }
 
   player.setOnClose(function () {
@@ -397,7 +681,7 @@ function boot() {
     for (var i = 0; i < rows.length; i++) {
       (function (row) {
         focusManager.register(row.el, function () {
-          playStream(row.stream);
+          playStreamAt(row.index, false);
         });
         streamFocusables.push(row.el);
       })(rows[i]);
@@ -711,7 +995,15 @@ function boot() {
     diagnosticsView.render({
       environment: envSummary(),
       entries: diagnosticsList(),
-      sources: lastStreamReport()
+      sources: lastStreamReport(),
+      playback: {
+        provider: playback.provider,
+        type: playback.type,
+        reason: playback.reason,
+        title: playback.title,
+        engine: player.state().backend || player.state().lastBackend,
+        error: player.state().error
+      }
     });
   }
 
@@ -1104,6 +1396,37 @@ function boot() {
       return;
     }
 
+    /* Pickers are modal over both the details screen and the player. */
+    if (sourcePicker.isOpen() || subtitlePicker.isOpen()) {
+      var isPickerTransition = action === 'back' || action === 'enter' || action === 'exit';
+      if (isPickerTransition) {
+        if (event.repeat) {
+          return;
+        }
+        var pickerKey = keyIdOf(event);
+        if (pressed[pickerKey]) {
+          return;
+        }
+        clearPressed();
+        pressed[pickerKey] = true;
+      }
+      event.preventDefault();
+      if (action === 'back') {
+        closePickers();
+        return;
+      }
+      if (action === 'exit') {
+        platform.exitApp();
+        return;
+      }
+      if (action === 'enter') {
+        focusManager.activate();
+        return;
+      }
+      focusManager.move(action);
+      return;
+    }
+
     /* The player is modal: it takes every remote key while it is open, so BACK
        closes playback and not the details layer underneath. */
     if (player.isOpen()) {
@@ -1126,6 +1449,15 @@ function boot() {
       }
       if (action === 'exit') {
         platform.exitApp();
+        return;
+      }
+      // UP: switch source (TorBox/StreamBridge lists), DOWN: subtitles.
+      if (action === 'up') {
+        openSourcePicker(true);
+        return;
+      }
+      if (action === 'down') {
+        openSubtitlePicker();
         return;
       }
       player.handleAction(action);
@@ -1302,6 +1634,63 @@ function boot() {
       },
       last: function () {
         return lastStreamReport();
+      }
+    },
+    sources: {
+      list: function () {
+        return details.allStreams().map(function (stream, index) {
+          var info = classifyStream(stream);
+          var meta = metaOf(stream);
+          return {
+            index: index,
+            provider: String(stream.provider || ''),
+            ok: info.ok,
+            reason: info.reason,
+            type: info.type,
+            label: info.label,
+            resolution: meta.resolution,
+            hdr: meta.hdr,
+            codec: meta.codec,
+            size: meta.size,
+            languages: meta.languages
+          };
+        });
+      },
+      classify: function (stream, proto) {
+        return classifyStream(stream, { pageProtocol: proto || '' });
+      }
+    },
+    picker: {
+      openSources: function () {
+        openSourcePicker(player.isOpen());
+        return sourcePicker.isOpen();
+      },
+      openSubtitles: function () {
+        openSubtitlePicker();
+        return true;
+      },
+      rows: function () {
+        return document.querySelectorAll('.picker.is-open .picker-row').length;
+      },
+      text: function () {
+        var el = document.querySelector('.picker.is-open');
+        return el ? el.textContent : '';
+      },
+      open: function () {
+        return sourcePicker.isOpen() || subtitlePicker.isOpen();
+      }
+    },
+    subtitles: {
+      items: function () {
+        return subtitleItems.map(function (item) {
+          return { label: item.label, lang: item.lang, provider: item.provider };
+        });
+      },
+      select: function (index) {
+        return selectSubtitle(index);
+      },
+      state: function () {
+        return player.cueState();
       }
     },
     addonRefresh: function () {

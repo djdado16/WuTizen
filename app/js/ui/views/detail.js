@@ -383,6 +383,10 @@ export function createDetails() {
     sourceRows: function () {
       return sourceRowList;
     },
+    /** Every stream returned by the providers (the picker lists all of them). */
+    allStreams: function () {
+      return streamList.slice(0);
+    },
     episodeCards: function () {
       return episodeCards;
     },

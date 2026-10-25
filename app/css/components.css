@@ -498,7 +498,110 @@
   width: 1920px;
   height: 1080px;
   display: none;
-  z-index: 40;
+  z-index: 200;
+}
+
+/* Playback hides the entire shell: rail, hero, rows and details must not be
+   visible (or glow) behind the video, and only the player takes input. */
+html.is-player .app > *:not([data-player]) {
+  visibility: hidden;
+}
+
+html.is-player,
+html.is-player body {
+  background: #000;
+}
+
+/* Pickers sit above the player so a source can be switched mid-playback. */
+.picker {
+  z-index: 250;
+}
+
+.player__subtitle {
+  position: absolute;
+  left: 10%;
+  width: 80%;
+  text-align: center;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: pre-line;
+  text-shadow: 0 2px 6px #000, 0 0 4px #000;
+  pointer-events: none;
+}
+
+.player__subtitle.is-empty {
+  display: none;
+}
+
+.player__subtitle.is-m {
+  font-size: 34px;
+}
+
+.player__subtitle.is-l {
+  font-size: 42px;
+}
+
+.player__subtitle.is-xl {
+  font-size: 52px;
+}
+
+.player__subtitle.is-bottom {
+  bottom: 140px;
+}
+
+.player__subtitle.is-middle {
+  top: 50%;
+}
+
+.player__subtitle.is-top {
+  top: 140px;
+}
+
+.picker__content {
+  width: 1180px;
+}
+
+.picker__list {
+  margin-top: 16px;
+  max-height: 620px;
+  overflow: hidden;
+}
+
+.picker__group {
+  margin-top: 16px;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.picker-row {
+  display: flex;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border-left: 4px solid transparent;
+}
+
+.picker-row__label {
+  flex: 1 1 auto;
+  font-size: 22px;
+  color: var(--text);
+}
+
+.picker-row__meta {
+  flex: 0 0 auto;
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+.picker-row.is-active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.picker-row.is-focused {
+  border-left-color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .player.is-open {

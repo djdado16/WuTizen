@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.6.0 — 2026-10-25 — Player UX, StreamBridge and subtitles
+
+### Fixed
+- **StreamBridge (Emby → Stremio) streams were refused.** `behaviorHints.notWebReady` was treated as "cannot play"; it only means "not guaranteed web-playable" (StreamBridge marks its direct-play links with it). Such URLs are now attempted. The one honest refusal left is `behaviorHints.proxyHeaders.request`: no HTTP headers can be sent by `<video>` or AVPlay, so the player says exactly that instead of failing generically.
+- **Mixed content was reported as a generic network error.** An `http://` Emby URL inside an `https://` page is blocked by Chromium (StreamBridge's own README documents this); it is now detected before playback and explained.
+- **The sidebar stayed visible during playback.** The player sat at `z-index: 40` while `.rail` is 50 and `.details` 60. The player is now `200`, and playback adds `html.is-player`, which hides the whole shell (rail, hero, rows, details).
+- **Subtitles were missing.** Streams can carry their own `subtitles[]` (StreamBridge does) and that list was ignored; subtitle add-ons were never queried.
+
+### Added
+- **Source picker**: every stream from every compatible add-on, grouped by add-on, showing resolution / HDR / codec / size / language; each row is remote-selectable; **Play opens the picker when more than one source exists**; **UP during playback re-opens it to switch source** without losing the subtitle selection.
+- **True fullscreen playback**: shell hidden, player fills the stage, only the player takes remote keys; BACK restores the details screen and focus.
+- **Subtitles**: candidates from the chosen stream plus all installed `subtitles` add-ons; SRT and WebVTT parsing (SRT→VTT conversion available), rendered in a DOM overlay so **AVPlay and HTML5 behave the same**; picker with Off / languages / size (M·L·XL) / position (bottom·middle·top) / timing offset (±0.5 s); **DOWN during playback** opens it.
+- **Playback diagnostics**: Diagnostics now shows the last playback as add-on · stream type · engine (AVPlay/HTML5) · error — host/type only, never a URL or key.
+- Docs: picker/fullscreen/subtitle sections in `docs/PLAYBACK.md`.
+
+### Tests
+- 37 new browser checks (184 total): StreamBridge-shaped provider (path config, direct-play URL with key in the query, `notWebReady`, per-stream subtitles), header-requiring stream listed but refused with `requiresHeaders`, mixed-content detection, metadata parsing, picker grouping/selection/no-URL redaction, fullscreen geometry + shell visibility, mid-playback source switching, subtitle discovery from both sources, SRT rendering, size/position/offset, BACK layering, cleanup and the redacted playback diagnostics line.
+
 ## v0.5.2 — 2026-10-25 — Q60R layout and stream metadata fixes
 
 ### Fixed

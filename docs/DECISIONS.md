@@ -211,6 +211,37 @@ TorBox-shaped providers (object/string resources, `idPrefixes`, path config), a
 401 provider and an empty provider; they verify fan-out, dedupe, id form, type
 filtering and redaction. Existing add-on storage and profiles are untouched.
 
+## D20 — StreamBridge compatibility, pickers, fullscreen, subtitles (Milestone 6)
+**Context:** on the Q60R, TorBox played but StreamBridge (Emby → Stremio) did not,
+the sidebar stayed visible, source choice was one flat list and subtitles were gone.
+**Findings (from the add-on's own source and this codebase):**
+- StreamBridge embeds its configuration in the **URL path** and returns
+  `{ name, title, url: <Emby direct-play URL with api_key in the query>,
+  behaviorHints, subtitles }`. Its `behaviorHints` includes `notWebReady`, which
+  this app treated as a refusal → nothing ever played. Its README also documents
+  that an `https` page cannot load an `http` Emby server (mixed content).
+- `stream.subtitles[]` (per-stream subtitles) was ignored entirely, and the
+  `subtitles` resource was never requested.
+- The player was at `z-index: 40`, below `.rail` (50) and `.details` (60).
+**Decision:**
+- `notWebReady` is **advisory**: the URL is attempted. Only
+  `behaviorHints.proxyHeaders.request` (a header set the media engines cannot
+  send) is a refusal, with its own message. `https`+`http` is refused as
+  `mixedContent` before a load is attempted.
+- Streams are annotated with their add-on name (display only) so the picker can
+  group them; the picker is a modal overlay above the player (`z-index: 250`).
+- Playback adds `html.is-player`, hiding every shell element, and the player is
+  `z-index: 200`. This is **in-app fullscreen** — the page is not put into
+  Tizen's system fullscreen, which a webview module cannot request.
+- Subtitles are rendered by the app (DOM overlay) rather than by the media stack:
+  AVPlay cannot read network subtitle files, and `<track>` styling is not
+  controllable on M63 TV. Cues are parsed from SRT/WebVTT, offset applied to the
+  clock at render time, so size/position/offset work identically on both engines.
+- Nothing that identifies a stream may be logged or displayed: diagnostics show
+  add-on name, stream type, engine and reason only.
+**Consequences:** 37 new smoke checks (184 total) with a StreamBridge-shaped
+fixture; TorBox/Emby fixtures and the existing player contract still pass.
+
 ## D19 — Measured rail offset, metadata migration, redacted source diagnostics
 **Context:** on the Q60R, BACK out of Settings left the left half of Home covered,
 and imported Emby Bridge/TorBox still produced "no sources" after v0.5.1.

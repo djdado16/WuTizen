@@ -31,8 +31,71 @@ TorBox work: they are stream-only add-ons with no catalogs of their own.
   failed (`auth`, `notFound`, `server`, `timeout`, `unreachable`). No URL, path
   or token is displayed or logged.
 
-## Remote controls
 | Key | Action |
+|---|---|
+| OK | play / pause |
+| ← / → | seek −10 s / +10 s |
+| ↑ | **source picker** (switch stream while playing) |
+| ↓ | **subtitle picker** |
+| PLAY, PAUSE, PLAY/PAUSE | play, pause, toggle |
+| FF / REW | seek ±30 s |
+| BACK | close the picker, then the player (details stays open, focus returns) |
+| UP / DOWN (before playback) | move between sources, pages and details rows |
+
+## Sources & picker (v0.6.0)
+
+- **Every** stream returned by **every** compatible installed add-on is listed —
+  no 8-row cap, grouped by add-on name, with resolution, HDR, codec, size and
+  language parsed from `name`/`title`/`description`/`behaviorHints.filename`.
+- **Play** opens the picker when more than one source exists; a single source
+  plays immediately. Every row is individually selectable with the remote.
+- **↑ during playback** re-opens the picker and restarts on the chosen source
+  (the selected subtitle is re-applied).
+- Sources that cannot be played still appear, with the reason
+  (`torrent`, `requiresHeaders`, `mixedContent`, `external`) instead of vanishing.
+
+### StreamBridge (Emby → Stremio) notes
+
+StreamBridge returns Emby **direct-play** URLs with the API key in the query and
+marks them `behaviorHints.notWebReady`. Findings that matter here:
+
+- `notWebReady` is **advisory** — these URLs play; only `proxyHeaders.request`
+  (a required header set, which `<video>`/AVPlay cannot send) is refused.
+- An `http://` Emby server on an `https://` page is **mixed content** and is
+  blocked by Chromium (documented by StreamBridge itself). The player says so
+  instead of reporting a network error; use the server's https address.
+- `stream.subtitles[]` is honoured (see below).
+
+## Fullscreen
+
+Playback adds `html.is-player`: the rail, hero, rows and details are hidden and
+only the player receives remote keys. The player fills the 1920×1080 stage
+(scaled to the viewport in the browser preview), sits above every shell layer
+(`z-index: 200`) and paints a black background. This is **in-app fullscreen** —
+a webview module cannot request Tizen *system* fullscreen, so no such claim is
+made. With AVPlay the app switches to the transparent `is-avplay` stage instead.
+
+## Subtitles (v0.6.0)
+
+- Candidates come from the **chosen stream's `subtitles[]`** *and* from every
+  installed add-on advertising the `subtitles` resource, de-duplicated by URL.
+- SRT and WebVTT are parsed into cues; `toVtt()` converts SRT to WebVTT for any
+  path that needs a VTT document.
+- Rendering is a **DOM overlay**, not `<track>`: AVPlay cannot read network
+  subtitle files and `<track>` cannot be styled on M63 TV. That makes subtitles
+  work identically on both engines, including above the AVPlay video plane.
+- Picker: **Off**, one row per language (with the provider as meta), and — once a
+  subtitle is selected — **size** (M/L/XL), **position** (bottom/middle/top) and
+  **timing offset** (±0.5 s per press, applied live).
+- Failures are explicit: a blocked/CORS or HTTP failure and an empty/unknown file
+  are reported separately. Subtitle URLs are never displayed or logged.
+- Limitations: no styled ASS/SSA (text is extracted where present), no bitmap
+  subtitles (PGS/VobSub), no forced-track selection from Emby.
+
+## Key map (pre-0.6.0 table, kept for reference)
+
+| Key | Action |
+|---|---|
 |---|---|
 | OK | play / pause |
 | ← / → | seek −10 s / +10 s |

@@ -38,6 +38,12 @@ function reasonText(reason) {
   if (reason === 'torrent' || reason === 'magnet' || reason === 'infoHash') {
     return t('player.torrent');
   }
+  if (reason === 'requiresHeaders') {
+    return t('player.requiresHeaders');
+  }
+  if (reason === 'mixedContent') {
+    return t('player.mixedContent');
+  }
   if (reason === 'notWebReady') {
     return t('player.notWebReady');
   }
@@ -95,6 +101,13 @@ export function createPlayer(options) {
   video.setAttribute('playsinline', '');
   video.setAttribute('preload', 'metadata');
   video.setAttribute('data-backend', 'html5');
+
+  /* Subtitles are rendered by the app, not by the media stack: AVPlay cannot read
+     network subtitle files and `<track>` styling is not controllable on M63 TV.
+     A DOM overlay works on both engines — including above the AVPlay plane. */
+  var subtitleEl = document.createElement('div');
+  subtitleEl.className = 'player__subtitle is-empty';
+  subtitleEl.setAttribute('data-subtitle', '1');
 
   var hud = document.createElement('div');
   hud.className = 'player__hud';
@@ -157,6 +170,7 @@ export function createPlayer(options) {
   hud.appendChild(bottom);
 
   root.appendChild(video);
+  root.appendChild(subtitleEl);
   root.appendChild(hud);
 
   /* ---- state ------------------------------------------------------------- */
@@ -171,7 +185,9 @@ export function createPlayer(options) {
     error: '',
     url: '',
     type: '',
-    title: ''
+    title: '',
+    sourceIndex: -1,
+    subtitle: ''
   };
 
   var backend = null;
@@ -181,6 +197,42 @@ export function createPlayer(options) {
   var openTimer = null;
   var onClose = opts.onClose || null;
   var forcedBackend = opts.forceBackend || '';
+
+  /* ---- subtitles (DOM overlay, engine independent) ----------------------- */
+  var cues = [];
+  var cueOffset = 0;
+  var cueSize = 'm';
+  var cuePosition = 'bottom';
+  var CUE_SIZES = ['m', 'l', 'xl'];
+  var CUE_POSITIONS = ['bottom', 'middle', 'top'];
+
+  function applyCueStyle() {
+    subtitleEl.className =
+      'player__subtitle is-' +
+      cueSize +
+      ' is-' +
+      cuePosition +
+      (cues.length ? '' : ' is-empty');
+  }
+
+  function renderCue() {
+    if (!cues.length) {
+      if (subtitleEl.textContent) {
+        subtitleEl.textContent = '';
+      }
+      return;
+    }
+    var at = state.position + cueOffset;
+    var text = '';
+    for (var i = 0; i < cues.length; i++) {
+      if (at >= cues[i].start && at <= cues[i].end) {
+        text += (text ? '\n' : '') + cues[i].text;
+      }
+    }
+    if (subtitleEl.textContent !== text) {
+      subtitleEl.textContent = text;
+    }
+  }
 
   function avplayActive() {
     return state.backend === 'avplay';
@@ -542,6 +594,7 @@ export function createPlayer(options) {
       if (bufferedAmount > 0) {
         state.buffered = bufferedAmount;
       }
+      renderCue();
       paint();
     }, TICK_MS);
   }
@@ -566,6 +619,8 @@ export function createPlayer(options) {
     if (html.className.indexOf('is-avplay') > -1) {
       html.className = html.className.replace(/\s*is-avplay/g, '').replace(/^\s+/, '');
     }
+    // Playback is the only mode where the app shell is hidden.
+    html.className = html.className.replace(/\s*is-player/g, '');
   }
 
   function fail(reason, detail) {
@@ -600,6 +655,7 @@ export function createPlayer(options) {
       }
       backend = createAvPlay(api);
       state.backend = 'avplay';
+      state.lastBackend = 'avplay';
       video.setAttribute('data-backend', 'avplay');
       video.removeAttribute('src');
       document.documentElement.className = (
@@ -608,6 +664,7 @@ export function createPlayer(options) {
     } else {
       backend = html5;
       state.backend = 'html5';
+      state.lastBackend = 'html5';
       video.setAttribute('data-backend', 'html5');
     }
     state.status = 'loading';
@@ -647,12 +704,18 @@ export function createPlayer(options) {
     state.url = source && source.url ? source.url : '';
     state.type = source && source.type ? source.type : 'auto';
     state.title = info.title || t('player.titleFallback');
+    state.sourceIndex = typeof info.sourceIndex === 'number' ? info.sourceIndex : -1;
     titleEl.textContent = state.title;
     errorText.textContent = '';
     errorHint.textContent = '';
     hud.className = 'player__hud';
     root.className = 'player is-open';
     backendEl.textContent = '';
+    // Hide the whole shell (rail, hero, rows, details) — only the player remains.
+    document.documentElement.className = (
+      document.documentElement.className + ' is-player'
+    ).replace(/^\s+/, '');
+    applyCueStyle();
     paint();
 
     if (!source || source.ok !== true || !state.url) {
@@ -746,6 +809,10 @@ export function createPlayer(options) {
     errorBox.className = 'player__error';
     timeEl.textContent = '';
     statusEl.textContent = '';
+    cues = [];
+    state.subtitle = '';
+    subtitleEl.textContent = '';
+    applyCueStyle();
     if (wasOpen && notify !== false && onClose) {
       onClose();
     }
@@ -810,17 +877,61 @@ export function createPlayer(options) {
     seekTo: seekTo,
     handleAction: handleAction,
     showHud: showHud,
+    /** Attach parsed cues (engine independent overlay). */
+    setCues: function (list, label) {
+      cues = list || [];
+      state.subtitle = label || '';
+      cueOffset = 0;
+      applyCueStyle();
+      renderCue();
+      return cues.length;
+    },
+    clearCues: function () {
+      cues = [];
+      state.subtitle = '';
+      cueOffset = 0;
+      subtitleEl.textContent = '';
+      applyCueStyle();
+    },
+    setCueOffset: function (ms) {
+      cueOffset = ms;
+      renderCue();
+    },
+    cycleCueSize: function () {
+      cueSize = CUE_SIZES[(CUE_SIZES.indexOf(cueSize) + 1) % CUE_SIZES.length];
+      applyCueStyle();
+      return cueSize;
+    },
+    cycleCuePosition: function () {
+      cuePosition = CUE_POSITIONS[(CUE_POSITIONS.indexOf(cuePosition) + 1) % CUE_POSITIONS.length];
+      applyCueStyle();
+      return cuePosition;
+    },
+    cueState: function () {
+      return {
+        label: state.subtitle,
+        cues: cues.length,
+        offset: cueOffset,
+        size: cueSize,
+        position: cuePosition,
+        text: subtitleEl.textContent
+      };
+    },
     state: function () {
       return {
         open: state.open,
         backend: state.backend,
+        lastBackend: state.lastBackend || '',
         status: state.status,
         position: Math.round(state.position),
         duration: Math.round(state.duration),
         buffered: Math.round(state.buffered),
         error: state.error,
         type: state.type,
-        title: state.title
+        title: state.title,
+        sourceIndex: state.sourceIndex,
+        subtitle: state.subtitle,
+        shellHidden: document.documentElement.className.indexOf('is-player') > -1
       };
     },
     setOnClose: function (fn) {

@@ -276,20 +276,103 @@ export function startMockAddon(port) {
         send(200, {
           streams: [
             { name: 'Emby 1080p', title: 'Emby direct', url: base + '/media/sample.wav?e=0' },
+            // Same URL twice: the resolver must de-duplicate (deterministic).
+            { name: 'Emby 1080p duplicate', url: base + '/media/sample.wav?e=0' },
             // Echoes the id: proves the exact id form that reached the provider.
             { name: 'Emby id ' + videoId, url: base + '/media/sample.wav?e=1' }
           ]
         });
         return;
       }
-      // TorBox: one exact duplicate of an Emby URL (dedupe) and one torrent entry.
+      // TorBox: two distinct direct links plus one torrent entry.
       send(200, {
         streams: [
           { name: 'TorBox 1080p', url: base + '/media/sample.wav?tb=1' },
-          { name: 'TorBox duplicate', url: base + '/media/sample.wav?e=1' },
+          { name: 'TorBox 720p', url: base + '/media/sample.wav?tb=2' },
           { name: 'TorBox torrent', infoHash: 'cafebabecafebabecafebabecafebabe', fileIdx: 0 }
         ]
       });
+      return;
+    }
+
+    // StreamBridge-shaped provider: configuration lives in the URL path, the
+    // stream is a direct-play URL with the key in the query, behaviorHints carries
+    // notWebReady + filename, and the stream ships its own subtitle list.
+    if (/^\/sb\/[^/]+\/manifest\.json$/.test(url)) {
+      send(200, {
+        id: 'org.wutizen.streambridge',
+        version: '1.0.0',
+        name: 'StreamBridge',
+        description: 'Emby direct play (StreamBridge shaped)',
+        resources: [{ name: 'stream', types: ['movie', 'series'] }],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+
+    const sbStream = /^\/sb\/[^/]+\/stream\/(movie|series)\/(.+)\.json$/.exec(url);
+    if (sbStream) {
+      const base = 'http://127.0.0.1:' + port;
+      send(200, {
+        streams: [
+          {
+            name: 'StreamBridge',
+            title: 'Direct Play · 1080p HDR · HEVC · DDP5.1 · 4.2 GB',
+            url: base + '/media/sample.wav?api_key=demo-key&MediaSourceId=ms1',
+            behaviorHints: { notWebReady: true, filename: 'Movie.2020.1080p.HDR.HEVC.DDP5.1.mkv' },
+            subtitles: [
+              { id: 'hr', url: base + '/media/hr.srt', lang: 'hr' },
+              { id: 'en', url: base + '/media/en.vtt', lang: 'en' }
+            ]
+          },
+          {
+            name: 'StreamBridge',
+            title: 'Direct Play · 720p AVC',
+            url: base + '/media/sample.wav?api_key=demo-key&ms=2',
+            // Needs a request header: players here cannot send one.
+            behaviorHints: { proxyHeaders: { request: { 'X-Emby-Token': 'demo-key' } } }
+          }
+        ]
+      });
+      return;
+    }
+
+    // Subtitle add-on (Stremio `subtitles` resource).
+    if (url === '/subs/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.subs',
+        version: '1.0.0',
+        name: 'Open Subs',
+        description: 'Subtitle provider',
+        resources: ['subtitles'],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+    if (/^\/subs\/subtitles\/(movie|series)\/(.+)\.json$/.test(url)) {
+      const base = 'http://127.0.0.1:' + port;
+      send(200, {
+        subtitles: [{ id: 'hr-sub', url: base + '/media/hr2.srt', lang: 'hr' }]
+      });
+      return;
+    }
+    if (url === '/media/hr.srt') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end(
+        '1\n00:00:01,000 --> 00:00:06,000\nPrvi hrvatski titl\n\n' +
+          '2\n00:00:06,000 --> 00:00:12,000\nDrugi redak titla\n\n' +
+          '3\n00:00:12,000 --> 00:00:18,000\nTreći redak\n'
+      );
+      return;
+    }
+    if (url === '/media/hr2.srt') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end('1\n00:00:02,000 --> 00:00:09,000\nTitl iz dodatka\n');
+      return;
+    }
+    if (url === '/media/en.vtt') {
+      res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+      res.end('WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nEnglish subtitle line\n');
       return;
     }
 

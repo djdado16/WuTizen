@@ -28,6 +28,38 @@ export var KIND = {
 };
 
 /**
+ * True when this stream needs request headers we cannot send. `<video>` and
+ * AVPlay take a URL only, so `behaviorHints.proxyHeaders.request` (Streamio's
+ * "needs a proxy" marker) is the one thing that genuinely cannot be played.
+ */
+export function requiresHeaders(stream) {
+  var hints = (stream && stream.behaviorHints) || {};
+  var proxy = hints.proxyHeaders;
+  if (!proxy) {
+    return false;
+  }
+  var request = proxy.request || proxy;
+  if (!request || typeof request !== 'object') {
+    return false;
+  }
+  for (var key in request) {
+    if (Object.prototype.hasOwnProperty.call(request, key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Scheme of the page we are running in ('https:' / 'http:' / 'file:'). */
+export function pageProtocol() {
+  try {
+    return String(window.location.protocol || '');
+  } catch (err) {
+    return '';
+  }
+}
+
+/**
  * @param {string} text url or filename
  * @returns {string} hls|dash|progressive|auto
  */
@@ -69,12 +101,14 @@ export function labelOf(stream) {
 
 /**
  * @param {object} stream Stremio stream object
+ * @param {{pageProtocol?:string}} [options] page scheme for the mixed-content check
  * @returns {{ok:boolean, kind:string, url:string, type:string, label:string, reason:string}}
- *   `reason` is an i18n key suffix: torrent | magnet | notWebReady | external |
- *   yt | scheme | empty | infoHash | noUrl
+ *   `reason` is an i18n key suffix: torrent | requiresHeaders | mixedContent |
+ *   external | yt | scheme | empty | notWebReady | noUrl
  */
-export function classifyStream(stream) {
+export function classifyStream(stream, options) {
   var s = stream || {};
+  var opts = options || {};
   var hints = s.behaviorHints || {};
   var label = labelOf(s);
 
@@ -112,8 +146,24 @@ export function classifyStream(stream) {
     return { ok: false, kind: KIND.INVALID, url: '', type: '', label: label, reason: 'scheme' };
   }
   if (hints.notWebReady === true) {
-    // Explicitly declared as "needs a native player we do not have".
-    return { ok: false, kind: KIND.EXTERNAL, url: url, type: '', label: label, reason: 'notWebReady' };
+    // `notWebReady` only means "not guaranteed to be web-playable" (Stremio uses
+    // it to prefer handing the URL to a native/external player). StreamBridge
+    // marks direct-play links this way and they do play, so this is NOT a
+    // refusal — it is only reported when the engine cannot take the URL at all.
+    // Fall through: the URL is attempted below.
+    void hints;
+  }
+  if (requiresHeaders(s)) {
+    // proxyHeaders.request: an HTTP header set is required and neither <video>
+    // nor AVPlay can send one. This is the only honest refusal here.
+    return { ok: false, kind: KIND.EXTERNAL, url: url, type: '', label: label, reason: 'requiresHeaders' };
+  }
+  var proto = opts.pageProtocol || pageProtocol();
+  if (proto === 'https:' && /^http:\/\//i.test(url)) {
+    // Chromium blocks http media inside an https page (mixed content); the
+    // StreamBridge README documents exactly this ("an HTTPS page cannot connect
+    // to an HTTP server"). Report it instead of an opaque network error.
+    return { ok: false, kind: KIND.HTTP, url: url, type: '', label: label, reason: 'mixedContent' };
   }
 
   var type = typeOf(url);

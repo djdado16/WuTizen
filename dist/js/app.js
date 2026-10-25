@@ -322,6 +322,7 @@
     "diagnostics.retry": "Ponovi",
     "diagnostics.close": "Zatvori",
     "diagnostics.sources": "Izvori (zadnje traženje)",
+    "diagnostics.playback": "Reprodukcija (dodatak · tip · engine)",
     "diagnostics.sourcesNone": "Izvori još nisu traženi.",
     "diagnostics.candidates": "kandidata:",
     "diagnostics.noCandidates": 'Nema kandidata — nijedan dodatak ne nudi "stream".',
@@ -375,6 +376,25 @@
     "player.titleFallback": "Reprodukcija",
     "player.backendAvplay": "AVPlay",
     "player.backendHtml5": "HTML5",
+    "player.hint": "OK: pauza · ←/→: 10 s · ↑: izvori · ↓: titlovi · BACK: izlaz",
+    "player.requiresHeaders": "Ovaj izvor traži posebna HTTP zaglavlja koja player ne može poslati. Potreban je posrednik (proxy).",
+    "player.mixedContent": "Izvorište je http:// a aplikacija radi preko https:// — TV blokira takav sadržaj. Koristite https adresu poslužitelja.",
+    "player.sourceBlocked": "nije moguće reproducirati",
+    "player.subtitlesOff": "Titlovi isključeni",
+    "player.subtitleNone": "Nema dostupnih titlova.",
+    "player.subtitleFailed": "Titl nije moguće učitati (CORS ili veza).",
+    "player.subtitleEmpty": "Datoteka titla nema prepoznatih titlova.",
+    "picker.sources": "Izvori",
+    "picker.sourcesHint": "izvora · OK reproducira · BACK zatvara",
+    "picker.subtitles": "Titlovi",
+    "picker.subtitlesHint": "titlova · OK odabire",
+    "picker.subtitleSize": "Veličina titla",
+    "picker.subtitlePosition": "Položaj titla",
+    "picker.subtitleOffsetUp": "Pomak +0,5 s",
+    "picker.subtitleOffsetDown": "Pomak −0,5 s",
+    "picker.posBottom": "dno",
+    "picker.posMiddle": "sredina",
+    "picker.posTop": "gore",
     "import.auth": "traži autorizaciju",
     "import.notFound": "nije pronađen",
     "import.server": "greška poslužitelja",
@@ -427,6 +447,7 @@
     "diagnostics.retry": "Retry",
     "diagnostics.close": "Close",
     "diagnostics.sources": "Sources (last request)",
+    "diagnostics.playback": "Playback (add-on · type · engine)",
     "diagnostics.sourcesNone": "No source request yet.",
     "diagnostics.candidates": "candidates:",
     "diagnostics.noCandidates": 'No candidates — no add-on advertises "stream".',
@@ -480,6 +501,25 @@
     "player.titleFallback": "Playback",
     "player.backendAvplay": "AVPlay",
     "player.backendHtml5": "HTML5",
+    "player.hint": "OK: pause · ←/→: 10 s · ↑: sources · ↓: subtitles · BACK: exit",
+    "player.requiresHeaders": "This source needs custom HTTP headers, which the player cannot send. A proxy is required.",
+    "player.mixedContent": "The source is http:// while the app runs on https:// — the TV blocks that. Use the server’s https address.",
+    "player.sourceBlocked": "cannot be played",
+    "player.subtitlesOff": "Subtitles off",
+    "player.subtitleNone": "No subtitles available.",
+    "player.subtitleFailed": "Subtitle could not be loaded (CORS or connection).",
+    "player.subtitleEmpty": "The subtitle file contains no recognised cues.",
+    "picker.sources": "Sources",
+    "picker.sourcesHint": "sources · OK plays · BACK closes",
+    "picker.subtitles": "Subtitles",
+    "picker.subtitlesHint": "subtitles · OK selects",
+    "picker.subtitleSize": "Subtitle size",
+    "picker.subtitlePosition": "Subtitle position",
+    "picker.subtitleOffsetUp": "Offset +0.5 s",
+    "picker.subtitleOffsetDown": "Offset −0.5 s",
+    "picker.posBottom": "bottom",
+    "picker.posMiddle": "middle",
+    "picker.posTop": "top",
     "import.auth": "requires authorisation",
     "import.notFound": "not found",
     "import.server": "server error",
@@ -1695,9 +1735,9 @@
     function describeStream(stream) {
       var label2 = String(stream.name || stream.title || stream.description || "stream");
       var filename = stream.behaviorHints && stream.behaviorHints.filename ? String(stream.behaviorHints.filename) : "";
-      var haystack = label2 + " " + String(stream.description || "") + " " + filename;
-      var quality = /(2160p|1080p|720p|480p|\b4k\b|\bhdr\b|\buhd\b)/i.exec(haystack);
-      var language = /\b(hr|sr|bs|sl|en|de|fr|es|it|pl|ru|tr)\b/i.exec(haystack);
+      var haystack2 = label2 + " " + String(stream.description || "") + " " + filename;
+      var quality = /(2160p|1080p|720p|480p|\b4k\b|\bhdr\b|\buhd\b)/i.exec(haystack2);
+      var language = /\b(hr|sr|bs|sl|en|de|fr|es|it|pl|ru|tr)\b/i.exec(haystack2);
       var parts = [label2];
       if (quality) {
         parts.push(quality[1].toUpperCase());
@@ -1809,6 +1849,10 @@
       },
       sourceRows: function() {
         return sourceRowList;
+      },
+      /** Every stream returned by the providers (the picker lists all of them). */
+      allStreams: function() {
+        return streamList.slice(0);
       },
       episodeCards: function() {
         return episodeCards;
@@ -2538,6 +2582,13 @@
       title.textContent = t("diagnostics.title");
       env.textContent = info.environment;
       renderSources(info.sources);
+      if (info.playback) {
+        var playbackRow = document.createElement("div");
+        playbackRow.className = "diagnostics__row" + (info.playback.error ? " is-error" : "");
+        var engine = info.playback.engine === "avplay" ? "AVPlay" : info.playback.engine === "html5" ? "HTML5" : "—";
+        playbackRow.textContent = t("diagnostics.playback") + ": " + (info.playback.provider || "—") + " · " + (info.playback.type || "—") + " · " + engine + (info.playback.reason ? " · " + info.playback.reason : "") + (info.playback.error ? " · " + info.playback.error : "");
+        sources.appendChild(playbackRow);
+      }
       button(t("diagnostics.retry"), "retry", function() {
         if (handlers.onRetry) {
           handlers.onRetry();
@@ -3159,8 +3210,15 @@
             continue;
           }
           seen[key] = true;
-          kept.push(stream);
-          streams.push(stream);
+          var copy = {};
+          for (var field in stream) {
+            if (Object.prototype.hasOwnProperty.call(stream, field)) {
+              copy[field] = stream[field];
+            }
+          }
+          copy.provider = String(entry.name || "Add-on");
+          kept.push(copy);
+          streams.push(copy);
         }
       }
       var logEntry = statusFor(entry);
@@ -3209,6 +3267,12 @@
   function reasonText(reason) {
     if (reason === "torrent" || reason === "magnet" || reason === "infoHash") {
       return t("player.torrent");
+    }
+    if (reason === "requiresHeaders") {
+      return t("player.requiresHeaders");
+    }
+    if (reason === "mixedContent") {
+      return t("player.mixedContent");
     }
     if (reason === "notWebReady") {
       return t("player.notWebReady");
@@ -3260,6 +3324,9 @@
     video.setAttribute("playsinline", "");
     video.setAttribute("preload", "metadata");
     video.setAttribute("data-backend", "html5");
+    var subtitleEl = document.createElement("div");
+    subtitleEl.className = "player__subtitle is-empty";
+    subtitleEl.setAttribute("data-subtitle", "1");
     var hud = document.createElement("div");
     hud.className = "player__hud";
     var top = document.createElement("div");
@@ -3315,6 +3382,7 @@
     hud.appendChild(center);
     hud.appendChild(bottom);
     root.appendChild(video);
+    root.appendChild(subtitleEl);
     root.appendChild(hud);
     var state = {
       open: false,
@@ -3327,7 +3395,9 @@
       error: "",
       url: "",
       type: "",
-      title: ""
+      title: "",
+      sourceIndex: -1,
+      subtitle: ""
     };
     var backend = null;
     var backendOrder = [];
@@ -3336,6 +3406,33 @@
     var openTimer = null;
     var onClose = opts.onClose || null;
     var forcedBackend = opts.forceBackend || "";
+    var cues = [];
+    var cueOffset = 0;
+    var cueSize = "m";
+    var cuePosition = "bottom";
+    var CUE_SIZES = ["m", "l", "xl"];
+    var CUE_POSITIONS = ["bottom", "middle", "top"];
+    function applyCueStyle() {
+      subtitleEl.className = "player__subtitle is-" + cueSize + " is-" + cuePosition + (cues.length ? "" : " is-empty");
+    }
+    function renderCue() {
+      if (!cues.length) {
+        if (subtitleEl.textContent) {
+          subtitleEl.textContent = "";
+        }
+        return;
+      }
+      var at = state.position + cueOffset;
+      var text = "";
+      for (var i = 0; i < cues.length; i++) {
+        if (at >= cues[i].start && at <= cues[i].end) {
+          text += (text ? "\n" : "") + cues[i].text;
+        }
+      }
+      if (subtitleEl.textContent !== text) {
+        subtitleEl.textContent = text;
+      }
+    }
     function avplayActive() {
       return state.backend === "avplay";
     }
@@ -3659,6 +3756,7 @@
         if (bufferedAmount > 0) {
           state.buffered = bufferedAmount;
         }
+        renderCue();
         paint();
       }, TICK_MS);
     }
@@ -3681,6 +3779,7 @@
       if (html.className.indexOf("is-avplay") > -1) {
         html.className = html.className.replace(/\s*is-avplay/g, "").replace(/^\s+/, "");
       }
+      html.className = html.className.replace(/\s*is-player/g, "");
     }
     function fail(reason, detail) {
       stopTicker();
@@ -3711,12 +3810,14 @@
         }
         backend = createAvPlay(api);
         state.backend = "avplay";
+        state.lastBackend = "avplay";
         video.setAttribute("data-backend", "avplay");
         video.removeAttribute("src");
         document.documentElement.className = (document.documentElement.className + " is-avplay").replace(/^\s+/, "");
       } else {
         backend = html5;
         state.backend = "html5";
+        state.lastBackend = "html5";
         video.setAttribute("data-backend", "html5");
       }
       state.status = "loading";
@@ -3754,12 +3855,15 @@
       state.url = source && source.url ? source.url : "";
       state.type = source && source.type ? source.type : "auto";
       state.title = info.title || t("player.titleFallback");
+      state.sourceIndex = typeof info.sourceIndex === "number" ? info.sourceIndex : -1;
       titleEl.textContent = state.title;
       errorText.textContent = "";
       errorHint.textContent = "";
       hud.className = "player__hud";
       root.className = "player is-open";
       backendEl.textContent = "";
+      document.documentElement.className = (document.documentElement.className + " is-player").replace(/^\s+/, "");
+      applyCueStyle();
       paint();
       if (!source || source.ok !== true || !state.url) {
         fail(source && source.reason || "noUrl", "");
@@ -3843,6 +3947,10 @@
       errorBox.className = "player__error";
       timeEl.textContent = "";
       statusEl.textContent = "";
+      cues = [];
+      state.subtitle = "";
+      subtitleEl.textContent = "";
+      applyCueStyle();
       if (wasOpen && notify !== false && onClose) {
         onClose();
       }
@@ -3904,17 +4012,61 @@
       seekTo,
       handleAction,
       showHud,
+      /** Attach parsed cues (engine independent overlay). */
+      setCues: function(list, label) {
+        cues = list || [];
+        state.subtitle = label || "";
+        cueOffset = 0;
+        applyCueStyle();
+        renderCue();
+        return cues.length;
+      },
+      clearCues: function() {
+        cues = [];
+        state.subtitle = "";
+        cueOffset = 0;
+        subtitleEl.textContent = "";
+        applyCueStyle();
+      },
+      setCueOffset: function(ms) {
+        cueOffset = ms;
+        renderCue();
+      },
+      cycleCueSize: function() {
+        cueSize = CUE_SIZES[(CUE_SIZES.indexOf(cueSize) + 1) % CUE_SIZES.length];
+        applyCueStyle();
+        return cueSize;
+      },
+      cycleCuePosition: function() {
+        cuePosition = CUE_POSITIONS[(CUE_POSITIONS.indexOf(cuePosition) + 1) % CUE_POSITIONS.length];
+        applyCueStyle();
+        return cuePosition;
+      },
+      cueState: function() {
+        return {
+          label: state.subtitle,
+          cues: cues.length,
+          offset: cueOffset,
+          size: cueSize,
+          position: cuePosition,
+          text: subtitleEl.textContent
+        };
+      },
       state: function() {
         return {
           open: state.open,
           backend: state.backend,
+          lastBackend: state.lastBackend || "",
           status: state.status,
           position: Math.round(state.position),
           duration: Math.round(state.duration),
           buffered: Math.round(state.buffered),
           error: state.error,
           type: state.type,
-          title: state.title
+          title: state.title,
+          sourceIndex: state.sourceIndex,
+          subtitle: state.subtitle,
+          shellHidden: document.documentElement.className.indexOf("is-player") > -1
         };
       },
       setOnClose: function(fn) {
@@ -3935,6 +4087,30 @@
     EXTERNAL: "external",
     INVALID: "invalid"
   };
+  function requiresHeaders(stream) {
+    var hints = stream && stream.behaviorHints || {};
+    var proxy = hints.proxyHeaders;
+    if (!proxy) {
+      return false;
+    }
+    var request = proxy.request || proxy;
+    if (!request || typeof request !== "object") {
+      return false;
+    }
+    for (var key in request) {
+      if (Object.prototype.hasOwnProperty.call(request, key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function pageProtocol() {
+    try {
+      return String(window.location.protocol || "");
+    } catch (err) {
+      return "";
+    }
+  }
   function typeOf(text) {
     var value = String(text || "");
     if (HLS.test(value) || HLS_HINT.test(value)) {
@@ -3966,8 +4142,9 @@
     }
     return parts.join(" · ");
   }
-  function classifyStream(stream) {
+  function classifyStream(stream, options) {
     var s = stream || {};
+    var opts = options || {};
     var hints = s.behaviorHints || {};
     var label = labelOf(s);
     if (!s || typeof s !== "object") {
@@ -4000,13 +4177,303 @@
       return { ok: false, kind: KIND.INVALID, url: "", type: "", label, reason: "scheme" };
     }
     if (hints.notWebReady === true) {
-      return { ok: false, kind: KIND.EXTERNAL, url, type: "", label, reason: "notWebReady" };
+      void hints;
+    }
+    if (requiresHeaders(s)) {
+      return { ok: false, kind: KIND.EXTERNAL, url, type: "", label, reason: "requiresHeaders" };
+    }
+    var proto = opts.pageProtocol || pageProtocol();
+    if (proto === "https:" && /^http:\/\//i.test(url)) {
+      return { ok: false, kind: KIND.HTTP, url, type: "", label, reason: "mixedContent" };
     }
     var type = typeOf(url);
     if (type === "auto" && hints.filename) {
       type = typeOf(hints.filename);
     }
     return { ok: true, kind: KIND.HTTP, url, type, label, reason: "" };
+  }
+
+  // app/js/playback/streamMeta.js
+  function haystack(stream) {
+    var hints = stream && stream.behaviorHints || {};
+    return [
+      stream && stream.name,
+      stream && stream.title,
+      stream && stream.description,
+      hints.filename,
+      hints.videoSize ? hints.videoSize + "b" : ""
+    ].filter(Boolean).join(" ");
+  }
+  function metaOf(stream) {
+    var text = haystack(stream || {});
+    var resolution = "";
+    var resMatch = /(2160p|\b4k\b|\buhd\b|1440p|1080p|720p|576p|480p|360p)/i.exec(text);
+    if (resMatch) {
+      var value = resMatch[1].toUpperCase();
+      resolution = value === "4K" || value === "UHD" ? "2160P" : value;
+    }
+    var hdr = "";
+    if (/\b(dolby\s*vision|dovi)\b/i.test(text)) {
+      hdr = "DV";
+    } else if (/\bhdr10\+/i.test(text)) {
+      hdr = "HDR10+";
+    } else if (/\bhdr10\b/i.test(text)) {
+      hdr = "HDR10";
+    } else if (/\bhdr\b/i.test(text)) {
+      hdr = "HDR";
+    }
+    var codec = "";
+    var codecMatch = /\b(h\.?265|hevc|x265|h\.?264|avc|x264|av1|vp9)\b/i.exec(text);
+    if (codecMatch) {
+      codec = codecMatch[1].toUpperCase().replace("H.265", "HEVC").replace("H.264", "AVC");
+    }
+    var languages = [];
+    var langRe = /\b(hr|sr|bs|sl|en|de|fr|es|it|pl|ru|tr|pt|nl|cz|cs|hu|ro|el)\b/gi;
+    var langMatch = langRe.exec(text);
+    while (langMatch) {
+      var code = langMatch[1].toUpperCase();
+      if (languages.indexOf(code) === -1) {
+        languages.push(code);
+      }
+      langMatch = langRe.exec(text);
+    }
+    var size = "";
+    var sizeMatch = /(\d+(?:[.,]\d+)?)\s*(gb|mb|gib|mib)\b/i.exec(text);
+    if (sizeMatch) {
+      size = sizeMatch[1].replace(",", ".") + " " + sizeMatch[2].toUpperCase();
+    }
+    var source = "";
+    if (/\bblu[\s-]?ray\b/i.test(text)) {
+      source = "BluRay";
+    } else if (/\bweb[\s-]?dl\b/i.test(text)) {
+      source = "WEB-DL";
+    } else if (/\bwebrip\b/i.test(text)) {
+      source = "WEBRip";
+    } else if (/\bhdtv\b/i.test(text)) {
+      source = "HDTV";
+    }
+    return {
+      resolution,
+      hdr,
+      codec,
+      languages,
+      size,
+      source,
+      label: [resolution, hdr, codec, size].filter(Boolean).join(" · ")
+    };
+  }
+
+  // app/js/ui/views/picker.js
+  function createPicker(options) {
+    var opts = options || {};
+    var root = document.createElement("div");
+    root.className = "details picker";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("data-focus-region", "overlay");
+    root.setAttribute("data-picker", opts.name || "picker");
+    var scrim = document.createElement("div");
+    scrim.className = "details__scrim";
+    var content = document.createElement("div");
+    content.className = "details__content picker__content";
+    var title = document.createElement("h1");
+    title.className = "details__title picker__title";
+    var note = document.createElement("p");
+    note.className = "details__desc picker__note";
+    var list = document.createElement("div");
+    list.className = "picker__list";
+    content.appendChild(title);
+    content.appendChild(note);
+    content.appendChild(list);
+    root.appendChild(scrim);
+    root.appendChild(content);
+    var focusables = [];
+    function show(options2) {
+      var data = options2 || {};
+      focusables = [];
+      while (list.firstChild) {
+        list.removeChild(list.firstChild);
+      }
+      title.textContent = data.title || "";
+      note.textContent = data.note || "";
+      var rows = data.rows || [];
+      for (var i = 0; i < rows.length; i++) {
+        (function(row) {
+          if (row.group) {
+            var heading = document.createElement("div");
+            heading.className = "picker__group";
+            heading.textContent = row.label;
+            list.appendChild(heading);
+            return;
+          }
+          var el = document.createElement("div");
+          el.className = "picker-row" + (row.active ? " is-active" : "");
+          el.setAttribute("role", "button");
+          el.setAttribute("tabindex", "-1");
+          el.setAttribute("data-picker-row", String(row.id));
+          var label = document.createElement("span");
+          label.className = "picker-row__label";
+          label.textContent = row.label;
+          el.appendChild(label);
+          if (row.meta) {
+            var meta = document.createElement("span");
+            meta.className = "picker-row__meta";
+            meta.textContent = row.meta;
+            el.appendChild(meta);
+          }
+          var activate = function() {
+            if (row.onActivate) {
+              row.onActivate();
+            }
+          };
+          el.addEventListener("click", activate);
+          focusables.push({ el, activate });
+          list.appendChild(el);
+        })(rows[i]);
+      }
+      root.classList.add("is-open");
+    }
+    return {
+      el: root,
+      show,
+      close: function() {
+        root.classList.remove("is-open");
+        focusables = [];
+      },
+      isOpen: function() {
+        return root.classList.contains("is-open");
+      },
+      focusables: function() {
+        return focusables;
+      }
+    };
+  }
+
+  // app/js/data/subtitles.js
+  var MAX_SUBTITLE_ADDONS = 6;
+  function parseCues(text) {
+    var source = String(text || "").replace(/\r\n?/g, "\n");
+    var blocks = source.split(/\n{2,}/);
+    var cues = [];
+    var timeRe = /(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})/;
+    for (var i = 0; i < blocks.length; i++) {
+      var lines = blocks[i].split("\n");
+      for (var l = 0; l < lines.length; l++) {
+        var match = timeRe.exec(lines[l]);
+        if (!match) {
+          continue;
+        }
+        var start2 = (parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseInt(match[3], 10)) * 1e3 + parseInt((match[4] + "00").slice(0, 3), 10);
+        var end = (parseInt(match[5], 10) * 3600 + parseInt(match[6], 10) * 60 + parseInt(match[7], 10)) * 1e3 + parseInt((match[8] + "00").slice(0, 3), 10);
+        var body = lines.slice(l + 1).join("\n").replace(/<[^>]+>/g, "").replace(/\{[^}]*\}/g, "").trim();
+        if (body) {
+          cues.push({ start: start2, end, text: body });
+        }
+        break;
+      }
+    }
+    cues.sort(function(a, b) {
+      return a.start - b.start;
+    });
+    return cues;
+  }
+  function fetchText(url, cb) {
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    function finish(err, text) {
+      if (done) {
+        return;
+      }
+      done = true;
+      cb(err, text);
+    }
+    try {
+      xhr.open("GET", url, true);
+      xhr.timeout = 15e3;
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          finish(null, xhr.responseText);
+        } else if (xhr.status === 0) {
+          finish(new Error("blocked"));
+        } else {
+          finish(new Error("HTTP " + xhr.status));
+        }
+      };
+      xhr.ontimeout = function() {
+        finish(new Error("timeout"));
+      };
+      xhr.onerror = function() {
+        finish(new Error("blocked"));
+      };
+      xhr.send();
+    } catch (err) {
+      finish(new Error("blocked"));
+    }
+  }
+  function candidateSubtitles(options, done) {
+    var opts = options || {};
+    var items = [];
+    var seen = {};
+    var providers = [];
+    var streamSubs = opts.streamSubs || [];
+    function add(url, lang, provider) {
+      var value = String(url || "").trim();
+      if (!value || seen[value]) {
+        return false;
+      }
+      if (!/^https?:\/\//i.test(value)) {
+        return false;
+      }
+      seen[value] = true;
+      var code = String(lang || "").toLowerCase();
+      items.push({
+        url: value,
+        lang: code,
+        label: code ? code.toUpperCase() : "SUB",
+        provider: provider || "stream"
+      });
+      return true;
+    }
+    for (var s = 0; s < streamSubs.length; s++) {
+      add(streamSubs[s].url, streamSubs[s].lang, "stream");
+    }
+    var list = opts.addons || [];
+    var targets = [];
+    for (var i = 0; i < list.length && targets.length < MAX_SUBTITLE_ADDONS; i++) {
+      if (list[i] && list[i].url && advertises(list[i], "subtitles")) {
+        targets.push(list[i]);
+      }
+    }
+    if (!targets.length) {
+      done({ items, providers });
+      return;
+    }
+    var pending = targets.length;
+    for (var t2 = 0; t2 < targets.length; t2++) {
+      (function(entry) {
+        addonClient.subtitles(entry.url, opts.type || "movie", opts.id, "", function(err, data) {
+          var subs = !err && data && data.subtitles && data.subtitles.length ? data.subtitles : [];
+          var added = 0;
+          for (var k = 0; k < subs.length; k++) {
+            if (add(subs[k].url, subs[k].lang, entry.name)) {
+              added += 1;
+            }
+          }
+          providers.push({
+            name: String(entry.name || "Add-on"),
+            status: err ? "error" : added ? "ok" : "empty",
+            count: added
+          });
+          pending -= 1;
+          if (pending === 0) {
+            done({ items, providers });
+          }
+        });
+      })(targets[t2]);
+    }
   }
 
   // app/js/main.js
@@ -4069,6 +4536,10 @@
     appEl.appendChild(settingsView.el);
     var player = createPlayer();
     appEl.appendChild(player.el);
+    var sourcePicker = createPicker({ name: "sources" });
+    appEl.appendChild(sourcePicker.el);
+    var subtitlePicker = createPicker({ name: "subtitles" });
+    appEl.appendChild(subtitlePicker.el);
     appEl.appendChild(toast.el);
     function applyScroller() {
       scroller.style.transform = "translate3d(" + railPush + "px," + -scrollY + "px,0)";
@@ -4202,21 +4673,270 @@
       }
       return parts.join(" · ");
     }
-    function playStream(stream) {
-      var info = classifyStream(stream);
-      playerReturnFocus = focusManager.getCurrent();
-      player.open(info, { title: playerTitle() });
-      logInfo("playback: " + (info.ok ? info.type : "refused:" + info.reason));
-      return info;
+    var pickerFocusables = [];
+    function unregisterPickerFocusables() {
+      for (var i = 0; i < pickerFocusables.length; i++) {
+        focusManager.unregister(pickerFocusables[i]);
+      }
+      pickerFocusables = [];
     }
-    function firstPlayableStream() {
-      var rows = details.sourceRows();
-      for (var i = 0; i < rows.length; i++) {
-        if (classifyStream(rows[i].stream).ok) {
-          return rows[i].stream;
+    function registerPickerFocusables(picker) {
+      unregisterPickerFocusables();
+      var list = picker.focusables();
+      for (var i = 0; i < list.length; i++) {
+        focusManager.register(list[i].el, list[i].activate);
+        pickerFocusables.push(list[i].el);
+      }
+      if (list.length) {
+        focusManager.focus(list[0].el);
+      }
+    }
+    function closePickers() {
+      if (!sourcePicker.isOpen() && !subtitlePicker.isOpen()) {
+        return;
+      }
+      sourcePicker.close();
+      subtitlePicker.close();
+      unregisterPickerFocusables();
+      if (!player.isOpen()) {
+        focusManager.setScope(details.el);
+        var rows = details.sourceRows();
+        if (rows.length) {
+          focusManager.focus(rows[0].el);
+        } else {
+          focusManager.focus(details.buttons[0].el);
         }
       }
-      return rows.length > 0 ? rows[0].stream : null;
+    }
+    var playback = { provider: "", type: "", reason: "", title: "" };
+    function playStreamAt(index, switching) {
+      var streams = details.allStreams();
+      var stream = streams[index];
+      if (!stream) {
+        return null;
+      }
+      var info = classifyStream(stream);
+      if (!switching) {
+        playerReturnFocus = focusManager.getCurrent();
+      }
+      playback = {
+        provider: String(stream.provider || ""),
+        type: info.type || "",
+        reason: info.reason || "",
+        title: info.label || ""
+      };
+      player.open(info, { title: playerTitle(), sourceIndex: index });
+      applySelectedSubtitle();
+      logInfo("playback: " + (info.ok ? info.type : "refused:" + info.reason) + " source=" + index);
+      return info;
+    }
+    function openSourcePicker(switching) {
+      var streams = details.allStreams();
+      if (!streams.length) {
+        toast.show(t("player.noSources"));
+        return;
+      }
+      var current2 = player.isOpen() ? player.state().sourceIndex : -1;
+      var rows = [];
+      var lastProvider = null;
+      for (var i = 0; i < streams.length; i++) {
+        var info = classifyStream(streams[i]);
+        var meta = metaOf(streams[i]);
+        var provider = String(streams[i].provider || "");
+        if (provider && provider !== lastProvider) {
+          rows.push({ group: true, label: provider });
+        }
+        lastProvider = provider;
+        rows.push({
+          id: i,
+          active: i === current2,
+          label: info.label,
+          meta: [meta.label, info.ok ? "" : t("player.sourceBlocked")].filter(Boolean).join(" · "),
+          onActivate: /* @__PURE__ */ (function(index) {
+            return function() {
+              var wasPlaying = player.isOpen();
+              if (wasPlaying) {
+                player.close(false);
+              }
+              sourcePicker.close();
+              unregisterPickerFocusables();
+              playStreamAt(index, wasPlaying);
+            };
+          })(i)
+        });
+      }
+      sourcePicker.show({
+        title: t("picker.sources"),
+        note: streams.length + " " + t("picker.sourcesHint"),
+        rows
+      });
+      focusManager.setScope(sourcePicker.el);
+      registerPickerFocusables(sourcePicker);
+    }
+    var subtitleItems = [];
+    var subtitleSelected = -1;
+    var subtitleCues = [];
+    var subtitleLoading = false;
+    function currentStreamSubs() {
+      var index = player.isOpen() ? player.state().sourceIndex : -1;
+      var streams = details.allStreams();
+      var stream = index >= 0 ? streams[index] : null;
+      return stream && stream.subtitles ? stream.subtitles : [];
+    }
+    function posLabel(position) {
+      if (position === "middle") {
+        return t("picker.posMiddle");
+      }
+      if (position === "top") {
+        return t("picker.posTop");
+      }
+      return t("picker.posBottom");
+    }
+    function applySelectedSubtitle() {
+      if (subtitleSelected >= 0 && subtitleCues.length && player.isOpen()) {
+        player.setCues(subtitleCues, subtitleItems[subtitleSelected].label);
+      }
+    }
+    function selectSubtitle(index) {
+      if (index < 0) {
+        subtitleSelected = -1;
+        subtitleCues = [];
+        player.clearCues();
+        return true;
+      }
+      var item = subtitleItems[index];
+      if (!item) {
+        return false;
+      }
+      subtitleSelected = index;
+      fetchText(item.url, function(err, text) {
+        if (err) {
+          toast.show(t("player.subtitleFailed"));
+          return;
+        }
+        var cues = parseCues(text);
+        if (!cues.length) {
+          toast.show(t("player.subtitleEmpty"));
+          return;
+        }
+        subtitleCues = cues;
+        applySelectedSubtitle();
+        toast.show(item.label + " · " + cues.length);
+      });
+      return true;
+    }
+    function showSubtitlePicker() {
+      var cueState = player.isOpen() ? player.cueState() : { size: "m", position: "bottom", offset: 0 };
+      var rows = [
+        {
+          id: "off",
+          label: t("player.subtitlesOff"),
+          active: subtitleSelected === -1,
+          onActivate: function() {
+            selectSubtitle(-1);
+            showSubtitlePicker();
+          }
+        }
+      ];
+      var seen = {};
+      for (var i = 0; i < subtitleItems.length; i++) {
+        (function(index) {
+          var item = subtitleItems[index];
+          var key = item.label + "|" + item.provider;
+          if (seen[key]) {
+            return;
+          }
+          seen[key] = true;
+          rows.push({
+            id: "sub-" + index,
+            label: item.label,
+            meta: item.provider,
+            active: subtitleSelected === index,
+            onActivate: function() {
+              selectSubtitle(index);
+              showSubtitlePicker();
+            }
+          });
+        })(i);
+      }
+      if (subtitleSelected >= 0) {
+        rows.push({
+          id: "size",
+          label: t("picker.subtitleSize"),
+          meta: cueState.size.toUpperCase(),
+          onActivate: function() {
+            if (player.isOpen()) {
+              player.cycleCueSize();
+            }
+            showSubtitlePicker();
+          }
+        });
+        rows.push({
+          id: "position",
+          label: t("picker.subtitlePosition"),
+          meta: posLabel(cueState.position),
+          onActivate: function() {
+            if (player.isOpen()) {
+              player.cycleCuePosition();
+            }
+            showSubtitlePicker();
+          }
+        });
+        rows.push({
+          id: "offset-up",
+          label: t("picker.subtitleOffsetUp"),
+          meta: (cueState.offset / 1e3).toFixed(1) + " s",
+          onActivate: function() {
+            if (player.isOpen()) {
+              player.setCueOffset(cueState.offset + 500);
+            }
+            showSubtitlePicker();
+          }
+        });
+        rows.push({
+          id: "offset-down",
+          label: t("picker.subtitleOffsetDown"),
+          meta: (cueState.offset / 1e3).toFixed(1) + " s",
+          onActivate: function() {
+            if (player.isOpen()) {
+              player.setCueOffset(cueState.offset - 500);
+            }
+            showSubtitlePicker();
+          }
+        });
+      }
+      subtitlePicker.show({
+        title: t("picker.subtitles"),
+        note: subtitleItems.length ? subtitleItems.length + " " + t("picker.subtitlesHint") : t("player.subtitleNone"),
+        rows
+      });
+      focusManager.setScope(subtitlePicker.el);
+      registerPickerFocusables(subtitlePicker);
+    }
+    function openSubtitlePicker() {
+      if (subtitleItems.length) {
+        showSubtitlePicker();
+        return;
+      }
+      if (subtitleLoading) {
+        toast.show(t("common.loading"));
+        return;
+      }
+      subtitleLoading = true;
+      var item = details.currentItem() || {};
+      candidateSubtitles(
+        {
+          addons: listAddons(),
+          type: item.kind || "movie",
+          id: selectedVideoId || item.id,
+          streamSubs: currentStreamSubs()
+        },
+        function(result) {
+          subtitleLoading = false;
+          subtitleItems = result.items;
+          showSubtitlePicker();
+        }
+      );
     }
     function playCurrent() {
       var item = details.currentItem();
@@ -4224,14 +4944,24 @@
         toast.show(t("common.wip"));
         return;
       }
-      var stream = firstPlayableStream();
-      if (!stream) {
+      var streams = details.allStreams();
+      if (!streams.length) {
         player.open({ ok: false, reason: "noUrl", url: "", type: "", label: "" }, {
           title: playerTitle()
         });
         return;
       }
-      playStream(stream);
+      var playable = [];
+      for (var i = 0; i < streams.length; i++) {
+        if (classifyStream(streams[i]).ok) {
+          playable.push(i);
+        }
+      }
+      if (playable.length > 1) {
+        openSourcePicker(false);
+        return;
+      }
+      playStreamAt(playable.length ? playable[0] : 0, false);
     }
     player.setOnClose(function() {
       focusManager.setScope(details.el);
@@ -4282,7 +5012,7 @@
       for (var i = 0; i < rows.length; i++) {
         (function(row) {
           focusManager.register(row.el, function() {
-            playStream(row.stream);
+            playStreamAt(row.index, false);
           });
           streamFocusables.push(row.el);
         })(rows[i]);
@@ -4546,7 +5276,15 @@
       diagnosticsView.render({
         environment: envSummary(),
         entries: diagnosticsList(),
-        sources: lastStreamReport()
+        sources: lastStreamReport(),
+        playback: {
+          provider: playback.provider,
+          type: playback.type,
+          reason: playback.reason,
+          title: playback.title,
+          engine: player.state().backend || player.state().lastBackend,
+          error: player.state().error
+        }
       });
     }
     function openDiagnostics() {
@@ -4868,6 +5606,35 @@
       if (!action) {
         return;
       }
+      if (sourcePicker.isOpen() || subtitlePicker.isOpen()) {
+        var isPickerTransition = action === "back" || action === "enter" || action === "exit";
+        if (isPickerTransition) {
+          if (event.repeat) {
+            return;
+          }
+          var pickerKey = keyIdOf(event);
+          if (pressed[pickerKey]) {
+            return;
+          }
+          clearPressed();
+          pressed[pickerKey] = true;
+        }
+        event.preventDefault();
+        if (action === "back") {
+          closePickers();
+          return;
+        }
+        if (action === "exit") {
+          platform.exitApp();
+          return;
+        }
+        if (action === "enter") {
+          focusManager.activate();
+          return;
+        }
+        focusManager.move(action);
+        return;
+      }
       if (player.isOpen()) {
         var isPlayerTransition = action === "back" || action === "enter" || action === "exit";
         if (isPlayerTransition) {
@@ -4888,6 +5655,14 @@
         }
         if (action === "exit") {
           platform.exitApp();
+          return;
+        }
+        if (action === "up") {
+          openSourcePicker(true);
+          return;
+        }
+        if (action === "down") {
+          openSubtitlePicker();
           return;
         }
         player.handleAction(action);
@@ -5034,6 +5809,63 @@
         },
         last: function() {
           return lastStreamReport();
+        }
+      },
+      sources: {
+        list: function() {
+          return details.allStreams().map(function(stream, index) {
+            var info = classifyStream(stream);
+            var meta = metaOf(stream);
+            return {
+              index,
+              provider: String(stream.provider || ""),
+              ok: info.ok,
+              reason: info.reason,
+              type: info.type,
+              label: info.label,
+              resolution: meta.resolution,
+              hdr: meta.hdr,
+              codec: meta.codec,
+              size: meta.size,
+              languages: meta.languages
+            };
+          });
+        },
+        classify: function(stream, proto) {
+          return classifyStream(stream, { pageProtocol: proto || "" });
+        }
+      },
+      picker: {
+        openSources: function() {
+          openSourcePicker(player.isOpen());
+          return sourcePicker.isOpen();
+        },
+        openSubtitles: function() {
+          openSubtitlePicker();
+          return true;
+        },
+        rows: function() {
+          return document.querySelectorAll(".picker.is-open .picker-row").length;
+        },
+        text: function() {
+          var el = document.querySelector(".picker.is-open");
+          return el ? el.textContent : "";
+        },
+        open: function() {
+          return sourcePicker.isOpen() || subtitlePicker.isOpen();
+        }
+      },
+      subtitles: {
+        items: function() {
+          return subtitleItems.map(function(item) {
+            return { label: item.label, lang: item.lang, provider: item.provider };
+          });
+        },
+        select: function(index) {
+          return selectSubtitle(index);
+        },
+        state: function() {
+          return player.cueState();
         }
       },
       addonRefresh: function() {

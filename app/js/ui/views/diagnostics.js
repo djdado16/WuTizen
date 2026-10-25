@@ -150,6 +150,22 @@ export function createDiagnosticsView() {
     title.textContent = t('diagnostics.title');
     env.textContent = info.environment;
     renderSources(info.sources);
+    if (info.playback) {
+      var playbackRow = document.createElement('div');
+      playbackRow.className = 'diagnostics__row' + (info.playback.error ? ' is-error' : '');
+      var engine = info.playback.engine === 'avplay' ? 'AVPlay' : info.playback.engine === 'html5' ? 'HTML5' : '—';
+      playbackRow.textContent =
+        t('diagnostics.playback') +
+        ': ' +
+        (info.playback.provider || '—') +
+        ' · ' +
+        (info.playback.type || '—') +
+        ' · ' +
+        engine +
+        (info.playback.reason ? ' · ' + info.playback.reason : '') +
+        (info.playback.error ? ' · ' + info.playback.error : '');
+      sources.appendChild(playbackRow);
+    }
     button(t('diagnostics.retry'), 'retry', function () {
       if (handlers.onRetry) {
         handlers.onRetry();
