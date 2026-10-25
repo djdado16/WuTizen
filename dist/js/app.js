@@ -321,6 +321,17 @@
     "diagnostics.empty": "Nema zabilježenih zahtjeva.",
     "diagnostics.retry": "Ponovi",
     "diagnostics.close": "Zatvori",
+    "diagnostics.sources": "Izvori (zadnje traženje)",
+    "diagnostics.sourcesNone": "Izvori još nisu traženi.",
+    "diagnostics.candidates": "kandidata:",
+    "diagnostics.noCandidates": 'Nema kandidata — nijedan dodatak ne nudi "stream".',
+    "diagnostics.skipNoStream": "preskočen: nema stream resurs",
+    "diagnostics.skipType": "preskočen: ne podržava ovaj tip",
+    "diagnostics.skipPrefix": "preskočen: idPrefixes",
+    "diagnostics.skipLimit": "preskočen: previše dodataka",
+    "diagnostics.resultOk": "ok",
+    "diagnostics.resultEmpty": "nema izvora",
+    "diagnostics.resultError": "greška",
     "settings.title": "Postavke",
     "settings.importHint": "Uvezite WuPlay profil (JSON). Adresa se pohranjuje samo na ovom televizoru.",
     "settings.importUrl": "Uvezi s adrese",
@@ -415,6 +426,17 @@
     "diagnostics.empty": "No requests recorded.",
     "diagnostics.retry": "Retry",
     "diagnostics.close": "Close",
+    "diagnostics.sources": "Sources (last request)",
+    "diagnostics.sourcesNone": "No source request yet.",
+    "diagnostics.candidates": "candidates:",
+    "diagnostics.noCandidates": 'No candidates — no add-on advertises "stream".',
+    "diagnostics.skipNoStream": "skipped: no stream resource",
+    "diagnostics.skipType": "skipped: unsupported type",
+    "diagnostics.skipPrefix": "skipped: idPrefixes",
+    "diagnostics.skipLimit": "skipped: too many add-ons",
+    "diagnostics.resultOk": "ok",
+    "diagnostics.resultEmpty": "no sources",
+    "diagnostics.resultError": "error",
     "settings.title": "Settings",
     "settings.importHint": "Import a WuPlay profile (JSON). The address is stored on this TV only.",
     "settings.importUrl": "Import from address",
@@ -2180,6 +2202,68 @@
       });
     });
   }
+  function refreshAddonMetadata(cb) {
+    var list = listAddons();
+    var stale = [];
+    for (var i = 0; i < list.length; i++) {
+      var entry = list[i];
+      if (!entry || !entry.url) {
+        continue;
+      }
+      var hasPrefixesField = typeof entry.idPrefixes !== "undefined";
+      var hasResources = !!entry.resources && entry.resources.length > 0;
+      if (!hasPrefixesField || !hasResources) {
+        stale.push(entry);
+      }
+    }
+    if (!stale.length) {
+      if (cb) {
+        cb({ refreshed: 0, failed: 0, total: 0 });
+      }
+      return;
+    }
+    var index = 0;
+    var refreshed = 0;
+    var failed = 0;
+    function next() {
+      if (index >= stale.length) {
+        if (cb) {
+          cb({ refreshed, failed, total: stale.length });
+        }
+        return;
+      }
+      var target = stale[index];
+      index += 1;
+      addonClient.manifest(target.url, function(err, manifest) {
+        if (err || !manifest || !manifest.id) {
+          failed += 1;
+          next();
+          return;
+        }
+        var fresh = summarize(target.url, manifest);
+        var current2 = listAddons();
+        for (var j = 0; j < current2.length; j++) {
+          if (current2[j].url !== target.url) {
+            continue;
+          }
+          current2[j].resources = fresh.resources;
+          current2[j].types = fresh.types;
+          current2[j].idPrefixes = fresh.idPrefixes;
+          if (fresh.catalogs.length) {
+            current2[j].catalogs = fresh.catalogs;
+          }
+          current2[j].name = fresh.name || current2[j].name;
+          current2[j].version = fresh.version || current2[j].version;
+          current2[j].description = fresh.description || current2[j].description;
+          current2[j].logo = fresh.logo || current2[j].logo;
+        }
+        persist(current2);
+        refreshed += 1;
+        next();
+      });
+    }
+    next();
+  }
 
   // app/js/ui/views/addons.js
   function createAddonsView() {
@@ -2367,6 +2451,8 @@
     title.className = "details__title diagnostics__title";
     var env = document.createElement("div");
     env.className = "diagnostics__env";
+    var sources = document.createElement("div");
+    sources.className = "diagnostics__sources";
     var list = document.createElement("div");
     list.className = "diagnostics__list";
     var actions = document.createElement("div");
@@ -2389,16 +2475,69 @@
     }
     content.appendChild(title);
     content.appendChild(env);
+    content.appendChild(sources);
     content.appendChild(list);
     content.appendChild(actions);
     root.appendChild(scrim);
     root.appendChild(content);
+    function skipLabel(reason) {
+      if (reason === "noStreamResource") {
+        return t("diagnostics.skipNoStream");
+      }
+      if (reason === "typeMismatch") {
+        return t("diagnostics.skipType");
+      }
+      if (reason === "idPrefixes") {
+        return t("diagnostics.skipPrefix");
+      }
+      return t("diagnostics.skipLimit");
+    }
+    function renderSources(report) {
+      sources.innerHTML = "";
+      var heading = document.createElement("div");
+      heading.className = "diagnostics__section";
+      heading.textContent = t("diagnostics.sources");
+      sources.appendChild(heading);
+      if (!report) {
+        var none = document.createElement("div");
+        none.className = "diagnostics__row";
+        none.textContent = t("diagnostics.sourcesNone");
+        sources.appendChild(none);
+        return;
+      }
+      var summary = document.createElement("div");
+      summary.className = "diagnostics__row";
+      summary.textContent = report.type + "/" + report.id + " · " + t("diagnostics.candidates") + " " + report.candidates + " · " + (report.streamCount || 0) + " " + t("diagnostics.items");
+      sources.appendChild(summary);
+      if (!report.candidates) {
+        var noCandidates = document.createElement("div");
+        noCandidates.className = "diagnostics__row";
+        noCandidates.textContent = t("diagnostics.noCandidates");
+        sources.appendChild(noCandidates);
+      }
+      for (var i = 0; i < report.providers.length; i++) {
+        var provider = report.providers[i];
+        var row = document.createElement("div");
+        row.className = "diagnostics__row" + (provider.status === "error" ? " is-error" : "");
+        var statusText = provider.status === "ok" ? t("diagnostics.resultOk") : provider.status === "empty" ? t("diagnostics.resultEmpty") : t("diagnostics.resultError");
+        row.textContent = provider.name + " (" + provider.host + ") · " + statusText + (provider.reason ? " · " + provider.reason : "") + (provider.httpStatus ? " · HTTP " + provider.httpStatus : "") + " · " + provider.count + " " + t("diagnostics.items");
+        sources.appendChild(row);
+      }
+      for (var s = 0; s < report.skipped.length; s++) {
+        var skipped = report.skipped[s];
+        var skipRow = document.createElement("div");
+        skipRow.className = "diagnostics__row";
+        skipRow.textContent = skipped.name + " (" + skipped.host + ") · " + skipLabel(skipped.reason);
+        sources.appendChild(skipRow);
+      }
+    }
     function render(info) {
       focusables = [];
       actions.innerHTML = "";
       list.innerHTML = "";
       title.textContent = t("diagnostics.title");
       env.textContent = info.environment;
+      renderSources(info.sources);
       button(t("diagnostics.retry"), "retry", function() {
         if (handlers.onRetry) {
           handlers.onRetry();
@@ -2876,20 +3015,47 @@
     }
     return false;
   }
-  function streamProviders(addons, type, id) {
+  function streamCandidates(addons, type, id) {
     var out = [];
+    var skipped = [];
     var list = addons || [];
-    for (var i = 0; i < list.length && out.length < MAX_PROVIDERS; i++) {
+    for (var i = 0; i < list.length; i++) {
       var entry = list[i];
-      if (!entry || !entry.url || !advertises(entry, "stream")) {
+      if (!entry || !entry.url) {
         continue;
       }
-      if (!typeAllowed(entry, type) || !prefixAllowed(entry, id)) {
+      var known = !!entry.resources && entry.resources.length > 0;
+      if (known && !advertises(entry, "stream")) {
+        skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "noStreamResource" });
         continue;
       }
-      out.push(entry);
+      if (!typeAllowed(entry, type)) {
+        skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "typeMismatch" });
+        continue;
+      }
+      if (!prefixAllowed(entry, id)) {
+        skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "idPrefixes" });
+        continue;
+      }
+      if (out.length >= MAX_PROVIDERS) {
+        skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "limit" });
+        continue;
+      }
+      out.push({ entry, unverified: !known });
+    }
+    return { providers: out, skipped };
+  }
+  function streamProviders(addons, type, id) {
+    var found = streamCandidates(addons, type, id);
+    var out = [];
+    for (var i = 0; i < found.providers.length; i++) {
+      out.push(found.providers[i].entry);
     }
     return out;
+  }
+  var lastReport = null;
+  function lastStreamReport() {
+    return lastReport;
   }
   function streamKey(stream) {
     if (stream.url) {
@@ -2911,26 +3077,73 @@
     var item = opts.item || {};
     var type = opts.type || item.kind || "movie";
     var id = opts.videoId || item.id;
-    var providers = streamProviders(opts.addons || [], type, id);
+    var found = streamCandidates(opts.addons || [], type, id);
+    var providers = found.providers;
     var report = [];
     var streams = [];
     var seen = {};
     var pending = providers.length;
-    var attempted = 0;
+    var logStart = Date.now() - 1;
+    function statusFor(entry) {
+      var log2 = diagnosticsList();
+      var host = hostOf2(entry.url);
+      for (var i = log2.length - 1; i >= 0; i--) {
+        if (log2[i].when >= logStart && log2[i].resource === "stream" && log2[i].host === host && String(log2[i].id) === String(id)) {
+          return log2[i];
+        }
+      }
+      return null;
+    }
     function finish() {
       var ordered = report.slice().sort(function(a, b) {
         return a.index - b.index;
       });
-      done({
+      var result = {
         streams: streams.slice(0, MAX_STREAMS),
         providers: ordered,
-        attempted,
+        skipped: found.skipped,
+        candidates: providers.length,
+        attempted: providers.length,
         id: String(id || ""),
+        type,
+        when: Date.now()
+      };
+      lastReport = {
+        streamCount: result.streams.length,
+        providers: ordered,
+        skipped: found.skipped,
+        candidates: result.candidates,
+        attempted: result.attempted,
+        id: result.id,
+        type: result.type,
+        when: result.when
+      };
+      done(result);
+    }
+    if (!id) {
+      lastReport = {
+        streamCount: 0,
+        providers: [],
+        skipped: found.skipped,
+        candidates: 0,
+        attempted: 0,
+        id: "",
+        type,
+        when: Date.now()
+      };
+      done({
+        streams: [],
+        providers: [],
+        skipped: found.skipped,
+        candidates: 0,
+        attempted: 0,
+        id: "",
         type
       });
+      return;
     }
-    if (!id || !pending) {
-      done({ streams: [], providers: [], attempted: 0, id: String(id || ""), type });
+    if (!pending) {
+      finish();
       return;
     }
     function settle(index, entry, status, reason, list) {
@@ -2950,12 +3163,14 @@
           streams.push(stream);
         }
       }
+      var logEntry = statusFor(entry);
       report.push({
         index,
         name: String(entry.name || "Add-on"),
         host: hostOf2(entry.url),
         status,
         reason: reason || "",
+        httpStatus: logEntry ? logEntry.status : 0,
         count: kept.length
       });
       pending -= 1;
@@ -2963,9 +3178,9 @@
         finish();
       }
     }
-    attempted = providers.length;
     for (var p = 0; p < providers.length; p++) {
-      (function(entry, index) {
+      (function(provider, index) {
+        var entry = provider.entry;
         addonClient.streams(entry.url, type, id, function(err, data) {
           if (err) {
             settle(index, entry, "error", failureReason(err), null);
@@ -3798,7 +4013,7 @@
   var STAGE_WIDTH = 1920;
   var STAGE_HEIGHT = 1080;
   var SCROLL_PAD = 24;
-  var RAIL_PUSH = 150;
+  var RAIL_PUSH_FALLBACK = 150;
   var PROFILE_ITEM = { id: "profile", labelKey: "nav.profile", icon: "profile", profile: true };
   var RAIL_ITEMS = [
     { id: "search", labelKey: "nav.search", icon: "search" },
@@ -3824,6 +4039,17 @@
     var railPush = 0;
     var rail = createRail({ profile: PROFILE_ITEM, items: RAIL_ITEMS, language: getLanguage() });
     appEl.appendChild(rail.el);
+    var railPushAmount = RAIL_PUSH_FALLBACK;
+    function measureRailPush() {
+      var panel = rail.el.querySelector(".rail__panel");
+      if (panel) {
+        var width = panel.getBoundingClientRect().width;
+        if (width > 0) {
+          railPushAmount = Math.round(width);
+        }
+      }
+      return railPushAmount;
+    }
     var scroller = document.createElement("div");
     scroller.className = "scroller";
     var hero = createHero(getHero(), getLanguage());
@@ -3887,7 +4113,7 @@
     function onFocusChanged(el) {
       var inRail = !!el.closest(".rail");
       rail.setExpanded(inRail);
-      setRailPush(inRail ? RAIL_PUSH : 0);
+      setRailPush(inRail ? measureRailPush() : 0);
       if (typeof el.__reveal === "function") {
         el.__reveal();
       }
@@ -4317,7 +4543,11 @@
       return "origin=" + (typeof location !== "undefined" ? location.origin : "?") + " · avplay=" + (probe.avplay ? "yes" : "no") + " · webapis=" + (probe.webapis ? "yes" : "no") + " · " + (typeof navigator !== "undefined" ? navigator.userAgent : "");
     }
     function renderDiagnostics() {
-      diagnosticsView.render({ environment: envSummary(), entries: diagnosticsList() });
+      diagnosticsView.render({
+        environment: envSummary(),
+        entries: diagnosticsList(),
+        sources: lastStreamReport()
+      });
     }
     function openDiagnostics() {
       diagnosticsReturnFocus = focusManager.getCurrent();
@@ -4743,6 +4973,8 @@
       "resize",
       function() {
         fitStage();
+        measureRailPush();
+        applyScroller();
         for (var n = 0; n < shelves.length; n++) {
           shelves[n].measure();
         }
@@ -4751,6 +4983,7 @@
     );
     renderLanguage();
     fitStage();
+    measureRailPush();
     for (var m = 0; m < shelves.length; m++) {
       shelves[m].measure();
     }
@@ -4760,6 +4993,12 @@
       focusManager.focusFirst();
     }
     loadAddonCatalogs();
+    refreshAddonMetadata(function(info) {
+      if (info && info.refreshed) {
+        logInfo("addons: metadata refreshed " + info.refreshed + "/" + info.total);
+        loadAddonCatalogs();
+      }
+    });
     window.WuTizenDebug = {
       profile: {
         importText: function(text) {
@@ -4792,7 +5031,15 @@
         },
         providers: function() {
           return streamProviders(listAddons(), "movie", "tt0000000");
+        },
+        last: function() {
+          return lastStreamReport();
         }
+      },
+      addonRefresh: function() {
+        return new Promise(function(resolve) {
+          refreshAddonMetadata(resolve);
+        });
       },
       player: {
         state: function() {
@@ -4877,6 +5124,8 @@
           focusedZone: zone,
           focusedTitle: caption ? caption.textContent : null,
           railExpanded: rail.isExpanded(),
+          railPush,
+          railPushAmount,
           heroTitle: heroTitle ? heroTitle.textContent : "",
           detailsOpen: details.isOpen(),
           detailsTitle: detailsTitle ? detailsTitle.textContent : "",

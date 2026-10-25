@@ -178,3 +178,81 @@ export function removeAddonAsync(url) {
     });
   });
 }
+
+/**
+ * One-time metadata refresh for entries stored by earlier versions.
+ *
+ * v0.4.x kept only string-form `resources` and no `idPrefixes`, so an add-on
+ * whose manifest declared `resources: [{ name: 'stream', … }]` was stored with
+ * `resources: []` and could never be recognised as a stream provider (the TV
+ * symptom: "no streams" with Emby Bridge/TorBox installed).
+ *
+ * Only metadata is merged into existing entries: the stored URL (and therefore
+ * its configuration path and authentication) is never changed, nothing is
+ * removed, and a failed refresh leaves the entry exactly as it was.
+ */
+export function refreshAddonMetadata(cb) {
+  var list = listAddons();
+  var stale = [];
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i];
+    if (!entry || !entry.url) {
+      continue;
+    }
+    var hasPrefixesField = typeof entry.idPrefixes !== 'undefined';
+    var hasResources = !!entry.resources && entry.resources.length > 0;
+    if (!hasPrefixesField || !hasResources) {
+      stale.push(entry);
+    }
+  }
+  if (!stale.length) {
+    if (cb) {
+      cb({ refreshed: 0, failed: 0, total: 0 });
+    }
+    return;
+  }
+
+  var index = 0;
+  var refreshed = 0;
+  var failed = 0;
+
+  function next() {
+    if (index >= stale.length) {
+      if (cb) {
+        cb({ refreshed: refreshed, failed: failed, total: stale.length });
+      }
+      return;
+    }
+    var target = stale[index];
+    index += 1;
+    addonClient.manifest(target.url, function (err, manifest) {
+      if (err || !manifest || !manifest.id) {
+        failed += 1;
+        next();
+        return;
+      }
+      var fresh = summarize(target.url, manifest);
+      var current = listAddons();
+      for (var j = 0; j < current.length; j++) {
+        if (current[j].url !== target.url) {
+          continue;
+        }
+        current[j].resources = fresh.resources;
+        current[j].types = fresh.types;
+        current[j].idPrefixes = fresh.idPrefixes;
+        if (fresh.catalogs.length) {
+          current[j].catalogs = fresh.catalogs;
+        }
+        current[j].name = fresh.name || current[j].name;
+        current[j].version = fresh.version || current[j].version;
+        current[j].description = fresh.description || current[j].description;
+        current[j].logo = fresh.logo || current[j].logo;
+      }
+      persist(current);
+      refreshed += 1;
+      next();
+    });
+  }
+
+  next();
+}

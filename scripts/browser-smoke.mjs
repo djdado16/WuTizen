@@ -379,7 +379,18 @@ try {
   );
   check('rail expands while it holds focus', s.railExpanded === true);
   const pushTransform = await evaluate(client, 'document.querySelector(".scroller").style.transform');
-  check('content shifts aside for the expanded rail', /^translate3d\(150px/.test(pushTransform), pushTransform);
+  // The offset must match the rail panel width (a CSS token), not a constant:
+  // a 150px push left the 300px panel covering the left half of the page.
+  const railPanelWidth = await evaluate(
+    client,
+    'Math.round(document.querySelector(".rail__panel").getBoundingClientRect().width)'
+  );
+  check(
+    'content shifts aside by the rail panel width',
+    /^translate3d\((\d+)px/.test(pushTransform) &&
+      parseInt(/^translate3d\((\d+)px/.exec(pushTransform)[1], 10) === railPanelWidth,
+    pushTransform + ' vs panel ' + railPanelWidth
+  );
 
   for (let i = 0; i < 4; i++) {
     await press(client, 'ArrowDown', 40);
@@ -1084,6 +1095,140 @@ try {
   await evaluate(client, 'window.WuTizenDebug.openSettings()');
   const failureRows = await evaluate(client, 'document.querySelectorAll(".settings__failure").length');
   check('Settings lists skipped add-ons', failureRows > 0, String(failureRows));
+  await press(client, 'Unidentified', 10009);
+
+  /* ---- Task A: repeated Settings → Home must fully restore the layout ----- */
+  const homeGeometry = () =>
+    evaluate(
+      client,
+      '(function(){var s=window.WuTizenDebug.snapshot();var sc=document.querySelector(".scroller");' +
+        'var st=document.querySelector("#stage");' +
+        'return {settings:s.settingsOpen,details:s.detailsOpen,rows:s.rows,titles:(s.rowTitles||[]).join("|"),' +
+        'railPush:s.railPush,railPushAmount:s.railPushAmount,railExpanded:s.railExpanded,zone:s.focusedZone,' +
+        'scroll:sc.style.transform,stage:st.style.transform||"none",stageLeft:st.style.left||"",' +
+        'docLeft:document.scrollingElement.scrollLeft,docTop:document.scrollingElement.scrollTop};})()'
+    );
+  const baseline = await homeGeometry();
+  check(
+    'home baseline: rail offset matches the panel width',
+    baseline.railPushAmount === railPanelWidth && baseline.railPushAmount >= railPanelWidth,
+    'push ' + baseline.railPush + ' / panel ' + baseline.railPushAmount
+  );
+
+  let layoutDrift = null;
+  for (let cycle = 0; cycle < 4; cycle++) {
+    await evaluate(client, 'window.WuTizenDebug.openSettings()');
+    await press(client, 'Unidentified', 10009); // BACK
+    const after = await homeGeometry();
+    const same =
+      after.settings === false &&
+      after.details === false &&
+      after.rows === baseline.rows &&
+      after.titles === baseline.titles &&
+      after.stage === baseline.stage &&
+      after.stageLeft === baseline.stageLeft &&
+      after.docLeft === 0 &&
+      after.docTop === 0 &&
+      after.railPush === after.railPushAmount;
+    if (!same) {
+      layoutDrift = JSON.stringify(after).slice(0, 150);
+      break;
+    }
+  }
+  check('4× Settings→BACK restores Home completely', layoutDrift === null, layoutDrift || 'stable');
+
+  await press(client, 'ArrowRight', 39); // rail -> content
+  const afterRight = await homeGeometry();
+  check(
+    'RIGHT from the rail restores the unshifted content layout',
+    afterRight.railPush === 0 && afterRight.zone === 'content' && afterRight.railExpanded === false,
+    'push ' + afterRight.railPush + ' zone ' + afterRight.zone
+  );
+
+  /* ---- Task B: add-ons stored by v0.4.x (no resources/idPrefixes) --------- */
+  const staleUrl = 'http://127.0.0.1:' + ADDON_PORT + '/stale-emby';
+  await evaluate(
+    client,
+    '(function(){var k="wuplay.addons";var list=JSON.parse(localStorage.getItem(k)||"[]");' +
+      'list.push({url:' +
+      JSON.stringify(staleUrl) +
+      ',id:"org.wutizen.stale",name:"Stale Emby",version:"0.9.0",description:"",logo:"",resources:[],catalogs:[]});' +
+      'localStorage.setItem(k,JSON.stringify(list));return list.length;})()'
+  );
+  const staleBefore = String(
+    await evaluate(
+      client,
+      'JSON.stringify(window.WuTizenDebug.addon.list().filter(function(a){return a.name==="Stale Emby";}))'
+    )
+  );
+  check(
+    'stale entry really has no stream metadata',
+    /"resources":\[\]/.test(staleBefore) && staleBefore.indexOf('idPrefixes') === -1,
+    staleBefore.slice(0, 60)
+  );
+  const staleResolve = await evaluate(client, 'window.WuTizenDebug.streams.resolve("tt0111161", "movie")');
+  check(
+    'add-on without stored metadata is still asked (unverified candidate)',
+    staleResolve.streams.some((s) => (s.name || '') === 'Stale Emby'),
+    staleResolve.providers.map((p) => p.name).join(',')
+  );
+
+  const refreshInfo = await evaluate(client, 'window.WuTizenDebug.addonRefresh()');
+  check('metadata refresh migrates stale add-ons', !!refreshInfo && refreshInfo.refreshed >= 1, JSON.stringify(refreshInfo));
+  const staleAfter = String(
+    await evaluate(
+      client,
+      'JSON.stringify(window.WuTizenDebug.addon.list().filter(function(a){return a.name==="Stale Emby";}))'
+    )
+  );
+  check(
+    'refresh restored resources/idPrefixes and kept the stored URL',
+    staleAfter.indexOf('"stream"') > -1 && staleAfter.indexOf('"tt"') > -1 && staleAfter.indexOf(staleUrl) > -1,
+    staleAfter.slice(0, 90)
+  );
+  check(
+    'refresh removed nothing from storage',
+    (await evaluate(client, 'window.WuTizenDebug.addon.list().length')) >= 6
+  );
+
+  /* ---- Task B: TV-visible source diagnostics ----------------------------- */
+  const report = await evaluate(client, 'window.WuTizenDebug.streams.last()');
+  check('diagnostics expose the candidate count', !!report && report.candidates >= 5, String(report && report.candidates));
+  check(
+    'diagnostics expose per-add-on HTTP status and counts',
+    report.providers.some((p) => p.httpStatus === 200 && p.count > 0) &&
+      report.providers.some((p) => p.httpStatus === 401),
+    JSON.stringify(report.providers.map((p) => p.name + ':' + p.httpStatus)).slice(0, 90)
+  );
+  check(
+    'diagnostics explain skipped add-ons',
+    (report.skipped || []).some((s) => s.reason === 'noStreamResource'),
+    JSON.stringify(report.skipped || []).slice(0, 70)
+  );
+  check(
+    'diagnostics contain no URLs, paths or tokens',
+    JSON.stringify(report).indexOf('sample.wav') === -1 &&
+      JSON.stringify(report).indexOf('/stale-emby') === -1 &&
+      JSON.stringify(report).indexOf('?stale=') === -1 &&
+      JSON.stringify(report).indexOf('SECRET') === -1
+  );
+
+  await evaluate(client, 'window.WuTizenDebug.addon.openDiagnostics()');
+  const diagText = String(await evaluate(client, 'document.querySelector(".diagnostics__sources").textContent'));
+  check(
+    'Diagnostics screen shows candidates, results and HTTP status',
+    /kandidata|andidates/.test(diagText) && /HTTP 401/.test(diagText) && /HTTP 200/.test(diagText),
+    diagText.slice(0, 80)
+  );
+  check('Diagnostics screen shows skip reasons', /presko|skipped/.test(diagText), diagText.slice(0, 80));
+  check(
+    'Diagnostics screen redacts URLs and tokens',
+    diagText.indexOf('sample.wav') === -1 &&
+      diagText.indexOf('/stale-emby') === -1 &&
+      diagText.indexOf('SECRET') === -1 &&
+      diagText.indexOf('?stale=') === -1,
+    diagText.slice(0, 80)
+  );
   await press(client, 'Unidentified', 10009);
 
   /* ---- Milestone 5: episode playback + stream selection ------------------ */

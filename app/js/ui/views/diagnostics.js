@@ -28,6 +28,11 @@ export function createDiagnosticsView() {
   var env = document.createElement('div');
   env.className = 'diagnostics__env';
 
+  // Last stream resolution: candidates, per-add-on status, why add-ons were
+  // skipped. Host/name only — never a URL, path, query or token.
+  var sources = document.createElement('div');
+  sources.className = 'diagnostics__sources';
+
   var list = document.createElement('div');
   list.className = 'diagnostics__list';
 
@@ -54,10 +59,88 @@ export function createDiagnosticsView() {
 
   content.appendChild(title);
   content.appendChild(env);
+  content.appendChild(sources);
   content.appendChild(list);
   content.appendChild(actions);
   root.appendChild(scrim);
   root.appendChild(content);
+
+  function skipLabel(reason) {
+    if (reason === 'noStreamResource') {
+      return t('diagnostics.skipNoStream');
+    }
+    if (reason === 'typeMismatch') {
+      return t('diagnostics.skipType');
+    }
+    if (reason === 'idPrefixes') {
+      return t('diagnostics.skipPrefix');
+    }
+    return t('diagnostics.skipLimit');
+  }
+
+  /** Render the last stream resolution (numbers only; hosts, never URLs). */
+  function renderSources(report) {
+    sources.innerHTML = '';
+    var heading = document.createElement('div');
+    heading.className = 'diagnostics__section';
+    heading.textContent = t('diagnostics.sources');
+    sources.appendChild(heading);
+
+    if (!report) {
+      var none = document.createElement('div');
+      none.className = 'diagnostics__row';
+      none.textContent = t('diagnostics.sourcesNone');
+      sources.appendChild(none);
+      return;
+    }
+
+    var summary = document.createElement('div');
+    summary.className = 'diagnostics__row';
+    summary.textContent =
+      report.type + '/' + report.id + ' · ' + t('diagnostics.candidates') + ' ' + report.candidates + ' · ' +
+      (report.streamCount || 0) + ' ' + t('diagnostics.items');
+    sources.appendChild(summary);
+
+    if (!report.candidates) {
+      var noCandidates = document.createElement('div');
+      noCandidates.className = 'diagnostics__row';
+      noCandidates.textContent = t('diagnostics.noCandidates');
+      sources.appendChild(noCandidates);
+    }
+
+    for (var i = 0; i < report.providers.length; i++) {
+      var provider = report.providers[i];
+      var row = document.createElement('div');
+      row.className = 'diagnostics__row' + (provider.status === 'error' ? ' is-error' : '');
+      var statusText =
+        provider.status === 'ok'
+          ? t('diagnostics.resultOk')
+          : provider.status === 'empty'
+            ? t('diagnostics.resultEmpty')
+            : t('diagnostics.resultError');
+      row.textContent =
+        provider.name +
+        ' (' +
+        provider.host +
+        ') · ' +
+        statusText +
+        (provider.reason ? ' · ' + provider.reason : '') +
+        (provider.httpStatus ? ' · HTTP ' + provider.httpStatus : '') +
+        ' · ' +
+        provider.count +
+        ' ' +
+        t('diagnostics.items');
+      sources.appendChild(row);
+    }
+
+    for (var s = 0; s < report.skipped.length; s++) {
+      var skipped = report.skipped[s];
+      var skipRow = document.createElement('div');
+      skipRow.className = 'diagnostics__row';
+      skipRow.textContent = skipped.name + ' (' + skipped.host + ') · ' + skipLabel(skipped.reason);
+      sources.appendChild(skipRow);
+    }
+  }
 
   function render(info) {
     focusables = [];
@@ -66,6 +149,7 @@ export function createDiagnosticsView() {
 
     title.textContent = t('diagnostics.title');
     env.textContent = info.environment;
+    renderSources(info.sources);
     button(t('diagnostics.retry'), 'retry', function () {
       if (handlers.onRetry) {
         handlers.onRetry();

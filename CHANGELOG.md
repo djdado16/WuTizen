@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.2 — 2026-10-25 — Q60R layout and stream metadata fixes
+
+### Fixed
+- **Half the Home screen covered after BACK from Settings.** The content offset for the expanded rail was a code constant (`RAIL_PUSH = 150`) while the panel is `--rail-panel-width: 300px`, so whenever focus landed on the rail (exactly what BACK from Settings does) the panel painted over the left half of the page. The offset is now measured from the rail panel and re-measured on resize; content is either fully beside the panel or fully back (verified over repeated Settings→BACK cycles).
+- **No streams from add-ons imported by v0.4.x.** Those versions stored only string-form `resources` and no `idPrefixes`, so an Emby Bridge/TorBox manifest with `resources: [{ name: 'stream', … }]` was persisted as `resources: []` and could never be recognised as a stream provider. Added:
+  - a **one-time metadata refresh** at boot that re-reads the manifest and merges `resources`/`types`/`idPrefixes` into existing entries — the stored URL (configuration path, authentication) is never changed and nothing is removed;
+  - a resolver fallback that **still asks add-ons with unknown metadata** (they may well be providers), instead of silently skipping them.
+
+### Added
+- **Diagnostics → “Sources (last request)”** (TV-visible): the requested `type/id`, candidate count, per add-on name (host) · ok/empty/error · reason · HTTP status · streams returned, and a “skipped: …” line per add-on that was filtered out (`noStreamResource`, `typeMismatch`, `idPrefixes`, `limit`). Distinguishes *no candidates*, *no results* and *request failures*.
+- Redaction: the diagnostics snapshot holds counts and hosts only — no stream objects, URLs, paths, queries or tokens (asserted in tests).
+
+### Tests
+- 15 new browser checks (147 total): 4× Settings→BACK leaves Home byte-identical (rows, row titles, stage transform, document scroll, rail offset), RIGHT returns the unshifted layout, rail offset equals the measured panel width; stale (v0.4.x-shaped) add-on is still queried, metadata refresh restores `resources`/`idPrefixes` and keeps the URL, nothing is removed; diagnostics expose candidates, HTTP 200/401, skip reasons and stay redacted on screen.
+
 ## v0.5.1 — 2026-10-25 — Stream discovery across all add-ons
 
 ### Fixed

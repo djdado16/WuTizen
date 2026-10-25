@@ -16,7 +16,7 @@
  *     externalUrl / ytId / name+title — a valid HTTP stream is never dropped.
  */
 
-import { addonClient, failureReason } from './addonClient.js';
+import { addonClient, failureReason, diagnosticsList } from './addonClient.js';
 
 var MAX_PROVIDERS = 10;
 var MAX_STREAMS = 40;
@@ -51,21 +51,55 @@ function prefixAllowed(entry, id) {
   return false;
 }
 
+/** Installed add-ons that can answer a stream request, with the skip reasons. */
+export function streamCandidates(addons, type, id) {
+  var out = [];
+  var skipped = [];
+  var list = addons || [];
+  for (var i = 0; i < list.length; i++) {
+    var entry = list[i];
+    if (!entry || !entry.url) {
+      continue;
+    }
+    var known = !!entry.resources && entry.resources.length > 0;
+    if (known && !advertises(entry, 'stream')) {
+      skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'noStreamResource' });
+      continue;
+    }
+    if (!typeAllowed(entry, type)) {
+      skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'typeMismatch' });
+      continue;
+    }
+    if (!prefixAllowed(entry, id)) {
+      skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'idPrefixes' });
+      continue;
+    }
+    if (out.length >= MAX_PROVIDERS) {
+      skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'limit' });
+      continue;
+    }
+    // Unknown metadata (stored before v0.5.0): still ask it — it may well be a
+    // stream provider, and a 404 costs one request.
+    out.push({ entry: entry, unverified: !known });
+  }
+  return { providers: out, skipped: skipped };
+}
+
 /** Installed add-ons that can answer a stream request for this type/id. */
 export function streamProviders(addons, type, id) {
+  var found = streamCandidates(addons, type, id);
   var out = [];
-  var list = addons || [];
-  for (var i = 0; i < list.length && out.length < MAX_PROVIDERS; i++) {
-    var entry = list[i];
-    if (!entry || !entry.url || !advertises(entry, 'stream')) {
-      continue;
-    }
-    if (!typeAllowed(entry, type) || !prefixAllowed(entry, id)) {
-      continue;
-    }
-    out.push(entry);
+  for (var i = 0; i < found.providers.length; i++) {
+    out.push(found.providers[i].entry);
   }
   return out;
+}
+
+var lastReport = null;
+
+/** The last resolve result (used by the Diagnostics screen and debug API). */
+export function lastStreamReport() {
+  return lastReport;
 }
 
 function streamKey(stream) {
@@ -87,37 +121,97 @@ function streamKey(stream) {
 /**
  * Query all stream providers and merge the results.
  * @param {{item:object, type:string, videoId:string, addons:object[]}} options
- * @param {function} done ({streams, providers, attempted, id, type})
- *   providers[i] = { name, host, status:'ok'|'empty'|'error', reason, count }
- *   — host + name + reason only: no URL, path or token.
+ * @param {function} done ({streams, providers, skipped, candidates, attempted, id, type})
+ *   providers[i] = { name, host, status:'ok'|'empty'|'error', reason, httpStatus, count }
+ *   skipped[i]   = { name, host, reason }  (noStreamResource|typeMismatch|idPrefixes|limit)
+ *   host + name + reason only: no URL, path or token.
  */
 export function resolveStreams(options, done) {
   var opts = options || {};
   var item = opts.item || {};
   var type = opts.type || item.kind || 'movie';
   var id = opts.videoId || item.id;
-  var providers = streamProviders(opts.addons || [], type, id);
+  var found = streamCandidates(opts.addons || [], type, id);
+  var providers = found.providers;
   var report = [];
   var streams = [];
   var seen = {};
   var pending = providers.length;
-  var attempted = 0;
+  var logStart = Date.now() - 1;
+
+  function statusFor(entry) {
+    // HTTP status / item count recorded by the add-on client for this request.
+    // Matched by time + host + resource + id: the log is a ring buffer, so
+    // indices shift and must not be used.
+    var log = diagnosticsList();
+    var host = hostOf(entry.url);
+    for (var i = log.length - 1; i >= 0; i--) {
+      if (
+        log[i].when >= logStart &&
+        log[i].resource === 'stream' &&
+        log[i].host === host &&
+        String(log[i].id) === String(id)
+      ) {
+        return log[i];
+      }
+    }
+    return null;
+  }
 
   function finish() {
     var ordered = report.slice().sort(function (a, b) {
       return a.index - b.index;
     });
-    done({
+    var result = {
       streams: streams.slice(0, MAX_STREAMS),
       providers: ordered,
-      attempted: attempted,
+      skipped: found.skipped,
+      candidates: providers.length,
+      attempted: providers.length,
       id: String(id || ''),
-      type: type
-    });
+      type: type,
+      when: Date.now()
+    };
+    // The diagnostics snapshot is redacted: counts only, never stream objects
+    // (they carry URLs with signed queries).
+    lastReport = {
+      streamCount: result.streams.length,
+      providers: ordered,
+      skipped: found.skipped,
+      candidates: result.candidates,
+      attempted: result.attempted,
+      id: result.id,
+      type: result.type,
+      when: result.when
+    };
+    done(result);
   }
 
-  if (!id || !pending) {
-    done({ streams: [], providers: [], attempted: 0, id: String(id || ''), type: type });
+  if (!id) {
+    lastReport = {
+      streamCount: 0,
+      providers: [],
+      skipped: found.skipped,
+      candidates: 0,
+      attempted: 0,
+      id: '',
+      type: type,
+      when: Date.now()
+    };
+    done({
+      streams: [],
+      providers: [],
+      skipped: found.skipped,
+      candidates: 0,
+      attempted: 0,
+      id: '',
+      type: type
+    });
+    return;
+  }
+
+  if (!pending) {
+    finish();
     return;
   }
 
@@ -138,12 +232,14 @@ export function resolveStreams(options, done) {
         streams.push(stream);
       }
     }
+    var logEntry = statusFor(entry);
     report.push({
       index: index,
       name: String(entry.name || 'Add-on'),
       host: hostOf(entry.url),
       status: status,
       reason: reason || '',
+      httpStatus: logEntry ? logEntry.status : 0,
       count: kept.length
     });
     pending -= 1;
@@ -152,10 +248,9 @@ export function resolveStreams(options, done) {
     }
   }
 
-  attempted = providers.length;
-
   for (var p = 0; p < providers.length; p++) {
-    (function (entry, index) {
+    (function (provider, index) {
+      var entry = provider.entry;
       addonClient.streams(entry.url, type, id, function (err, data) {
         if (err) {
           settle(index, entry, 'error', failureReason(err), null);

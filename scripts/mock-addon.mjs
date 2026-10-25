@@ -238,11 +238,31 @@ export function startMockAddon(port) {
       return;
     }
 
-    let provider = /^\/(emby|torbox|noauth|emptyprov)\/stream\/(movie|series)\/(.+)\.json$/.exec(url);
+    if (url === '/stale-emby/manifest.json') {
+      // Emby-shaped provider used to simulate an add-on stored by v0.4.x (no
+      // resources/idPrefixes metadata in localStorage).
+      send(200, {
+        id: 'org.wutizen.stale',
+        version: '0.9.0',
+        name: 'Stale Emby',
+        description: 'Stream provider stored without metadata',
+        resources: [{ name: 'stream', types: ['movie', 'series'], idPrefixes: ['tt'] }],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+
+    let provider = /^\/(emby|torbox|noauth|emptyprov|stale-emby)\/stream\/(movie|series)\/(.+)\.json$/.exec(url);
     if (provider) {
       const which = provider[1];
       const videoId = provider[3];
       const base = 'http://127.0.0.1:' + port;
+      if (which === 'stale-emby') {
+        send(200, {
+          streams: [{ name: 'Stale Emby', url: base + '/media/sample.wav?stale=1' }]
+        });
+        return;
+      }
       if (which === 'noauth') {
         res.statusCode = 401;
         res.end(JSON.stringify({ error: 'unauthorized' }));

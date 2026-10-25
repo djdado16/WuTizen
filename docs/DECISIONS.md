@@ -210,3 +210,33 @@ the same path: the id path segment was `encodeURIComponent`-ed, producing
 TorBox-shaped providers (object/string resources, `idPrefixes`, path config), a
 401 provider and an empty provider; they verify fan-out, dedupe, id form, type
 filtering and redaction. Existing add-on storage and profiles are untouched.
+
+## D19 — Measured rail offset, metadata migration, redacted source diagnostics
+**Context:** on the Q60R, BACK out of Settings left the left half of Home covered,
+and imported Emby Bridge/TorBox still produced "no sources" after v0.5.1.
+**Findings (code + tests, not guesses):**
+- `RAIL_PUSH` was hardcoded to `150` while the rail panel is
+  `--rail-panel-width: 300px`; BACK from Settings restores focus to the rail, so
+  the panel was expanded while the content was only shifted 150 px — the panel
+  painted over 150 px of the page. The existing smoke check had frozen the wrong
+  number (`translate3d(150px…`), which is why it never caught it.
+- Entries stored by v0.4.x have `resources: []` and no `idPrefixes` field
+  (v0.4's `summarize` kept string resources only), so `advertises(entry,'stream')`
+  was false for Emby Bridge/TorBox and v0.5.1's fan-out found **no candidates** —
+  the resolver was right, the stored metadata was stale.
+**Decision:**
+- the rail offset is **measured from the panel** and re-measured on resize; a
+  test asserts offset == panel width and that 4× Settings→BACK leaves Home
+  unchanged (rows, titles, stage transform, document scroll);
+- `refreshAddonMetadata()` runs once at boot: it re-fetches the manifest for
+  entries missing `idPrefixes`/`resources` and merges the metadata into the
+  existing entry. URLs (and therefore configuration/authentication) are never
+  rewritten and no entry is ever removed; a failed refresh changes nothing;
+- the resolver treats *unknown* metadata as a candidate (unverified) so an entry
+  can still produce streams if the refresh could not run;
+- Diagnostics shows the last stream resolution: type/id, candidate count,
+  per-add-on status + HTTP status + returned count, and skip reasons. The stored
+  snapshot is counts/hosts only — stream objects (which carry signed URLs) are
+  returned to the caller but never kept for diagnostics.
+**Consequences:** 15 new smoke checks (147 total), including a deliberately
+v0.4.x-shaped stored entry that is still queried, then migrated in place.

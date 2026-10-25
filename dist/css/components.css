@@ -708,6 +708,14 @@ html.is-avplay .player__video {
   color: var(--text-dim);
 }
 
+.diagnostics__section {
+  margin-top: 18px;
+  margin-bottom: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* --- metadata spacing ----------------------------------------------------- */
 
 .hero__meta span {

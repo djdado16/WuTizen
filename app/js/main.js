@@ -33,7 +33,7 @@ import { createSettingsView } from './ui/views/settings.js';
 import { parseProfile, summarizeImport } from './data/profileImport.js';
 import { saveProfileSummary, getProfileSummary } from './state/profile.js';
 import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
-import { resolveStreams, streamProviders } from './data/streamResolver.js';
+import { resolveStreams, streamProviders, lastStreamReport } from './data/streamResolver.js';
 import { createPlayer } from './playback/player.js';
 import { classifyStream } from './playback/sources.js';
 import {
@@ -41,13 +41,14 @@ import {
   addAddon,
   removeAddon,
   addAddonAsync,
-  removeAddonAsync
+  removeAddonAsync,
+  refreshAddonMetadata
 } from './state/addons.js';
 
 var STAGE_WIDTH = 1920;
 var STAGE_HEIGHT = 1080;
 var SCROLL_PAD = 24;
-var RAIL_PUSH = 150;
+var RAIL_PUSH_FALLBACK = 150;
 
 var PROFILE_ITEM = { id: 'profile', labelKey: 'nav.profile', icon: 'profile', profile: true };
 
@@ -80,6 +81,28 @@ function boot() {
   /* ---- rail ------------------------------------------------------------ */
   var rail = createRail({ profile: PROFILE_ITEM, items: RAIL_ITEMS, language: getLanguage() });
   appEl.appendChild(rail.el);
+
+  /**
+   * How far the content must move aside while the rail is expanded.
+   *
+   * Measured from the rail panel, not a constant: the panel is
+   * `--rail-panel-width` (300px) while the rail box is only `--rail-width`
+   * (150px), so a hardcoded 150px push left the panel covering the left half of
+   * the page ("half the screen disappears" after BACK from Settings, where focus
+   * lands back on the rail).
+   */
+  var railPushAmount = RAIL_PUSH_FALLBACK;
+
+  function measureRailPush() {
+    var panel = rail.el.querySelector('.rail__panel');
+    if (panel) {
+      var width = panel.getBoundingClientRect().width;
+      if (width > 0) {
+        railPushAmount = Math.round(width);
+      }
+    }
+    return railPushAmount;
+  }
 
   /* ---- hero + rows (one vertically scrolling layer) -------------------- */
   var scroller = document.createElement('div');
@@ -168,7 +191,7 @@ function boot() {
   function onFocusChanged(el) {
     var inRail = !!el.closest('.rail');
     rail.setExpanded(inRail);
-    setRailPush(inRail ? RAIL_PUSH : 0);
+    setRailPush(inRail ? measureRailPush() : 0);
     if (typeof el.__reveal === 'function') {
       el.__reveal();
     }
@@ -685,7 +708,11 @@ function boot() {
   }
 
   function renderDiagnostics() {
-    diagnosticsView.render({ environment: envSummary(), entries: diagnosticsList() });
+    diagnosticsView.render({
+      environment: envSummary(),
+      entries: diagnosticsList(),
+      sources: lastStreamReport()
+    });
   }
 
   function openDiagnostics() {
@@ -1201,6 +1228,10 @@ function boot() {
     'resize',
     function () {
       fitStage();
+      // The rail panel width is a CSS token: re-measure so the content offset
+      // always matches it (wrong offset = panel covering the page).
+      measureRailPush();
+      applyScroller();
       for (var n = 0; n < shelves.length; n++) {
         shelves[n].measure();
       }
@@ -1211,6 +1242,7 @@ function boot() {
   /* ---- first paint ----------------------------------------------------- */
   renderLanguage();
   fitStage();
+  measureRailPush();
   for (var m = 0; m < shelves.length; m++) {
     shelves[m].measure();
   }
@@ -1222,6 +1254,17 @@ function boot() {
 
   // Real catalogs replace the placeholder rows once add-ons are installed.
   loadAddonCatalogs();
+
+  /* Entries stored before v0.5.0 kept no `idPrefixes` and dropped object-form
+     resources, so they cannot be recognised as stream providers. Refresh their
+     metadata once (the stored URL and its configuration are never changed and no
+     entry is ever removed). */
+  refreshAddonMetadata(function (info) {
+    if (info && info.refreshed) {
+      logInfo('addons: metadata refreshed ' + info.refreshed + '/' + info.total);
+      loadAddonCatalogs();
+    }
+  });
 
   /* ---- debug surface (read-only; drives scripts/browser-smoke.mjs) ----- */
   window.WuTizenDebug = {
@@ -1256,7 +1299,15 @@ function boot() {
       },
       providers: function () {
         return streamProviders(listAddons(), 'movie', 'tt0000000');
+      },
+      last: function () {
+        return lastStreamReport();
       }
+    },
+    addonRefresh: function () {
+      return new Promise(function (resolve) {
+        refreshAddonMetadata(resolve);
+      });
     },
     player: {
       state: function () {
@@ -1344,6 +1395,8 @@ function boot() {
         focusedZone: zone,
         focusedTitle: caption ? caption.textContent : null,
         railExpanded: rail.isExpanded(),
+        railPush: railPush,
+        railPushAmount: railPushAmount,
         heroTitle: heroTitle ? heroTitle.textContent : '',
         detailsOpen: details.isOpen(),
         detailsTitle: detailsTitle ? detailsTitle.textContent : '',
