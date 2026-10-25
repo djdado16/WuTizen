@@ -213,3 +213,32 @@ shows the SAS, waits for the user to press Apply (that press is the SAS confirma
 polls for the encrypted payload, and only a second, explicit Apply writes settings.
 Anything not starting with `http(s)://` is treated as a LAN host and uses the local
 configurator (`tools/configurator/server.mjs`) as before.
+## TV-initiated pairing, zero remote typing (v0.7.2 final)
+
+```
+TV     Settings -> Web Configurator -> OK
+       POST /api/session                        -> { code, ttl:600, sid }   TV becomes session owner
+       POST /api/session/:code/device?sid=..    -> publishes the TV ECDH public key
+       shows the 6-digit code on screen
+Phone  opens https://wutizen-config.pages.dev, types only the code
+       GET  /api/session/:code/device           -> tvPub
+       POST /api/session/:code/commit {pub,sas} -> joins the existing TV session
+TV     GET  /api/session/:code?sid=..            -> { state: confirm, pub, sas }
+       recomputes the SAS, shows it, user presses OK (no typing)
+       POST /api/session/:code/confirm?sid= {ok:true}
+Phone  joins confirmed -> edits settings -> Save
+       POST /api/session/:code/payload {pub,iv,data}
+TV     GET  /api/session/:code?sid=.. -> payload once, decrypts, shows Apply
+       Apply  -> settings written (add-ons added, never replaced)
+```
+
+Ownership: `create` returns a random `sid`; `poll`, `device-put` and `confirm-put`
+reject requests without it (`403 not the session owner`), so knowing the 6-digit code
+is not enough to drive a session. `commit` (browser join) only succeeds after the TV
+has published its key (`409 waiting for tv`), and the payload is accepted only after
+`confirmed === true` and only for the committed public key. Nothing is ever typed on
+the TV: the Cloudflare URL is hardcoded (`app/js/data/cloudPair.js` `DEFAULT_BASE`) and
+shown read-only in Settings; the pairing-code field there is hidden.
+
+Default path vs fallback: an `http(s)://` address uses this Cloudflare flow; a bare
+host/IP (a previously saved LAN address) still uses `tools/configurator/`.

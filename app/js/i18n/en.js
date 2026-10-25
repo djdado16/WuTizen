@@ -82,7 +82,7 @@ export default {
   'settings.conf': 'Configurator from PC/phone',
   'settings.confHost': 'Configurator address (blank = wutizen-config.pages.dev)',
   'settings.confCode': 'Pairing code (6 digits)',
-  'settings.confStart': 'Connect',
+  'settings.confStart': 'Web Configurator',
   'settings.confApply': 'Apply',
   'settings.confIdle': 'Start the configurator on your PC and enter the code.',
   'settings.confSas': 'Codes match? Confirm on the TV:',

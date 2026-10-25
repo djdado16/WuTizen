@@ -23,7 +23,12 @@ var sasValue = null;
 var sasChecked = false;
 var ctxBase = '';
 var ctxCode = '';
+var sessionSid = '';
 var myPubB64 = null;
+
+function ownerQuery() {
+  return sessionSid ? '?sid=' + encodeURIComponent(sessionSid) : '';
+}
 
 /** Permanent, deployed Cloudflare configurator. Typed on the phone, never on the TV. */
 var DEFAULT_BASE = 'https://wutizen-config.pages.dev';
@@ -46,6 +51,7 @@ export function normalizeBase(input) {
 export function state() {
   return {
     status: status,
+    code: ctxCode,
     sas: sasValue,
     hasPayload: !!pending,
     crypto: !!(typeof window !== 'undefined' && window.crypto && window.crypto.subtle)
@@ -169,6 +175,47 @@ export function start(options, handlers) {
     return false;
   }
   emit('pairing');
+  return beginPairing(base, code, handlers);
+}
+
+/**
+ * TV-initiated pairing (v0.7.3): the TV creates the session itself, shows the code,
+ * and owns it with a random session secret. The user types the code on the phone
+ * only - never on the TV.
+ */
+export function create(handlers, options) {
+  var base = options && options.base ? normalizeBase(options.base) : DEFAULT_BASE;
+  listeners = handlers || null;
+  pending = null;
+  sasValue = null;
+  sasChecked = false;
+  myPubB64 = null;
+  sessionSid = '';
+  ctxBase = base;
+  ctxCode = '';
+  stop();
+  if (!window.crypto || !window.crypto.subtle) {
+    emit('noCrypto');
+    return false;
+  }
+  emit('pairing');
+  request('POST', base + '/api/session', {}, function (err, data) {
+    if (err || !data || !data.code) {
+      stop();
+      emit(err && err.message === 'unreachable' ? 'unreachable' : 'rejected');
+      return;
+    }
+    ctxCode = String(data.code);
+    sessionSid = String(data.sid || '');
+    if (listeners && listeners.onCode) {
+      listeners.onCode(ctxCode);
+    }
+    beginPairing(base, ctxCode, handlers);
+  });
+  return true;
+}
+
+function beginPairing(base, code, handlers) {
   window.crypto.subtle
     .generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits'])
     .then(function (pair) {
@@ -183,7 +230,7 @@ export function start(options, handlers) {
         var attempts = 0;
         function attempt() {
           attempts += 1;
-          request('POST', base + '/api/session/' + code + '/device', { pub: myPubB64 }, function (err, data) {
+          request('POST', base + '/api/session/' + code + '/device' + ownerQuery(), { pub: myPubB64 }, function (err, data) {
             if (!err) {
               resolve(data);
               return;
@@ -216,7 +263,7 @@ function poll(base, code, started, handles) {
       emit('expired');
       return;
     }
-    request('GET', base + '/api/session/' + code, null, function (err, data) {
+    request('GET', base + '/api/session/' + code + ownerQuery(), null, function (err, data) {
       if (err) {
         // A freshly created session may not be readable yet; keep polling briefly.
         if (err.message === 'expired' && Date.now() - started < 90000) {
@@ -315,7 +362,7 @@ function verifySas(data, handles) {
       if (String(data.sas) !== mine) {
         stop();
         emit('sasMismatch');
-        request('POST', ctxBase + '/api/session/' + ctxCode + '/confirm', { ok: false }, function () {});
+        request('POST', ctxBase + '/api/session/' + ctxCode + '/confirm' + ownerQuery(), { ok: false }, function () {});
         return;
       }
       emit('confirm');
@@ -333,7 +380,7 @@ export function confirmSas() {
   if (!ctxBase || !ctxCode || sasValue === null) {
     return false;
   }
-  request('POST', ctxBase + '/api/session/' + ctxCode + '/confirm', { ok: true }, function (err) {
+  request('POST', ctxBase + '/api/session/' + ctxCode + '/confirm' + ownerQuery(), { ok: true }, function (err) {
     if (err) {
       emit('rejected');
       return;

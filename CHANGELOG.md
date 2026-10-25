@@ -5,7 +5,8 @@
 ### Added
 - **Cloud web configurator** at `https://wutizen-config.pages.dev` (Cloudflare Pages, project `wutizen-config`, KV `wutizen-pairing`, binding `PAIRING`): the phone/PC page collects Emby, add-on URLs, a WuPlay profile export and preferences, then sends them **encrypted** to the TV — no LAN server needed.
 - **Authenticated ECDH pairing**: TV and browser exchange ephemeral P-256 keys and both derive a 6-digit **SAS** from the shared secret and the pairing transcript. The user must confirm the codes match (Apply on the TV) before the payload can be uploaded; a mismatch destroys the session server-side.
-- **TV integration**: Settings → configurator address is pre-filled with the deployed HTTPS URL, so pairing needs only the 6-digit code on the remote. The TV shows the code and SAS, polls for the encrypted payload, and saves only after a second explicit Apply.
+- **TV integration (TV-initiated)**: Settings → *Web Configurator* → OK creates the pairing session on the TV itself and shows a 6-digit code; nothing is typed on the remote. The address row is read-only (permanent HTTPS URL) and the code field is hidden. The TV publishes its ECDH key, shows the SAS in the status line, waits for **OK** (that press is the SAS confirmation), polls for the encrypted payload and saves only after a second explicit **Apply**.
+- **Session ownership**: `POST /api/session` returns a random session secret (`sid`); poll, device-key and confirm calls without it are rejected with `403`, so a guessed 6-digit code cannot drive or read a session. The browser can only join a session whose TV key is already published (`409 waiting for tv`).
 - Advanced-mode Pages Function (`cloudflare/public/_worker.js`) + session state machine (`_lib/session.js`); phone UI in `cloudflare/public/index.html`.
 
 ### Changed

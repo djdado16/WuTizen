@@ -1721,25 +1721,23 @@ try {
   await press(client, 'ArrowUp', 38);
   check('UP from the Emby username returns to the Emby URL field', (await focusedSel()) === 'field:emby-url', await focusedSel());
 
-  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__confCode")');
-  await press(client, 'ArrowDown', 40);
-  const afterConfDown = await focusedSel();
   check(
-    'DOWN from the pairing-code field leaves the field (IME released)',
-    afterConfDown !== 'field:conf-code' && (await evaluate(client, 'document.activeElement.tagName')) !== 'INPUT',
-    afterConfDown
+    'the pairing code is not typed on the TV',
+    (await evaluate(client, 'getComputedStyle(document.querySelector(".settings__confCode")).display')) === 'none'
+  );
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__confHost")');
+  await press(client, 'ArrowDown', 40);
+  check(
+    'DOWN from the configurator address reaches the Web Configurator action',
+    (await focusedSel()) === 'action:conf-start',
+    await focusedSel()
   );
 
   await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__url")');
   await press(client, 'ArrowDown', 40);
   check('DOWN from the import URL still lands on Import', (await focusedSel()) === 'action:import-url', await focusedSel());
-  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__confHost")');
-  await press(client, 'ArrowDown', 40);
-  check(
-    'DOWN from the configurator address reaches the pairing code',
-    (await focusedSel()) === 'field:conf-code',
-    await focusedSel()
-  );
+  // The pairing block now ends with the status text + actions; UP from the action
+  // row is handled by the generic focus manager (no field to return to).
   check(
     'the configurator address is pre-filled with the deployed URL',
     (await evaluate(client, 'document.querySelector(".settings__confHost").value')) ===

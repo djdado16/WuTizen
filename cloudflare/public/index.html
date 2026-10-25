@@ -44,11 +44,12 @@
   <label>Subtitle size (m / l / xl)</label><input id="subSize" autocomplete="off">
 </fieldset>
 
-<button id="start">Create pairing code</button>
-<button id="send" disabled>Encrypt &amp; upload</button>
+<button id="start">Join TV session</button>
+<input id="codeIn" inputmode="numeric" maxlength="6" placeholder="TV code" style="width:140px;display:inline-block;margin-right:8px">
+<button id="send" disabled>Save to TV</button>
 <span class="code" id="code"></span>
 <div class="status" id="status"></div>
-<p class="warn">Then on the TV: Settings → Konfigurator → enter this code. Code expires in 10 minutes and works once.</p>
+<p class="warn">Start the pairing on the TV (Settings → Web Configurator), type the code shown there, press Join, then compare the two short codes and press OK on the TV. The TV applies the settings only after you press Apply.</p>
 
 <script>
 (function () {
@@ -126,32 +127,28 @@
   }
 
   startBtn.addEventListener('click', function () {
+    var entered = String(document.getElementById('codeIn').value || '').replace(/\D/g, '');
+    if (entered.length !== 6) {
+      statusEl.textContent = 'Enter the 6-digit code shown on the TV.';
+      return;
+    }
+    code = entered;
     startBtn.disabled = true;
-    statusEl.textContent = 'Creating a session…';
-    api('POST', '/api/session').then(function (data) {
-      code = data.code;
-      codeEl.textContent = code;
-      sendBtn.disabled = false;
-      statusEl.textContent = 'Enter this code on the TV (Settings → Konfigurator), then press “Encrypt & upload”.';
-    }).catch(function () {
-      statusEl.textContent = 'Could not create a session.';
-      startBtn.disabled = false;
-    });
+    statusEl.textContent = 'Joining the TV session…';
+    joinTv();
   });
 
-  sendBtn.addEventListener('click', function () {
-    if (!code) return;
-    sendBtn.disabled = true;
-    statusEl.textContent = 'Waiting until the TV joins…';
+  function joinTv() {
     var pair = null;
     var pcPub = null;
     var tvPubB64 = null;
-    api('GET', '/api/session/' + code + '/device').then(function (info) {
-      if (!info || !info.tvPub) throw new Error('The TV has not joined yet.');
+    var session = null;
+    api('GET', '/api/session/' + code + '/device', null, 5).then(function (info) {
+      if (!info || !info.tvPub) throw new Error('No TV is waiting with that code.');
       tvPubB64 = info.tvPub;
       return crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']).then(function (own) {
         pair = own;
-        return crypto.subtle.importKey('spki', unb64(info.tvPub), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+        return crypto.subtle.importKey('spki', unb64(tvPubB64), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
       });
     }).then(function (tvKey) {
       pcPub = tvKey;
@@ -162,40 +159,56 @@
     }).then(function (derived) {
       var myPub = b64(derived[1]);
       return sasFrom(derived[0], tvPubB64, myPub).then(function (sas) {
-        return { sas: sas, pub: myPub };
-      });
-    }).then(function (session) {
-      // Publish our key + SAS. The TV shows the same SAS and must confirm it.
-      return api('POST', '/api/session/' + code + '/commit', { pub: session.pub, sas: session.sas }).then(function () {
-        codeEl.textContent = session.sas.slice(0, 3) + ' ' + session.sas.slice(3);
-        statusEl.textContent = 'Compare this code with the TV. Press Apply on the TV if they match…';
-        return waitConfirmed();
-      }).then(function () {
-        return crypto.subtle.deriveKey(
-          { name: 'ECDH', public: pcPub },
-          pair.privateKey,
-          { name: 'AES-GCM', length: 256 },
-          false,
-          ['encrypt']
-        );
-      }).then(function (key) {
-        var iv = crypto.getRandomValues(new Uint8Array(12));
-        return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(payload())))
-          .then(function (cipher) {
-            return api('POST', '/api/session/' + code + '/payload', {
-              pub: session.pub, iv: b64(iv), data: b64(cipher)
-            });
-          });
+        session = { sas: sas, pub: myPub };
+        return api('POST', '/api/session/' + code + '/commit', { pub: myPub, sas: sas }, 5);
       });
     }).then(function (res) {
-      statusEl.textContent = res && res.approved
-        ? 'Sent encrypted. Press Apply on the TV once more to store it.'
-        : 'Upload failed: ' + ((res && res.error) || 'unknown');
-      if (!res || !res.approved) sendBtn.disabled = false;
+      if (!res || !res.ok) throw new Error((res && res.error) || 'The TV is not ready yet.');
+      codeEl.textContent = session.sas.slice(0, 3) + ' ' + session.sas.slice(3);
+      statusEl.textContent = 'Compare this code with the TV, then press OK there.';
+      return waitConfirmed();
+    }).then(function () {
+      statusEl.textContent = 'Paired. Edit the settings above and press “Save to TV”.';
+      sendBtn.disabled = false;
+      window.__wutizenSession = { pair: pair, pcPub: pcPub, pub: session.pub };
     }).catch(function (err) {
       statusEl.textContent = (err && err.message) || 'Pairing failed.';
-      sendBtn.disabled = false;
+      startBtn.disabled = false;
     });
+  }
+
+  sendBtn.addEventListener('click', function () {
+    var pending = window.__wutizenSession;
+    if (!code || !pending) {
+      statusEl.textContent = 'Join the TV session first.';
+      return;
+    }
+    sendBtn.disabled = true;
+    statusEl.textContent = 'Encrypting…';
+    crypto.subtle
+      .deriveKey(
+        { name: 'ECDH', public: pending.pcPub },
+        pending.pair.privateKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      )
+      .then(function (key) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(payload()))).then(function (cipher) {
+          return api('POST', '/api/session/' + code + '/payload', { pub: pending.pub, iv: b64(iv), data: b64(cipher) }, 5);
+        });
+      })
+      .then(function (res) {
+        statusEl.textContent = res && res.approved
+          ? 'Sent encrypted. Press Apply on the TV to store it.'
+          : 'Save failed: ' + ((res && res.error) || 'unknown');
+        if (!res || !res.approved) sendBtn.disabled = false;
+      })
+      .catch(function (err) {
+        statusEl.textContent = (err && err.message) || 'Save failed.';
+        sendBtn.disabled = false;
+      });
   });
 
   function waitConfirmed(tries) {

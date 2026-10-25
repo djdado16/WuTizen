@@ -64,10 +64,13 @@ export async function handle(context, action) {
 
   if (action === "create") {
     const fresh = newCode();
-    await kv.put("m:" + fresh, JSON.stringify({ created: Date.now(), attempts: 0, delivered: false }), {
+    // The TV owns the session: only a caller presenting this secret may publish the
+    // TV key, poll or confirm. The browser joins with the 6-digit code only.
+    const sid = crypto.randomUUID();
+    await kv.put("m:" + fresh, JSON.stringify({ created: Date.now(), attempts: 0, delivered: false, sid }), {
       expirationTtl: TTL_SECONDS
     });
-    return json(200, { code: fresh, ttl: TTL_SECONDS });
+    return json(200, { code: fresh, ttl: TTL_SECONDS, sid });
   }
 
   const code = params && params.code ? String(params.code) : "";
@@ -84,13 +87,21 @@ export async function handle(context, action) {
     await kv.delete(mKey);
     return json(404, { state: "expired" });
   }
-  const touched = { created: meta.created, attempts: (meta.attempts || 0) + 1, delivered: !!meta.delivered };
+  const touched = { created: meta.created, attempts: (meta.attempts || 0) + 1, delivered: !!meta.delivered, sid: meta.sid || "" };
   if (touched.attempts > MAX_ATTEMPTS) {
     await kv.delete(mKey);
     return json(429, { state: "too-many-attempts" });
   }
   const saveMeta = (extra) =>
     kv.put(mKey, JSON.stringify(Object.assign({}, touched, extra || {})), { expirationTtl: TTL_SECONDS });
+
+  // TV-only actions require the session secret handed out at creation, so guessing
+  // the 6-digit code is not enough to drive an existing session.
+  const reqSid = new URL(request.url).searchParams.get("sid") || "";
+  if (meta.sid && (action === "poll" || action === "device-put" || action === "confirm-put") && reqSid !== meta.sid) {
+    await saveMeta();
+    return json(403, { error: "not the session owner" });
+  }
 
   if (action === "device-put") {
     const body = await readJson(request);
@@ -117,6 +128,12 @@ export async function handle(context, action) {
     if (await kv.get("y:" + code)) {
       await saveMeta();
       return json(409, { error: "session already used" });
+    }
+    // TV-initiated flow: the browser can only join a session whose TV has already
+    // published its key.
+    if (!(await kv.get("t:" + code))) {
+      await saveMeta();
+      return json(409, { error: "waiting for tv" });
     }
     await kv.put("p:" + code, JSON.stringify({ pub: body.pub, sas: String(body.sas), confirmed: false }), {
       expirationTtl: TTL_SECONDS
@@ -153,6 +170,10 @@ export async function handle(context, action) {
 
   if (action === "payload-put") {
     const body = await readJson(request);
+    if (meta.delivered) {
+      await saveMeta();
+      return json(409, { error: "session already delivered" });
+    }
     const keys = Object.keys(body || {}).sort().join(",");
     if (keys !== "data,iv,pub" || !isB64(body.pub, 200) || !isB64(body.iv, 64) || !isB64(body.data, 200000)) {
       await saveMeta();

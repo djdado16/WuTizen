@@ -534,7 +534,7 @@
     "settings.conf": "Configurator from PC/phone",
     "settings.confHost": "Configurator address (blank = wutizen-config.pages.dev)",
     "settings.confCode": "Pairing code (6 digits)",
-    "settings.confStart": "Connect",
+    "settings.confStart": "Web Configurator",
     "settings.confApply": "Apply",
     "settings.confIdle": "Start the configurator on your PC and enter the code.",
     "settings.confSas": "Codes match? Confirm on the TV:",
@@ -2882,12 +2882,15 @@
     confHost.setAttribute("spellcheck", "false");
     confHost.setAttribute("inputmode", "url");
     confHost.setAttribute("autocomplete", "off");
+    confHost.setAttribute("readonly", "readonly");
+    confHost.setAttribute("tabindex", "-1");
     var confCode = document.createElement("input");
     confCode.className = "addon-input settings__confCode";
     confCode.setAttribute("type", "text");
     confCode.setAttribute("spellcheck", "false");
     confCode.setAttribute("autocomplete", "off");
     confCode.setAttribute("placeholder", "000000");
+    confCode.style.display = "none";
     var confActions = document.createElement("div");
     confActions.className = "details__actions";
     embySection.appendChild(embyHeading);
@@ -2935,7 +2938,6 @@
         importFileBtn,
         closeBtn,
         confHost,
-        confCode,
         confStartBtn,
         confApplyBtn
       ];
@@ -5556,7 +5558,11 @@
   var sasChecked = false;
   var ctxBase = "";
   var ctxCode = "";
+  var sessionSid = "";
   var myPubB64 = null;
+  function ownerQuery() {
+    return sessionSid ? "?sid=" + encodeURIComponent(sessionSid) : "";
+  }
   var DEFAULT_BASE = "https://wutizen-config.pages.dev";
   function defaultBase() {
     return DEFAULT_BASE;
@@ -5574,6 +5580,7 @@
   function state2() {
     return {
       status: status2,
+      code: ctxCode,
       sas: sasValue,
       hasPayload: !!pending2,
       crypto: !!(typeof window !== "undefined" && window.crypto && window.crypto.subtle)
@@ -5680,6 +5687,40 @@
       return false;
     }
     emit2("pairing");
+    return beginPairing(base, code, handlers);
+  }
+  function create(handlers, options) {
+    var base = options && options.base ? normalizeBase2(options.base) : DEFAULT_BASE;
+    listeners3 = handlers || null;
+    pending2 = null;
+    sasValue = null;
+    sasChecked = false;
+    myPubB64 = null;
+    sessionSid = "";
+    ctxBase = base;
+    ctxCode = "";
+    stop2();
+    if (!window.crypto || !window.crypto.subtle) {
+      emit2("noCrypto");
+      return false;
+    }
+    emit2("pairing");
+    request2("POST", base + "/api/session", {}, function(err, data) {
+      if (err || !data || !data.code) {
+        stop2();
+        emit2(err && err.message === "unreachable" ? "unreachable" : "rejected");
+        return;
+      }
+      ctxCode = String(data.code);
+      sessionSid = String(data.sid || "");
+      if (listeners3 && listeners3.onCode) {
+        listeners3.onCode(ctxCode);
+      }
+      beginPairing(base, ctxCode, handlers);
+    });
+    return true;
+  }
+  function beginPairing(base, code, handlers) {
     window.crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey", "deriveBits"]).then(function(pair) {
       keyPair = pair;
       return window.crypto.subtle.exportKey("spki", pair.publicKey);
@@ -5689,7 +5730,7 @@
         var attempts = 0;
         function attempt() {
           attempts += 1;
-          request2("POST", base + "/api/session/" + code + "/device", { pub: myPubB64 }, function(err, data) {
+          request2("POST", base + "/api/session/" + code + "/device" + ownerQuery(), { pub: myPubB64 }, function(err, data) {
             if (!err) {
               resolve(data);
               return;
@@ -5719,7 +5760,7 @@
         emit2("expired");
         return;
       }
-      request2("GET", base + "/api/session/" + code, null, function(err, data) {
+      request2("GET", base + "/api/session/" + code + ownerQuery(), null, function(err, data) {
         if (err) {
           if (err.message === "expired" && Date.now() - started < 9e4) {
             return;
@@ -5797,7 +5838,7 @@
       if (String(data.sas) !== mine) {
         stop2();
         emit2("sasMismatch");
-        request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm", { ok: false }, function() {
+        request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm" + ownerQuery(), { ok: false }, function() {
         });
         return;
       }
@@ -5813,7 +5854,7 @@
     if (!ctxBase || !ctxCode || sasValue === null) {
       return false;
     }
-    request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm", { ok: true }, function(err) {
+    request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm" + ownerQuery(), { ok: true }, function(err) {
       if (err) {
         emit2("rejected");
         return;
@@ -6804,6 +6845,9 @@
         if (st.status === "confirm") {
           return t("settings.confSas") + " " + (st.sas || "");
         }
+        if ((st.status === "pairing" || st.status === "waiting" || st.status === "confirmed") && st.code) {
+          return t("settings.confCode") + " " + st.code;
+        }
         if (st.status === "confirmed" || st.status === "waiting" || st.status === "pairing") {
           return t("settings.confWaiting");
         }
@@ -6834,9 +6878,8 @@
           }
         };
         cloudActive = cloudRoute(host) === "cloud";
-        var base = normalizeBase2(host);
         if (cloudActive) {
-          start2({ base, code }, handlers);
+          create(handlers);
           return;
         }
         start({ host, code }, handlers);

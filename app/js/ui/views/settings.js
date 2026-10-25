@@ -100,12 +100,17 @@ export function createSettingsView() {
   confHost.setAttribute('spellcheck', 'false');
   confHost.setAttribute('inputmode', 'url');
   confHost.setAttribute('autocomplete', 'off');
+  // Read-only: the permanent Cloudflare URL is never typed on the TV.
+  confHost.setAttribute('readonly', 'readonly');
+  confHost.setAttribute('tabindex', '-1');
   var confCode = document.createElement('input');
   confCode.className = 'addon-input settings__confCode';
   confCode.setAttribute('type', 'text');
   confCode.setAttribute('spellcheck', 'false');
   confCode.setAttribute('autocomplete', 'off');
   confCode.setAttribute('placeholder', '000000');
+  // Hidden: the TV shows the code as text and the user types it on the phone.
+  confCode.style.display = 'none';
   var confActions = document.createElement('div');
   confActions.className = 'details__actions';
   embySection.appendChild(embyHeading);
@@ -162,7 +167,6 @@ export function createSettingsView() {
       importFileBtn,
       closeBtn,
       confHost,
-      confCode,
       confStartBtn,
       confApplyBtn
     ];

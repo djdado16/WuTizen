@@ -1188,6 +1188,9 @@ function boot() {
       if (st.status === 'confirm') {
         return t('settings.confSas') + ' ' + (st.sas || '');
       }
+      if ((st.status === 'pairing' || st.status === 'waiting' || st.status === 'confirmed') && st.code) {
+        return t('settings.confCode') + ' ' + st.code;
+      }
       if (st.status === 'confirmed' || st.status === 'waiting' || st.status === 'pairing') {
         return t('settings.confWaiting');
       }
@@ -1219,9 +1222,10 @@ function boot() {
       };
       // A plain host/IP is the LAN configurator; http(s):// goes through Cloudflare.
       cloudActive = cloudRoute(host) === 'cloud';
-      var base = cloudPair.normalizeBase(host);
       if (cloudActive) {
-        cloudPair.start({ base: base, code: code }, handlers);
+        // TV-initiated: the TV creates the session and shows the code; nothing is
+        // typed on the TV.
+        cloudPair.create(handlers);
         return;
       }
       configurator.start({ host: host, code: code }, handlers);
