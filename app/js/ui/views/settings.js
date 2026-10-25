@@ -60,6 +60,41 @@ export function createSettingsView() {
   var actions = document.createElement('div');
   actions.className = 'details__actions';
 
+  // --- Emby Server section (native, independent of Stremio add-ons) ---------
+  var embySection = document.createElement('div');
+  embySection.className = 'settings__emby';
+  var embyHeading = document.createElement('h3');
+  embyHeading.className = 'details__section settings__embyTitle';
+  var embyStatus = document.createElement('div');
+  embyStatus.className = 'addons__status';
+  var embyUrl = document.createElement('input');
+  embyUrl.className = 'addon-input settings__embyUrl';
+  embyUrl.setAttribute('type', 'text');
+  embyUrl.setAttribute('spellcheck', 'false');
+  embyUrl.setAttribute('inputmode', 'url');
+  embyUrl.setAttribute('autocomplete', 'off');
+  embyUrl.setAttribute('data-settings-field', 'emby-url');
+  var embyUser = document.createElement('input');
+  embyUser.className = 'addon-input settings__embyUser';
+  embyUser.setAttribute('type', 'text');
+  embyUser.setAttribute('spellcheck', 'false');
+  embyUser.setAttribute('autocomplete', 'off');
+  embyUser.setAttribute('data-settings-field', 'emby-user');
+  var embyPass = document.createElement('input');
+  embyPass.className = 'addon-input settings__embyPass';
+  embyPass.setAttribute('type', 'password');
+  embyPass.setAttribute('spellcheck', 'false');
+  embyPass.setAttribute('autocomplete', 'off');
+  embyPass.setAttribute('data-settings-field', 'emby-pass');
+  var embyActions = document.createElement('div');
+  embyActions.className = 'details__actions';
+  embySection.appendChild(embyHeading);
+  embySection.appendChild(embyStatus);
+  embySection.appendChild(embyUrl);
+  embySection.appendChild(embyUser);
+  embySection.appendChild(embyPass);
+  embySection.appendChild(embyActions);
+
   var urlInput = document.createElement('input');
   urlInput.className = 'addon-input settings__url';
   urlInput.setAttribute('type', 'text');
@@ -79,7 +114,7 @@ export function createSettingsView() {
   var handlers = { onImportUrl: null, onImportText: null, onClose: null };
   var importBtn = null;
 
-  function button(label, id, handler) {
+  function button(label, id, handler, target) {
     var el = document.createElement('div');
     el.className = 'btn';
     el.setAttribute('role', 'button');
@@ -90,7 +125,7 @@ export function createSettingsView() {
     el.appendChild(span);
     el.addEventListener('click', handler);
     focusables.push({ el: el, activate: handler });
-    actions.appendChild(el);
+    (target || actions).appendChild(el);
     if (id === 'import-url') {
       importBtn = el; // what focus lands on after the keyboard commits
     }
@@ -103,6 +138,7 @@ export function createSettingsView() {
   content.appendChild(status);
   content.appendChild(summary);
   content.appendChild(actions);
+  content.appendChild(embySection);
   content.appendChild(fileInput);
   root.appendChild(scrim);
   root.appendChild(content);
@@ -144,6 +180,60 @@ export function createSettingsView() {
         handlers.onClose();
       }
     });
+
+    embyHeading.textContent = t('settings.emby');
+    embyUrl.setAttribute('placeholder', t('settings.embyUrl'));
+    embyUser.setAttribute('placeholder', t('settings.embyUser'));
+    embyPass.setAttribute('placeholder', t('settings.embyPass'));
+    var embyState = handlers.embyState ? handlers.embyState() : null;
+    if (embyState && embyState.connected) {
+      embyStatus.textContent =
+        t('settings.embyConnected') + ' ' + (embyState.name || '') + ' (' + (embyState.host || '') + ')';
+      embyStatus.className = 'addons__status';
+    } else {
+      embyStatus.textContent = t('settings.embyDisconnected');
+      embyStatus.className = 'addons__status is-error';
+    }
+    button(
+      t('settings.embyConnect'),
+      'emby-connect',
+      function () {
+        if (handlers.onEmbyConnect) {
+          handlers.onEmbyConnect(
+            String(embyUrl.value || '').trim(),
+            String(embyUser.value || '').trim(),
+            String(embyPass.value || '')
+          );
+        }
+      },
+      embyActions
+    );
+    button(
+      t('settings.embyDisconnect'),
+      'emby-disconnect',
+      function () {
+        if (handlers.onEmbyDisconnect) {
+          handlers.onEmbyDisconnect();
+        }
+      },
+      embyActions
+    );
+    // The three fields use the same IME-aware editing mode as the import URL.
+    var embyFields = [embyUrl, embyUser, embyPass];
+    for (var f = 0; f < embyFields.length; f++) {
+      (function (field) {
+        focusables.push({
+          el: field,
+          activate: function () {
+            try {
+              field.focus();
+            } catch (err) {
+              /* ignored */
+            }
+          }
+        });
+      })(embyFields[f]);
+    }
 
     var last = getProfileSummary();
     if (!last) {
@@ -207,6 +297,13 @@ export function createSettingsView() {
       status.textContent = message || '';
       status.className = 'addons__status' + (isError ? ' is-error' : '');
     },
+    setEmbyStatus: function (message, isError) {
+      embyStatus.textContent = message || '';
+      embyStatus.className = 'addons__status' + (isError ? ' is-error' : '');
+    },
+    embyFields: function () {
+      return { url: embyUrl, user: embyUser, pass: embyPass };
+    },
     focusables: function () {
       return focusables;
     },
@@ -214,6 +311,9 @@ export function createSettingsView() {
       handlers.onImportUrl = next.onImportUrl || null;
       handlers.onImportText = next.onImportText || null;
       handlers.onClose = next.onClose || null;
+      handlers.embyState = next.embyState || null;
+      handlers.onEmbyConnect = next.onEmbyConnect || null;
+      handlers.onEmbyDisconnect = next.onEmbyDisconnect || null;
     },
     isOpen: function () {
       return root.classList.contains('is-open');

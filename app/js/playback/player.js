@@ -785,6 +785,7 @@ export function createPlayer(options) {
     var target = Math.max(0, Math.min(ms || 0, limit));
     backend.seek(target);
     state.position = target;
+    renderCue(); // keep subtitles in sync immediately after a seek
     showHud();
     paint();
   }

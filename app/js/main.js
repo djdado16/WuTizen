@@ -38,7 +38,9 @@ import { createPlayer } from './playback/player.js';
 import { classifyStream } from './playback/sources.js';
 import { metaOf } from './playback/streamMeta.js';
 import { createPicker } from './ui/views/picker.js';
+import { allLists, addItem, removeItem, hasItem, listItemCount } from './state/lists.js';
 import { candidateSubtitles, fetchText, parseCues } from './data/subtitles.js';
+import * as emby from './data/emby.js';
 import {
   listAddons,
   addAddon,
@@ -339,14 +341,18 @@ function boot() {
     sourcePicker.close();
     subtitlePicker.close();
     unregisterPickerFocusables();
-    if (!player.isOpen()) {
-      focusManager.setScope(details.el);
-      var rows = details.sourceRows();
-      if (rows.length) {
-        focusManager.focus(rows[0].el);
-      } else {
-        focusManager.focus(details.buttons[0].el);
-      }
+    pickerStage = '';
+    pickerProviderKey = -1;
+    if (player.isOpen()) {
+      focusManager.setScope(null);
+      return;
+    }
+    focusManager.setScope(details.el);
+    var rows = details.sourceRows();
+    if (rows.length) {
+      focusManager.focus(rows[0].el);
+    } else {
+      focusManager.focus(details.buttons[0].el);
     }
   }
 
@@ -370,53 +376,193 @@ function boot() {
       title: info.label || ''
     };
     player.open(info, { title: playerTitle(), sourceIndex: index });
+    lastPlayedStream = stream;
     applySelectedSubtitle();
     logInfo('playback: ' + (info.ok ? info.type : 'refused:' + info.reason) + ' source=' + index);
     return info;
   }
 
-  function openSourcePicker(switching) {
-    var streams = details.allStreams();
-    if (!streams.length) {
-      toast.show(t('player.noSources'));
-      return;
-    }
-    var current = player.isOpen() ? player.state().sourceIndex : -1;
+  /** "My Stuff": locally persisted lists (watchlist / watched). */
+  function openMyStuff() {
+    var lists = allLists();
     var rows = [];
-    var lastProvider = null;
-    for (var i = 0; i < streams.length; i++) {
-      var info = classifyStream(streams[i]);
-      var meta = metaOf(streams[i]);
-      var provider = String(streams[i].provider || '');
-      if (provider && provider !== lastProvider) {
-        rows.push({ group: true, label: provider });
-      }
-      lastProvider = provider;
-      rows.push({
-        id: i,
-        active: i === current,
-        label: info.label,
-        meta: [meta.label, info.ok ? '' : t('player.sourceBlocked')].filter(Boolean).join(' · '),
-        onActivate: (function (index) {
-          return function () {
-            var wasPlaying = player.isOpen();
-            if (wasPlaying) {
-              player.close(false); // switching source: keep the details focus
+    for (var i = 0; i < lists.length; i++) {
+      (function (list) {
+        rows.push({ group: true, label: t(list.nameKey || 'lists.title') });
+        var items = list.items || [];
+        if (!items.length) {
+          rows.push({
+            id: 'empty-' + list.id,
+            label: t('lists.empty'),
+            onActivate: function () {
+              toast.show(t('lists.empty'));
             }
-            sourcePicker.close();
-            unregisterPickerFocusables();
-            playStreamAt(index, wasPlaying);
-          };
-        })(i)
+          });
+          return;
+        }
+        for (var j = 0; j < items.length; j++) {
+          (function (item) {
+            rows.push({
+              id: list.id + '-' + item.id,
+              label: item.title || item.id,
+              meta: [item.kind, item.year ? String(item.year) : ''].filter(Boolean).join(' · ') + ' · ' + t('lists.remove'),
+              onActivate: function () {
+                removeItem(list.id, item.id);
+                toast.show(t('lists.removed'));
+                openMyStuff(); // re-render the same overlay
+              }
+            });
+          })(items[j]);
+        }
+      })(lists[i]);
+    }
+    subtitlePicker.show({ title: t('lists.title'), note: listItemCount() + ' · BACK', rows: rows });
+    focusManager.setScope(subtitlePicker.el);
+    registerPickerFocusables(subtitlePicker);
+  }
+
+  /* ---- source picker: provider stage → stream stage (WuPlay style) -------- */
+
+  var pickerStage = '';
+  var pickerProviderKey = -1;
+  var providerStreams = [];
+
+  function providerStatusLabel(provider) {
+    if (provider.status === 'ok') {
+      return t('picker.statusOk');
+    }
+    if (provider.status === 'empty') {
+      return t('picker.statusEmpty');
+    }
+    return t('picker.statusError') + (provider.reason ? ' · ' + provider.reason : '');
+  }
+
+  /** Stage 1 rows: one per compatible stream add-on, with its status. */
+  function providerPickerRows() {
+    var report = lastStreamReport();
+    var providers = (report && report.providers) || [];
+    var rows = [];
+    for (var p = 0; p < providers.length; p++) {
+      (function (provider, index) {
+        rows.push({
+          id: 'p' + index,
+          label: provider.name,
+          meta: [
+            providerStatusLabel(provider),
+            (typeof provider.answered === 'number' ? provider.answered : provider.count) +
+              ' ' +
+              t('picker.items')
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          onActivate: function () {
+            openProviderStreams(index);
+          }
+        });
+      })(providers[p], p);
+    }
+    var skipped = (report && report.skipped) || [];
+    if (skipped.length) {
+      rows.push({ group: true, label: t('picker.skippedGroup') });
+      for (var s = 0; s < skipped.length; s++) {
+        rows.push({
+          id: 'x' + s,
+          label: skipped[s].name,
+          meta: skipped[s].reason,
+          onActivate: function () {
+            toast.show(t('picker.skippedNote'));
+          }
+        });
+      }
+    }
+    return rows;
+  }
+
+  /** Stage 2 rows: only the chosen add-on's own answers. */
+  function openProviderStreams(key) {
+    var report = lastStreamReport() || { providers: [] };
+    var provider = report.providers[key] || null;
+    var own = providerStreams[key] || [];
+    var rows = [];
+    for (var i = 0; i < own.length; i++) {
+      (function (stream) {
+        var info = classifyStream(stream);
+        var meta = metaOf(stream);
+        rows.push({
+          id: 's' + i,
+          label: info.label,
+          meta: [meta.label, info.ok ? '' : t('player.sourceBlocked')].filter(Boolean).join(' · '),
+          onActivate: function () {
+            playProviderStream(stream);
+          }
+        });
+      })(own[i]);
+    }
+    if (!rows.length) {
+      var failed = provider && provider.status === 'error';
+      rows.push({
+        id: 'empty',
+        label: failed ? t('picker.providerFailed') : t('picker.providerEmpty'),
+        meta: provider ? provider.reason || '' : '',
+        onActivate: function () {
+          if (pickerStage === 'streams') {
+            openSourcePicker(player.isOpen());
+          }
+        }
       });
     }
+    pickerStage = 'streams';
+    pickerProviderKey = key;
     sourcePicker.show({
-      title: t('picker.sources'),
-      note: streams.length + ' ' + t('picker.sourcesHint'),
+      title: provider ? provider.name : t('picker.sources'),
+      note: provider ? providerStatusLabel(provider) + ' · ' + provider.host : '',
       rows: rows
     });
     focusManager.setScope(sourcePicker.el);
     registerPickerFocusables(sourcePicker);
+  }
+
+  /** Play one stream object chosen in the picker (no details-row index). */
+  function playProviderStream(stream) {
+    var wasPlaying = player.isOpen();
+    if (wasPlaying) {
+      player.close(false);
+    }
+    closePickers();
+    var info = classifyStream(stream);
+    if (!wasPlaying) {
+      playerReturnFocus = focusManager.getCurrent();
+    }
+    playback = {
+      provider: String(stream.provider || ''),
+      type: info.type || '',
+      reason: info.reason || '',
+      title: info.label || ''
+    };
+    player.open(info, { title: playerTitle(), sourceIndex: -1 });
+    lastPlayedStream = stream;
+    applySelectedSubtitle();
+    logInfo('playback: ' + (info.ok ? info.type : 'refused:' + info.reason) + ' provider=' + playback.provider);
+  }
+
+  /** Stage 1: pick the add-on first (WuPlay behaviour). */
+  function openSourcePicker(switching) {
+    var report = lastStreamReport();
+    var providers = (report && report.providers) || [];
+    if (!providers.length) {
+      toast.show(t('player.noSources'));
+      return;
+    }
+    pickerStage = 'providers';
+    pickerProviderKey = -1;
+    sourcePicker.show({
+      title: t('picker.providers'),
+      note: providers.length + ' ' + t('picker.providerHint'),
+      rows: providerPickerRows()
+    });
+    focusManager.setScope(sourcePicker.el);
+    registerPickerFocusables(sourcePicker);
+    void switching;
   }
 
   /* ---- subtitles --------------------------------------------------------- */
@@ -425,11 +571,15 @@ function boot() {
   var subtitleSelected = -1;
   var subtitleCues = [];
   var subtitleLoading = false;
+  var subtitleProviders = [];
+  var subtitleStatus = { loaded: '', cues: 0, error: '' };
+
+  var lastPlayedStream = null;
 
   function currentStreamSubs() {
-    var index = player.isOpen() ? player.state().sourceIndex : -1;
     var streams = details.allStreams();
-    var stream = index >= 0 ? streams[index] : null;
+    var index = player.isOpen() ? player.state().sourceIndex : -1;
+    var stream = lastPlayedStream || (index >= 0 ? streams[index] : null);
     return stream && stream.subtitles ? stream.subtitles : [];
   }
 
@@ -463,15 +613,18 @@ function boot() {
     subtitleSelected = index;
     fetchText(item.url, function (err, text) {
       if (err) {
+        subtitleStatus = { loaded: '', cues: 0, error: err.message || 'blocked' };
         toast.show(t('player.subtitleFailed'));
         return;
       }
       var cues = parseCues(text);
       if (!cues.length) {
+        subtitleStatus = { loaded: '', cues: 0, error: 'no cues' };
         toast.show(t('player.subtitleEmpty'));
         return;
       }
       subtitleCues = cues;
+      subtitleStatus = { loaded: item.label, cues: cues.length, error: '' };
       applySelectedSubtitle();
       toast.show(item.label + ' · ' + cues.length);
     });
@@ -592,6 +745,7 @@ function boot() {
       function (result) {
         subtitleLoading = false;
         subtitleItems = result.items;
+        subtitleProviders = result.providers || [];
         showSubtitlePicker();
       }
     );
@@ -617,7 +771,11 @@ function boot() {
         playable.push(i);
       }
     }
-    if (playable.length > 1) {
+    var report = lastStreamReport();
+    var providerCount = (report && report.providers ? report.providers.length : 0) || 1;
+    // WuPlay behaviour: never pick a source for the user when more than one
+    // add-on can serve it — the provider list comes first.
+    if (providerCount > 1 || playable.length > 1) {
       openSourcePicker(false);
       return;
     }
@@ -637,6 +795,49 @@ function boot() {
      Emby Bridge / TorBox are stream-only add-ons, so the catalog add-on that
      produced the item usually answers nothing. Every installed add-on that
      advertises `stream` is asked, and the answers are merged. */
+
+  /* ---- Emby as a provider in the WuPlay picker -------------------------- */
+  function applyEmbyProvider(item, result, done) {
+    if (!emby.isConfigured()) {
+      done(result);
+      return;
+    }
+    emby.findForItem(item, function (err, found, how) {
+      var key = result.providers.length;
+      var streams = [];
+      var status = 'ok';
+      var reason = '';
+      if (err) {
+        status = 'error';
+        reason = err.message;
+      } else if (!found) {
+        status = 'empty';
+        reason = how === 'ambiguous' ? 'ambiguous' : 'noMatch';
+      } else {
+        streams = emby.streamsFor(found);
+        status = streams.length ? 'ok' : 'empty';
+        if (!streams.length) {
+          reason = 'noSources';
+        }
+      }
+      result.providerStreams = result.providerStreams || [];
+      result.providerStreams[key] = streams;
+      result.providers.push({
+        index: key,
+        name: 'Emby Server',
+        host: emby.stateSummary().host,
+        status: status,
+        reason: reason,
+        httpStatus: 0,
+        count: streams.length,
+        answered: streams.length
+      });
+      for (var i = 0; i < streams.length; i++) {
+        result.streams.push(streams[i]);
+      }
+      done(result);
+    });
+  }
 
   function loadStreams(videoId, focusFirst) {
     var item = details.currentItem();
@@ -659,11 +860,17 @@ function boot() {
         if (!details.isOpen()) {
           return;
         }
-        details.setStreams(result.streams, true, result);
-        syncStreamFocusables();
-        if (focusFirst && details.sourceRows().length) {
-          focusManager.focus(details.sourceRows()[0].el);
-        }
+        applyEmbyProvider(item, result, function (finalResult) {
+          if (!details.isOpen()) {
+            return;
+          }
+          providerStreams = finalResult.providerStreams || [];
+          details.setStreams(finalResult.streams, true, finalResult);
+          syncStreamFocusables();
+          if (focusFirst && details.sourceRows().length) {
+            focusManager.focus(details.sourceRows()[0].el);
+          }
+        });
       }
     );
   }
@@ -936,6 +1143,31 @@ function boot() {
     },
     onClose: function () {
       router.pop();
+    },
+    embyState: function () {
+      return emby.stateSummary();
+    },
+    onEmbyConnect: function (url, user, pass) {
+      settingsView.setEmbyStatus(t('common.loading'));
+      emby.connect(url, user, pass, function (err, data) {
+        if (err) {
+          settingsView.setEmbyStatus(t('settings.embyFailed') + ' · ' + err.message, true);
+          return;
+        }
+        settingsView.render();
+        registerSettings();
+        // Never keep the password in the DOM after a successful sign-in.
+        settingsView.embyFields().pass.value = '';
+        settingsView.setEmbyStatus(t('settings.embyConnected') + ' ' + (data.name || '') + ' (' + data.host + ')');
+        loadStreams(selectedVideoId, false);
+      });
+    },
+    onEmbyDisconnect: function () {
+      emby.disconnect();
+      settingsView.render();
+      registerSettings();
+      settingsView.setEmbyStatus(t('settings.embyDisconnected'), true);
+      loadStreams(selectedVideoId, false);
     }
   });
 
@@ -996,6 +1228,22 @@ function boot() {
       environment: envSummary(),
       entries: diagnosticsList(),
       sources: lastStreamReport(),
+      subtitles: {
+        items: subtitleItems.length,
+        langs: subtitleItems
+          .map(function (item) {
+            return item.label;
+          })
+          .join(','),
+        providers: subtitleProviders
+          .map(function (provider) {
+            return provider.name + ':' + provider.status + ':' + provider.count;
+          })
+          .join(', '),
+        loaded: subtitleStatus.loaded,
+        cues: subtitleStatus.cues,
+        error: subtitleStatus.error
+      },
       playback: {
         provider: playback.provider,
         type: playback.type,
@@ -1223,6 +1471,10 @@ function boot() {
       toast.show(t('toast.language'));
       return;
     }
+    if (id === 'lists') {
+      openMyStuff();
+      return;
+    }
     if (id === 'addons') {
       addonsReturnFocus = focusManager.getCurrent();
       router.push(addonsScreen);
@@ -1268,6 +1520,20 @@ function boot() {
       focusManager.register(button.el, function () {
         if (button.id === 'play') {
           playCurrent();
+          return;
+        }
+        if (button.id === 'watchlist' || button.id === 'watched') {
+          var listId = button.id === 'watchlist' ? 'watchlist' : 'watched';
+          var item = details.currentItem();
+          if (item && hasItem(listId, item.id)) {
+            toast.show(t('lists.added'));
+            return;
+          }
+          if (item && addItem(listId, item)) {
+            toast.show(t('lists.added'));
+            return;
+          }
+          toast.show(t('common.wip'));
           return;
         }
         toast.show(t('common.wip'));
@@ -1412,6 +1678,11 @@ function boot() {
       }
       event.preventDefault();
       if (action === 'back') {
+        // BACK walks the WuPlay chain: streams → providers → details/player.
+        if (sourcePicker.isOpen() && pickerStage === 'streams') {
+          openSourcePicker(player.isOpen());
+          return;
+        }
         closePickers();
         return;
       }
@@ -1599,6 +1870,14 @@ function boot() {
   });
 
   /* ---- debug surface (read-only; drives scripts/browser-smoke.mjs) ----- */
+  /** Strip scheme/host and any api_key from a URL before it reaches a test/UI. */
+  function embyPath(url) {
+    return String(url || '')
+      .replace(/^https?:\/\/[^/]+/i, '')
+      .replace(/([?&])api_key=[^&]*/gi, '$1api_key=***')
+      .replace(/[?&]$/, '');
+  }
+
   window.WuTizenDebug = {
     profile: {
       importText: function (text) {
@@ -1632,6 +1911,12 @@ function boot() {
       providers: function () {
         return streamProviders(listAddons(), 'movie', 'tt0000000');
       },
+      provider: function (key) {
+        return (providerStreams[key] || []).map(function (stream) {
+          var info = classifyStream(stream);
+          return { ok: info.ok, reason: info.reason, label: info.label };
+        });
+      },
       last: function () {
         return lastStreamReport();
       }
@@ -1644,6 +1929,7 @@ function boot() {
           return {
             index: index,
             provider: String(stream.provider || ''),
+            providerKey: typeof stream.providerKey === 'number' ? stream.providerKey : -1,
             ok: info.ok,
             reason: info.reason,
             type: info.type,
@@ -1676,6 +1962,9 @@ function boot() {
         var el = document.querySelector('.picker.is-open');
         return el ? el.textContent : '';
       },
+      stage: function () {
+        return pickerStage;
+      },
       open: function () {
         return sourcePicker.isOpen() || subtitlePicker.isOpen();
       }
@@ -1697,6 +1986,154 @@ function boot() {
       return new Promise(function (resolve) {
         refreshAddonMetadata(resolve);
       });
+    },
+    lists: {
+      add: function (listId) {
+        var item = details.currentItem();
+        return item ? addItem(listId || 'watchlist', item) : false;
+      },
+      remove: function (listId, id) {
+        return removeItem(listId || 'watchlist', id);
+      },
+      count: function () {
+        return listItemCount();
+      },
+      names: function () {
+        return allLists()
+          .map(function (list) {
+            return list.id + ':' + (list.items || []).length;
+          })
+          .join(',');
+      },
+      open: function () {
+        openMyStuff();
+        return true;
+      }
+    },
+    emby: {
+      connect: function (url, user, pass) {
+        return new Promise(function (resolve) {
+          emby.connect(url, user, pass, function (err, data) {
+            resolve(
+              err
+                ? { connected: false, error: err.message }
+                : { connected: true, name: data.name, host: data.host }
+            );
+          });
+        });
+      },
+      state: function () {
+        return emby.stateSummary();
+      },
+      libraries: function () {
+        return new Promise(function (resolve) {
+          emby.libraries(function (err, list) {
+            resolve(err ? { error: err.message } : list);
+          });
+        });
+      },
+      items: function (viewId) {
+        return new Promise(function (resolve) {
+          emby.items(viewId, function (err, list) {
+            resolve(
+              err
+                ? { error: err.message }
+                : list.map(function (item) {
+                    return { id: item.id, name: item.name, imdb: item.imdb, sources: item.sources.length };
+                  })
+            );
+          });
+        });
+      },
+      find: function (item) {
+        return new Promise(function (resolve) {
+          emby.findForItem(item, function (err, found, how) {
+            resolve(
+              err
+                ? { error: err.message }
+                : { how: how, id: found ? found.id : '', name: found ? found.name : '' }
+            );
+          });
+        });
+      },
+      streams: function (item) {
+        return new Promise(function (resolve) {
+          emby.findForItem(item, function (err, found) {
+            if (err || !found) {
+              resolve({ error: err ? err.message : 'none' });
+              return;
+            }
+            var list = emby.streamsFor(found);
+            resolve({
+              count: list.length,
+              codecs: (found.sources || []).map(function (src) {
+                return String(src.VideoCodec || '(none)');
+              }),
+              titles: list.map(function (stream) {
+                return stream.title;
+              }),
+              // Paths only, with the token redacted: enough to prove the
+              // documented endpoints, nothing that could leak a credential.
+              paths: list.map(function (stream) {
+                return embyPath(stream.url);
+              }),
+              subtitleTracks: list.length && list[0].subtitles ? list[0].subtitles.length : 0
+            });
+          });
+        });
+      },
+      subtitles: function (item) {
+        return new Promise(function (resolve) {
+          emby.findForItem(item, function (err, found) {
+            if (err || !found || !found.sources.length) {
+              resolve({ error: err ? err.message : 'none' });
+              return;
+            }
+            var list = emby.subtitlesFor(found.sources[0]);
+            resolve(
+              list.map(function (track) {
+                return { id: track.id, lang: track.lang, path: embyPath(track.url) };
+              })
+            );
+          });
+        });
+      },
+      disconnect: function () {
+        emby.disconnect();
+        return emby.stateSummary();
+      }
+    },
+    embySettings: {
+      fill: function (url, user, pass) {
+        var fields = settingsView.embyFields();
+        fields.url.value = url || '';
+        fields.user.value = user || '';
+        fields.pass.value = pass || '';
+        return true;
+      },
+      connect: function () {
+        var el = document.querySelector('[data-settings-action="emby-connect"]');
+        if (!el) {
+          return false;
+        }
+        el.click();
+        return true;
+      },
+      disconnect: function () {
+        var el = document.querySelector('[data-settings-action="emby-disconnect"]');
+        if (!el) {
+          return false;
+        }
+        el.click();
+        return true;
+      },
+      status: function () {
+        var el = document.querySelector('.settings__emby .addons__status');
+        return el ? el.textContent : '';
+      },
+      passwordValue: function () {
+        return settingsView.embyFields().pass.value;
+      }
     },
     player: {
       state: function () {

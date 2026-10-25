@@ -211,6 +211,37 @@ TorBox-shaped providers (object/string resources, `idPrefixes`, path config), a
 401 provider and an empty provider; they verify fan-out, dedupe, id form, type
 filtering and redaction. Existing add-on storage and profiles are untouched.
 
+## D21 — Provider-first source selection, capability classification, lists
+**Context (Q60R):** TorBox plays, **StreamBridge never appears** in source
+selection, the picker did not feel like WuPlay, subtitles still did not work.
+**Findings (code + tests):**
+- The picker listed **streams**, so an add-on that returned zero streams — error,
+  empty answer, or every entry de-duplicated — produced no row at all. StreamBridge
+  disappears exactly like that. Nothing surfaced *why*.
+- Capability metadata was flattened: `idPrefixes` was stored once (from whichever
+  resource mentioned it) and `types` only at manifest level, so an add-on with
+  different rules per resource was filtered with the wrong rules.
+- AVPlay mode made `body`/`.stage` transparent but left `.app` opaque, covering
+  the native video plane (subtitles and video alike).
+**Decision:**
+- **Two-stage picker**: stage 1 lists every compatible *provider* with its own
+  status (`ready` / `no sources` / `error · <reason>`) plus a "skipped" group with
+  reasons; stage 2 lists only that provider's streams. Each stream is selectable;
+  metadata (resolution, HDR, codec, size, language) comes from the existing parser.
+  BACK walks streams → providers → details/player. Play never chooses for the user
+  when more than one provider is available.
+- Streams carry `provider` (display name) and `providerKey` (index) so grouping
+  never depends on names matching and never exposes an add-on URL.
+- `resourceDetails` is stored per resource; `capabilitiesOf()`/`serves()` are the
+  single source of truth for what an add-on can do (also used by the Add-ons
+  labels and the subtitle picker).
+- Subtitles keep the DOM overlay approach (works on both engines); AVPlay now also
+  gets a transparent `.app`.
+- Lists store only id/kind/title/year/poster — never an add-on URL or stream link.
+**Consequences:** 198 smoke checks. Native Emby, hubs/screens and MDBList are
+explicitly **not** implemented in this iteration (see CHANGELOG); the list model
+they need (`state/lists.js`) is in place.
+
 ## D20 — StreamBridge compatibility, pickers, fullscreen, subtitles (Milestone 6)
 **Context:** on the Q60R, TorBox played but StreamBridge (Emby → Stremio) did not,
 the sidebar stayed visible, source choice was one flat list and subtitles were gone.

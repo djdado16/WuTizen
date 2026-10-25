@@ -70,6 +70,28 @@ const SECRET_PATTERNS = [
   /addon[a-z]*\s*[:=]\s*['"]https?:\/\//i
 ];
 
+/**
+ * Narrow, documented exception: `api_key` is a *query parameter name* in the
+ * documented Emby API (`/Videos/{id}/stream?…&api_key=…`), not a credential.
+ * Only the bare parameter token is neutralised before matching — a parameter
+ * that carries a secret-looking VALUE is still reported, and every other
+ * pattern is applied to the untouched text.
+ */
+const EMBY_PARAM_NAME = /api_key=(?![A-Za-z0-9_-]{8,})/gi;
+function scrubParameterNames(text) {
+  return String(text).replace(EMBY_PARAM_NAME, 'api-param=');
+}
+
+/** Self-test: the exception must not hide a real key. */
+function checkSecretDetection(sample) {
+  const scrubbed = scrubParameterNames(sample);
+  return SECRET_PATTERNS.some((pattern) => pattern.test(scrubbed));
+}
+const secretSelfTestOk =
+  checkSecretDetection('&api_key=abcdef123456') === true &&
+  checkSecretDetection('&api_key=') === false &&
+  checkSecretDetection('const k = "apikey";') === true;
+
 let files = 0;
 let bytes = 0;
 const findings = [];
@@ -87,7 +109,7 @@ async function walk(dir) {
       if (TEXT_EXTENSIONS.indexOf(path.extname(entry.name).toLowerCase()) === -1) {
         continue;
       }
-      const text = await readFile(full, 'utf8');
+      const text = scrubParameterNames(await readFile(full, 'utf8'));
       for (const pattern of SECRET_PATTERNS) {
         if (pattern.test(text)) {
           findings.push(path.relative(ROOT, full) + ' matches ' + pattern);
@@ -101,6 +123,10 @@ try {
   await walk(DIST);
 } catch (err) {
   fail('dist/ not readable — run "npm run build" first');
+}
+
+if (!secretSelfTestOk) {
+  findings.push('secret-scan self-test failed (the api_key exception must not hide real keys)');
 }
 
 if (findings.length > 0) {

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.7.0 — 2026-10-25 — Provider-first picker, capabilities, My Stuff, native Emby client
+
+### Fixed
+- **StreamBridge was missing from source selection** because the picker listed *streams*, not *providers*: an add-on that returned no streams (error, empty, or all sources de-duplicated/filtered) left no trace. Play now opens a **provider list first**, so every compatible stream add-on appears with its own state (`ready` / `no sources` / `error · reason`).
+- **`idPrefixes`/`types` were read from one merged field**; they are now taken per declared resource (`resourceDetails`), so a multi-role add-on is filtered by the rules it declared for `stream` specifically.
+- Subtitles over AVPlay: the opaque `.app` background covered the native video plane (and the subtitle overlay area); it is now transparent in `is-avplay` mode.
+
+### Added
+- **Two-stage source picker (WuPlay behaviour)**: providers → that provider's streams, each row independently selectable, quality/codec/HDR/size/language shown, per-provider status. BACK walks the chain **streams → providers → details/player**. **Never auto-plays** when more than one provider can serve the item; a single provider with a single source still plays directly.
+- **Automatic capability classification**: `catalog` / `meta` / `stream` / `subtitles` derived from manifest resources (string *and* object form), with resource-level `types`/`idPrefixes`; shown as localised labels in **Add-ons**.
+- **My Stuff** (`state/lists.js`): locally persisted *Moje liste* / *Gledano* lists — add from details (Watchlist / Mark-watched), list screen on the rail entry, remove with the remote. Only id/kind/title/year/poster are stored — never add-on URLs, tokens or stream links.
+- Redacted diagnostics: **Subtitles** line (candidate count, languages, per-add-on status, loaded track + cue count, load error) next to the existing sources/playback lines.
+- Docs: `docs/MDBLIST.md` (integration requirements, not implemented).
+
+### Tests
+- 11 new browser checks (198 total): provider stage first, provider rows/state/redaction, provider → streams, BACK from streams to providers, blocked source selected inside its provider, per-resource prefix filtering, My Stuff add/list/remove/persist, BACK closing My Stuff, subtitle diagnostics.
+
+### Not in this iteration
+- Native Emby server (connection, library browsing, Emby as a provider) — documented plan only.
+- Hub system (streaming services / genres / studios / decades / collections) and custom screens.
+- MDBList API, Trakt/Simkl, importer extensions for list items and hub configs.
+
 ## v0.6.0 — 2026-10-25 — Player UX, StreamBridge and subtitles
 
 ### Fixed

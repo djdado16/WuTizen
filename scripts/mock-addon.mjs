@@ -119,6 +119,17 @@ export function startMockAddon(port) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
+    // Emby requires CORS for the browser client: the auth POST carries JSON and
+    // X-Emby-Authorization, which triggers a preflight. Real Emby answers it too.
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'X-Emby-Authorization, Content-Type, Accept');
+      res.end();
+      return;
+    }
+
     const send = (status, body) => {
       res.statusCode = status;
       res.end(JSON.stringify(body));
@@ -373,6 +384,88 @@ export function startMockAddon(port) {
     if (url === '/media/en.vtt') {
       res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
       res.end('WEBVTT\n\n00:00:01.000 --> 00:00:05.000\nEnglish subtitle line\n');
+      return;
+    }
+
+    if (url === '/Users/AuthenticateByName' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => {
+        body += chunk;
+      });
+      req.on('end', () => {
+        let parsed = {};
+        try {
+          parsed = JSON.parse(body || '{}');
+        } catch (err) {
+          parsed = {};
+        }
+        if (parsed.Username !== 'demo' || parsed.Pw !== 'demo-pass') {
+          res.statusCode = 401;
+          res.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        send(200, { AccessToken: 'demo-token', ServerId: 'srv1', User: { Id: 'user-1' } });
+      });
+      return;
+    }
+    if (/^\/System\/Info/.test(url) || /^\/Users\//.test(url) || /^\/Shows\//.test(url)) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+    if (url === '/System/Info') {
+      send(200, { ServerName: 'Demo Emby', Version: '4.8.0' });
+      return;
+    }
+    if (url === '/Users/user-1/Views') {
+      send(200, {
+        Items: [
+          { Id: 'lib-movies', Name: 'Movies', CollectionType: 'movies' },
+          { Id: 'lib-shows', Name: 'TV Shows', CollectionType: 'tvshows' }
+        ]
+      });
+      return;
+    }
+    if (/^\/Users\/user-1\/Items/.test(url)) {
+      send(200, {
+        Items: [
+          {
+            Id: 'emby-movie-1',
+            Name: 'Mock Film 1',
+            Type: 'Movie',
+            ProductionYear: 2001,
+            ProviderIds: { Imdb: 'tt0000001', Tmdb: '100' },
+            MediaSources: [
+              {
+                Id: 'ms-1',
+                Height: 1080,
+                VideoCodec: 'h264',
+                Bitrate: 8000000,
+                MediaStreams: [
+                  { Type: 'Audio', DisplayTitle: 'Hrvatski AAC 2.0', Language: 'hr' },
+                  { Type: 'Subtitle', Index: 3, Language: 'hr', DeliveryUrl: '/Videos/emby-movie-1/Subtitles/3/Stream.srt' }
+                ]
+              },
+              {
+                Id: 'ms-2',
+                Height: 2160,
+                VideoCodec: 'vc1',
+                Bitrate: 40000000,
+                MediaStreams: []
+              }
+            ]
+          }
+        ]
+      });
+      return;
+    }
+    if (/^\/Videos\/[^/]+\/stream/.test(url)) {
+      // Emby media endpoint: the fixture serves the same decodable sample.
+      res.setHeader('Content-Type', 'audio/wav');
+      res.end(wavSample());
+      return;
+    }
+    if (url === '/Videos/emby-movie-1/Subtitles/3/Stream.srt') {
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end('1\n00:00:01,000 --> 00:00:06,000\nEmby titl\n');
       return;
     }
 

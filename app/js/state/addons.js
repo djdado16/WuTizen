@@ -19,15 +19,33 @@ export var PRESETS = [
 
 function summarize(url, manifest) {
   var resources = [];
+  var resourceDetails = [];
   var raw = manifest.resources || [];
   for (var i = 0; i < raw.length && resources.length < 8; i++) {
-    // Resources may be plain strings or Stremio's object form
-    // ({ name:'stream', types:[…], idPrefixes:[…] }).
+    // Resources are either plain strings or Stremio's object form
+    // ({ name:'stream', types:[…], idPrefixes:[…] }) — both are capabilities.
     var entry = raw[i];
     var name = typeof entry === 'string' ? entry : entry && entry.name ? String(entry.name) : '';
-    if (name && resources.indexOf(name) === -1) {
-      resources.push(name);
+    if (!name || resources.indexOf(name) > -1) {
+      continue;
     }
+    resources.push(name);
+    var detail = { name: name, types: [], idPrefixes: [] };
+    if (entry && typeof entry === 'object') {
+      var types = entry.types || [];
+      for (var ti = 0; ti < types.length && ti < 8; ti++) {
+        if (typeof types[ti] === 'string') {
+          detail.types.push(types[ti]);
+        }
+      }
+      var prefixes = entry.idPrefixes || [];
+      for (var pi = 0; pi < prefixes.length && pi < 8; pi++) {
+        if (typeof prefixes[pi] === 'string') {
+          detail.idPrefixes.push(prefixes[pi]);
+        }
+      }
+    }
+    resourceDetails.push(detail);
   }
   var catalogs = [];
   var rawCats = manifest.catalogs || [];
@@ -74,10 +92,61 @@ function summarize(url, manifest) {
     description: String(manifest.description || ''),
     logo: manifest.logo ? String(manifest.logo) : '',
     resources: resources,
+    resourceDetails: resourceDetails,
     types: types,
     idPrefixes: idPrefixes,
     catalogs: catalogs
   };
+}
+
+/**
+ * Capabilities of a stored add-on: which Stremio resources it serves, with the
+ * types/idPrefixes it declared for each (resource-level wins over manifest-level).
+ * Add-ons can hold several roles at once (catalog + meta + stream, …).
+ */
+export function capabilitiesOf(entry) {
+  var out = [];
+  var list = (entry && entry.resources) || [];
+  for (var i = 0; i < list.length; i++) {
+    var name = list[i];
+    var detail = null;
+    var details = (entry && entry.resourceDetails) || [];
+    for (var d = 0; d < details.length; d++) {
+      if (details[d] && details[d].name === name) {
+        detail = details[d];
+        break;
+      }
+    }
+    var types = (detail && detail.types && detail.types.length ? detail.types : entry.types) || [];
+    var prefixes =
+      (detail && detail.idPrefixes && detail.idPrefixes.length ? detail.idPrefixes : entry.idPrefixes) || [];
+    out.push({ name: name, types: types, idPrefixes: prefixes });
+  }
+  return out;
+}
+
+/** True when the add-on serves `resource` for this type/id (prefix-aware). */
+export function serves(entry, resource, type, id) {
+  var caps = capabilitiesOf(entry);
+  for (var i = 0; i < caps.length; i++) {
+    if (caps[i].name !== resource) {
+      continue;
+    }
+    if (caps[i].types.length && caps[i].types.indexOf(type) === -1) {
+      return false;
+    }
+    if (caps[i].idPrefixes.length) {
+      var value = String(id || '');
+      for (var p = 0; p < caps[i].idPrefixes.length; p++) {
+        if (value.indexOf(caps[i].idPrefixes[p]) === 0) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 export function listAddons() {

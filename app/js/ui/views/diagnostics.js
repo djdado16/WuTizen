@@ -150,6 +150,20 @@ export function createDiagnosticsView() {
     title.textContent = t('diagnostics.title');
     env.textContent = info.environment;
     renderSources(info.sources);
+    if (info.subtitles) {
+      var subsRow = document.createElement('div');
+      subsRow.className = 'diagnostics__row' + (info.subtitles.error ? ' is-error' : '');
+      subsRow.textContent =
+        t('diagnostics.subtitles') +
+        ': ' +
+        info.subtitles.items +
+        (info.subtitles.langs ? ' · ' + info.subtitles.langs : '') +
+        (info.subtitles.providers ? ' · ' + info.subtitles.providers : '') +
+        (info.subtitles.loaded ? ' · ' + info.subtitles.loaded + ' (' + info.subtitles.cues + ')' : '') +
+        (info.subtitles.error ? ' · ' + info.subtitles.error : '');
+      sources.appendChild(subsRow);
+    }
+
     if (info.playback) {
       var playbackRow = document.createElement('div');
       playbackRow.className = 'diagnostics__row' + (info.playback.error ? ' is-error' : '');

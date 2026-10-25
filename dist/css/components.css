@@ -625,6 +625,12 @@ html.is-avplay .stage {
   background: transparent;
 }
 
+/* AVPlay renders into the native plane *below* the page: the app background must
+   be transparent or the video (and the subtitle overlay area) is covered. */
+html.is-avplay .app {
+  background-color: transparent;
+}
+
 html.is-avplay .app > *:not([data-player]) {
   visibility: hidden;
 }

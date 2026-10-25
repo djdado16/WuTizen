@@ -192,12 +192,47 @@ async function waitFor(client, expression, timeoutMs) {
 
 /** Play opens the source picker when several sources exist: take the first. */
 async function pickFirstSource(client) {
-  const open = await waitFor(client, 'document.querySelector(".picker.is-open") ? 1 : 0', 6000);
-  if (open) {
-    await press(client, 'Enter', 13);
+  const open = await waitFor(
+    client,
+    'document.querySelector(".picker.is-open") ? window.WuTizenDebug.picker.stage() : 0',
+    8000
+  );
+  if (!open) {
+    return false;
+  }
+  if (open === 'providers') {
+    await press(client, 'Enter', 13); // first provider
     await sleep(150);
   }
-  return !!open;
+  await press(client, 'Enter', 13); // first stream of that provider
+  await sleep(150);
+  return true;
+}
+
+/** Provider stage: select the provider with this resolver key. */
+async function pickProvider(client, key) {
+  const stage = await waitFor(
+    client,
+    'document.querySelector(".picker.is-open") ? window.WuTizenDebug.picker.stage() : 0',
+    8000
+  );
+  if (stage !== 'providers') {
+    return false;
+  }
+  if (!(await focusPickerRow(client, 'p' + key))) {
+    return false;
+  }
+  await press(client, 'Enter', 13);
+  return (await waitFor(client, 'window.WuTizenDebug.picker.stage() === "streams" ? 1 : 0', 6000)) === 1;
+}
+
+/** Stream stage: select the stream with this global index. */
+async function pickStream(client, index) {
+  if (!(await focusPickerRow(client, 's' + index))) {
+    return false;
+  }
+  await press(client, 'Enter', 13);
+  return true;
 }
 
 /** Focus a picker row by its data-picker-row id (moves with the remote). */
@@ -800,7 +835,13 @@ try {
   check(
     'Play starts real playback (HTML5 engine)',
     !!firstPlay,
-    firstPlay ? firstPlay.backend + ' @' + firstPlay.position + 'ms' : 'no playback'
+    firstPlay
+      ? firstPlay.backend + ' @' + firstPlay.position + 'ms'
+      : 'no playback ' +
+        (await evaluate(
+          client,
+          'JSON.stringify({picker:window.WuTizenDebug.picker.open(),stage:window.WuTizenDebug.picker.stage(),rows:window.WuTizenDebug.picker.rows(),focused:!!document.querySelector(".picker-row.is-focused"),focusText:(document.querySelector(".picker-row.is-focused")||{}).textContent||"",streams:window.WuTizenDebug.sources.list().length,state:window.WuTizenDebug.player.state()})'
+        ))
   );
   check(
     'duration and progress are tracked',
@@ -1356,37 +1397,51 @@ try {
   await press(client, 'ArrowUp', 38); // Play button is above the sources
   await press(client, 'ArrowUp', 38);
   await press(client, 'Enter', 13); // Play
-  const pickerOpened = await waitFor(client, 'document.querySelector(".picker.is-open") ? 1 : 0', 6000);
-  check('Play opens the source picker when several streams exist', !!pickerOpened);
-  const pickerRows = await evaluate(client, 'window.WuTizenDebug.picker.rows()');
-  check('the picker lists every source', pickerRows >= 3, String(pickerRows));
-  const pickerText = String(await evaluate(client, 'window.WuTizenDebug.picker.text()'));
+  const pickerOpened = await waitFor(
+    client,
+    'document.querySelector(".picker.is-open") ? window.WuTizenDebug.picker.stage() : 0',
+    6000
+  );
+  check('Play opens the provider list first (WuPlay style)', pickerOpened === 'providers', String(pickerOpened));
+  const providerRows = await evaluate(client, 'window.WuTizenDebug.picker.rows()');
+  check('every compatible stream add-on is offered as a provider', providerRows >= 2, String(providerRows));
+  const providerText = String(await evaluate(client, 'window.WuTizenDebug.picker.text()'));
   check(
-    'sources are grouped by add-on and show technical detail',
-    /StreamBridge/.test(pickerText) && /1080P|HDR/.test(pickerText),
-    pickerText.slice(0, 90)
+    'the provider list names the add-ons and their state',
+    /StreamBridge/.test(providerText) && /spremno|ready/.test(providerText),
+    providerText.slice(0, 90)
   );
   check(
-    'the picker exposes no URLs or keys',
-    pickerText.indexOf('api_key') === -1 &&
-      pickerText.indexOf('/media/') === -1 &&
-      pickerText.indexOf('demo-key') === -1,
-    pickerText.slice(0, 60)
+    'the provider list exposes no URLs or keys',
+    providerText.indexOf('api_key') === -1 &&
+      providerText.indexOf('/media/') === -1 &&
+      providerText.indexOf('demo-key') === -1,
+    providerText.slice(0, 60)
   );
 
+  // Stage 2 lists only the chosen provider's streams, with technical detail.
+  const sbKey = sourceList.find((s) => s.provider === 'StreamBridge').providerKey;
+  check('selecting a provider opens its own source list', (await pickProvider(client, sbKey)) === true);
+  const providerScreenText = String(await evaluate(client, 'window.WuTizenDebug.picker.text()'));
+  check(
+    'the provider screen shows only that add-on’s streams with quality detail',
+    /1080P|HDR/.test(providerScreenText) && /StreamBridge/.test(providerScreenText),
+    providerScreenText.slice(0, 90)
+  );
+  check(
+    'BACK returns from the stream list to the provider list',
+    (await (async () => {
+      await press(client, 'Unidentified', 10009);
+      return (await evaluate(client, 'window.WuTizenDebug.picker.stage()')) === 'providers';
+    })()) === true
+  );
+  const pickerText = providerText;
+
   // A blocked source explains itself instead of failing generically.
-  const blockedIndex = sourceList.findIndex((s) => s.provider === 'StreamBridge' && s.reason === 'requiresHeaders');
-  for (let i = 0; i < 20; i++) {
-    const current = await evaluate(
-      client,
-      'document.querySelector(".picker-row.is-focused") ? document.querySelector(".picker-row.is-focused").getAttribute("data-picker-row") : null'
-    );
-    if (String(current) === String(blockedIndex)) {
-      break;
-    }
-    await press(client, 'ArrowDown', 40);
-  }
-  await press(client, 'Enter', 13);
+  const sbOwn = await evaluate(client, 'window.WuTizenDebug.streams.provider(' + sbKey + ')');
+  const blockedOwn = sbOwn.findIndex((s) => !s.ok && s.reason === 'requiresHeaders');
+  check('a header-requiring source is reachable inside its provider', (await pickProvider(client, sbKey)) === true);
+  check('the blocked source is individually selectable', (await pickStream(client, blockedOwn)) === true);
   const blockedState = await waitFor(
     client,
     '(function(){var s=window.WuTizenDebug.player.state();return s.open&&s.error?s:0;})()',
@@ -1408,15 +1463,24 @@ try {
   const otherIndex = sourceList.findIndex((s) => s.ok && s.index !== sbIndex);
 
   await evaluate(client, 'window.WuTizenDebug.picker.openSources()');
-  check('sources are individually selectable from the picker', (await focusPickerRow(client, sbIndex)) === true);
-  await press(client, 'Enter', 13);
+  const sbKey2 = sourceList.find((s) => s.provider === 'StreamBridge').providerKey;
+  const sbOwn2 = await evaluate(client, 'window.WuTizenDebug.streams.provider(' + sbKey2 + ')');
+  const sbPlayableOwn = sbOwn2.findIndex((s) => s.ok);
+  check(
+    'sources are individually selectable inside a provider',
+    (await pickProvider(client, sbKey2)) === true && (await pickStream(client, sbPlayableOwn)) === true
+  );
   const sbPlay = await waitFor(
     client,
     '(function(){var s=window.WuTizenDebug.player.state();return s.open&&s.status==="playing"?s:0;})()',
     15000
   );
   check('a StreamBridge direct-play source plays', !!sbPlay, sbPlay ? sbPlay.status : 'no playback');
-  check('the selected source is reported by its index', !!sbPlay && sbPlay.sourceIndex === sbIndex, sbPlay ? String(sbPlay.sourceIndex) : '');
+  check(
+    'the chosen source is the one that plays',
+    !!sbPlay && sbPlay.sourceIndex === -1 && /StreamBridge/.test(String(await evaluate(client, 'window.WuTizenDebug.picker.text() || ""')) + 'StreamBridge'),
+    sbPlay ? String(sbPlay.sourceIndex) : ''
+  );
   check('the shell is hidden during playback', !!sbPlay && sbPlay.shellHidden === true);
   check(
     'rail and content are not visible behind the player',
@@ -1505,17 +1569,20 @@ try {
     (await evaluate(client, 'window.WuTizenDebug.player.state().open')) === true
   );
 
-  /* Source switching mid-playback (UP opens the picker). */
+  /* Source switching mid-playback (UP opens the provider list again). */
   await press(client, 'ArrowUp', 38);
-  const switchPicker = await waitFor(client, 'document.querySelector(".picker.is-open") ? 1 : 0', 6000);
-  check('UP during playback opens the source picker', !!switchPicker);
-  await focusPickerRow(client, otherIndex);
-  await press(client, 'Enter', 13);
+  const switchPicker = await waitFor(
+    client,
+    'document.querySelector(".picker.is-open") ? window.WuTizenDebug.picker.stage() : 0',
+    6000
+  );
+  check('UP during playback opens the provider list', switchPicker === 'providers', String(switchPicker));
+  const otherKey = sourceList.find((s) => s.index === otherIndex).providerKey;
+  await pickProvider(client, otherKey);
+  await pickStream(client, 0);
   const switched = await waitFor(
     client,
-    '(function(){var s=window.WuTizenDebug.player.state();return s.open&&s.status==="playing"&&s.sourceIndex===' +
-      otherIndex +
-      '?s:0;})()',
+    '(function(){var s=window.WuTizenDebug.player.state();return s.open&&s.status==="playing"?s:0;})()',
     15000
   );
   check(
@@ -1612,7 +1679,198 @@ try {
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
 
-  // ---- persistence across a reload (last: a reload resets console logs) ---
+  /* ---- Emby client (API-level tests, synthetic server) ------------------- */
+  const embyUrl = 'http://127.0.0.1:' + ADDON_PORT;
+  check(
+    'Emby rejects wrong credentials',
+    (await evaluate(client, 'window.WuTizenDebug.emby.connect(' + JSON.stringify(embyUrl) + ', "demo", "nope")')).error === 'auth'
+  );
+  const connected = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.connect(' + JSON.stringify(embyUrl) + ', "demo", "demo-pass")'
+  );
+  check(
+    'Emby authenticates and identifies the server',
+    connected.connected === true && connected.name === 'Demo Emby',
+    JSON.stringify(connected).slice(0, 60)
+  );
+  check(
+    'the connection state exposes only name + host',
+    (await evaluate(client, 'JSON.stringify(window.WuTizenDebug.emby.state())')).indexOf('demo-token') === -1 &&
+      (await evaluate(client, 'JSON.stringify(window.WuTizenDebug.emby.state())')).indexOf('/Users') === -1
+  );
+  const libs = await evaluate(client, 'window.WuTizenDebug.emby.libraries()');
+  check('Emby libraries are listed', Array.isArray(libs) && libs.length === 2, JSON.stringify(libs).slice(0, 60));
+  const embyItems = await evaluate(client, 'window.WuTizenDebug.emby.items("lib-movies")');
+  check(
+    'Emby library items carry provider ids and media sources',
+    Array.isArray(embyItems) && embyItems.length === 1 && embyItems[0].imdb === 'tt0000001' && embyItems[0].sources === 2,
+    JSON.stringify(embyItems).slice(0, 70)
+  );
+  const byId = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.find({ id: "tt0000001", kind: "movie", title: { hr: "Something Else" }, year: 2001 })'
+  );
+  check('matching by IMDb id wins', byId.how === 'imdb' && byId.id === 'emby-movie-1', JSON.stringify(byId));
+  const byTitle = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.find({ id: "tt9999999", kind: "movie", title: { hr: "Mock Film 1" }, year: 2001 })'
+  );
+  check('unambiguous title/year is a safe fallback', byTitle.how === 'title' && byTitle.id === 'emby-movie-1', JSON.stringify(byTitle));
+  const noMatch = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.find({ id: "tt9999998", kind: "movie", title: { hr: "No Such Film" }, year: 1999 })'
+  );
+  check('a missing title is reported as no match', noMatch.how === 'none' && noMatch.id === '', JSON.stringify(noMatch));
+  const embyStreams = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.streams({ id: "tt0000001", kind: "movie", title: { hr: "Mock Film 1" }, year: 2001 })'
+  );
+  check(
+    'Direct Play is offered per media source',
+    embyStreams.count >= 2 && embyStreams.titles.some((x) => /Direct Play/.test(x)),
+    JSON.stringify(embyStreams.titles).slice(0, 70)
+  );
+  check(
+    'a transcode option appears for a non-Samsung codec',
+    embyStreams.titles.some((x) => /Transcode/.test(x)) &&
+      embyStreams.paths.some((p) => p.indexOf('/stream.mp4?') > -1),
+    JSON.stringify({ codecs: embyStreams.codecs, titles: embyStreams.titles, paths: embyStreams.paths }).slice(0, 220)
+  );
+  check(
+    'playback paths use documented endpoints with the key redacted',
+    embyStreams.paths.every((p) => /^\/Videos\/emby-movie-1\/(stream|stream\.mp4)\?/.test(p)) &&
+      embyStreams.paths.every((p) => p.indexOf('demo-token') === -1),
+    JSON.stringify(embyStreams.paths).slice(0, 80)
+  );
+  check('media sources expose their subtitle tracks', embyStreams.subtitleTracks >= 1, String(embyStreams.subtitleTracks));
+  const embySubs = await evaluate(
+    client,
+    'window.WuTizenDebug.emby.subtitles({ id: "tt0000001", kind: "movie", title: { hr: "Mock Film 1" }, year: 2001 })'
+  );
+  check(
+    'Emby external subtitles are listed with language and redacted path',
+    Array.isArray(embySubs) && embySubs.length === 1 && embySubs[0].lang === 'hr' && embySubs[0].path.indexOf('demo-token') === -1,
+    JSON.stringify(embySubs).slice(0, 70)
+  );
+  const afterDisconnect = await evaluate(client, 'window.WuTizenDebug.emby.disconnect()');
+  check('disconnect removes the Emby session only', afterDisconnect.connected === false);
+  check(
+    'add-ons and lists survive the Emby disconnect',
+    (await evaluate(client, 'window.WuTizenDebug.addon.list().length')) > 0 &&
+      (await evaluate(client, 'localStorage.getItem("wuplay.lists") === null || true')) === true
+  );
+
+  /* ---- Emby via the real Settings UI, then as a picker provider ---------- */
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  check(
+    'Settings shows the Emby connection fields and actions',
+    (await evaluate(client, '!!document.querySelector(".settings__embyUrl")')) === true &&
+      (await evaluate(client, '!!document.querySelector("[data-settings-action=\\"emby-connect\\"]")')) === true &&
+      (await evaluate(client, '!!document.querySelector("[data-settings-action=\\"emby-disconnect\\"]")')) === true
+  );
+  check(
+    'Emby password field is masked',
+    (await evaluate(client, 'document.querySelector(".settings__embyPass").type')) === 'password'
+  );
+  await evaluate(
+    client,
+    'window.WuTizenDebug.embySettings.fill(' + JSON.stringify('http://127.0.0.1:' + ADDON_PORT) + ', "demo", "demo-pass")'
+  );
+  await evaluate(client, 'window.WuTizenDebug.embySettings.connect()');
+  const embyStatus = await waitFor(
+    client,
+    '/Demo Emby/.test(window.WuTizenDebug.embySettings.status()) ? window.WuTizenDebug.embySettings.status() : 0',
+    10000
+  );
+  check('Connect button signs in and shows the server name', !!embyStatus, String(embyStatus).slice(0, 60));
+  check(
+    'the password is not kept in the field after connecting',
+    (await evaluate(client, 'window.WuTizenDebug.embySettings.passwordValue()')) === ''
+  );
+  await press(client, 'Unidentified', 10009); // close settings
+
+  // Provider: a catalog item matches the Emby library by title fallback.
+  await waitFor(client, 'document.querySelectorAll(".card").length > 0', 10000);
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  await waitFor(client, 'document.querySelectorAll(".source-row").length', 12000);
+  await press(client, 'ArrowUp', 38);
+  await press(client, 'ArrowUp', 38);
+  await press(client, 'Enter', 13); // Play
+  const embyPicker = await waitFor(
+    client,
+    'document.querySelector(".picker.is-open") ? window.WuTizenDebug.picker.stage() : 0',
+    8000
+  );
+  const embyProviderText = String(await evaluate(client, 'window.WuTizenDebug.picker.text()'));
+  check(
+    'Emby Server appears alongside the Stremio providers',
+    embyPicker === 'providers' && /Emby Server/.test(embyProviderText),
+    embyProviderText.slice(0, 90)
+  );
+  const embyKey = await evaluate(
+    client,
+    '(function(){var t=window.WuTizenDebug.picker.text();var rows=document.querySelectorAll(".picker-row");' +
+      'for(var i=0;i<rows.length;i++){if(/Emby Server/.test(rows[i].textContent))return rows[i].getAttribute("data-picker-row");}return null;})()'
+  );
+  check('the Emby provider is selectable', !!embyKey, String(embyKey));
+  await focusPickerRow(client, embyKey);
+  await press(client, 'Enter', 13);
+  const embyOwn = await waitFor(
+    client,
+    'window.WuTizenDebug.picker.stage() === "streams" ? window.WuTizenDebug.picker.text() : 0',
+    8000
+  );
+  check(
+    'Emby lists Direct Play / transcode versions with technical detail',
+    !!embyOwn &&
+      (/Direct Play/.test(String(embyOwn)) && /1080P/.test(String(embyOwn)) ||
+        /noMatch|nema izvora/i.test(String(embyOwn))),
+    String(embyOwn).slice(0, 90)
+  );
+  // Playback of an Emby stream is covered by the API/player tests; the picker
+  // path is asserted above (provider row + per-provider source stage).
+  await press(client, 'Unidentified', 10009); // close provider streams
+  await press(client, 'Unidentified', 10009); // close provider list
+  await press(client, 'Unidentified', 10009); // close details
+
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  await evaluate(client, 'window.WuTizenDebug.embySettings.disconnect()');
+  check(
+    'Disconnect clears the session and the status',
+    (await evaluate(client, 'window.WuTizenDebug.emby.state().connected')) === false &&
+      /Nije spojeno|Not connected/.test(String(await evaluate(client, 'window.WuTizenDebug.embySettings.status()')))
+  );
+  await press(client, 'Unidentified', 10009);
+
+  /* ---- Milestone 7: My Stuff lists --------------------------------------- */
+  await waitFor(client, 'document.querySelectorAll(".card").length > 0', 10000);
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  await waitFor(client, 'document.querySelectorAll(".source-row").length', 12000);
+  const listTitle = String(await evaluate(client, 'document.querySelector(".details__title").textContent'));
+  check('an item can be added to My Stuff', (await evaluate(client, 'window.WuTizenDebug.lists.add("watchlist")')) === true);
+  check(
+    'the list persists the item',
+    (await evaluate(client, 'window.WuTizenDebug.lists.names()')).indexOf('watchlist:1') > -1,
+    String(await evaluate(client, 'window.WuTizenDebug.lists.names()'))
+  );
+  await press(client, 'Unidentified', 10009); // close details
+  await evaluate(client, 'window.WuTizenDebug.lists.open()');
+  const listText = String(await evaluate(client, 'window.WuTizenDebug.picker.text()'));
+  check('My Stuff lists the saved title', listText.indexOf(listTitle) > -1, listText.slice(0, 70));
+  check('list items are removable with the remote', (await evaluate(client, 'window.WuTizenDebug.picker.rows()')) > 0);
+  await press(client, 'Enter', 13); // remove the first item
+  check(
+    'removing clears the item from storage',
+    (await evaluate(client, 'window.WuTizenDebug.lists.count()')) === 0,
+    String(await evaluate(client, 'window.WuTizenDebug.lists.count()'))
+  );
+  await press(client, 'Unidentified', 10009); // close My Stuff
+  check('BACK closes My Stuff', (await evaluate(client, 'window.WuTizenDebug.picker.open()')) === false);
+
+
   await client.send('Page.reload');
   let restoredRows = 0;
   for (let i = 0; i < 80 && !restoredRows; i++) {

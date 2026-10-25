@@ -7,7 +7,7 @@
  */
 
 import { t } from '../../i18n/index.js';
-import { listAddons, PRESETS, hasAddon } from '../../state/addons.js';
+import { listAddons, PRESETS, hasAddon, capabilitiesOf } from '../../state/addons.js';
 
 export function createAddonsView() {
   var root = document.createElement('div');
@@ -92,6 +92,29 @@ export function createAddonsView() {
     return row;
   }
 
+  /** Localised capability labels (catalog / details / sources / subtitles). */
+  function capabilityText(addon) {
+    var caps = capabilitiesOf(addon);
+    var labels = [];
+    for (var i = 0; i < caps.length; i++) {
+      var key = 'cap.' + caps[i].name;
+      var label =
+        caps[i].name === 'catalog'
+          ? t('cap.catalog')
+          : caps[i].name === 'meta'
+            ? t('cap.meta')
+            : caps[i].name === 'stream'
+              ? t('cap.stream')
+              : caps[i].name === 'subtitles'
+                ? t('cap.subtitles')
+                : key;
+      if (labels.indexOf(label) === -1) {
+        labels.push(label);
+      }
+    }
+    return labels.join(' · ');
+  }
+
   function render() {
     focusables = [];
     installedSection.innerHTML = '';
@@ -111,7 +134,7 @@ export function createAddonsView() {
     } else {
       for (var i = 0; i < installed.length; i++) {
         (function (addon) {
-          var resourceText = (addon.resources || []).join(', ');
+          var resourceText = capabilityText(addon);
           var metaText =
             resourceText + ' · ' + (addon.catalogs || []).length + ' ' + t('addons.catalogs');
           installedSection.appendChild(

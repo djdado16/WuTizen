@@ -17,6 +17,7 @@
  */
 
 import { addonClient, failureReason, diagnosticsList } from './addonClient.js';
+import { capabilitiesOf } from '../state/addons.js';
 
 var MAX_PROVIDERS = 10;
 var MAX_STREAMS = 40;
@@ -56,23 +57,43 @@ export function streamCandidates(addons, type, id) {
   var out = [];
   var skipped = [];
   var list = addons || [];
+  var value = String(id || '');
   for (var i = 0; i < list.length; i++) {
     var entry = list[i];
     if (!entry || !entry.url) {
       continue;
     }
     var known = !!entry.resources && entry.resources.length > 0;
-    if (known && !advertises(entry, 'stream')) {
+    var cap = null;
+    if (known) {
+      var caps = capabilitiesOf(entry);
+      for (var c = 0; c < caps.length; c++) {
+        if (caps[c].name === 'stream') {
+          cap = caps[c];
+          break;
+        }
+      }
+    }
+    if (known && !cap) {
       skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'noStreamResource' });
       continue;
     }
-    if (!typeAllowed(entry, type)) {
+    if (cap && cap.types.length && cap.types.indexOf(type) === -1) {
       skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'typeMismatch' });
       continue;
     }
-    if (!prefixAllowed(entry, id)) {
-      skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'idPrefixes' });
-      continue;
+    if (cap && cap.idPrefixes.length) {
+      var matched = false;
+      for (var p = 0; p < cap.idPrefixes.length; p++) {
+        if (value.indexOf(cap.idPrefixes[p]) === 0) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'idPrefixes' });
+        continue;
+      }
     }
     if (out.length >= MAX_PROVIDERS) {
       skipped.push({ name: String(entry.name || 'Add-on'), host: hostOf(entry.url), reason: 'limit' });
@@ -80,7 +101,7 @@ export function streamCandidates(addons, type, id) {
     }
     // Unknown metadata (stored before v0.5.0): still ask it — it may well be a
     // stream provider, and a 404 costs one request.
-    out.push({ entry: entry, unverified: !known });
+    out.push({ entry: entry, unverified: !known, key: out.length });
   }
   return { providers: out, skipped: skipped };
 }
@@ -134,6 +155,7 @@ export function resolveStreams(options, done) {
   var found = streamCandidates(opts.addons || [], type, id);
   var providers = found.providers;
   var report = [];
+  var providerStreams = [];
   var streams = [];
   var seen = {};
   var pending = providers.length;
@@ -170,6 +192,10 @@ export function resolveStreams(options, done) {
       attempted: providers.length,
       id: String(id || ''),
       type: type,
+      // Each provider's OWN answers (not the merged/de-duplicated list): the
+      // second picker stage must show what that add-on returned, even when every
+      // URL it returned was already served by an earlier add-on.
+      providerStreams: providerStreams,
       when: Date.now()
     };
     // The diagnostics snapshot is redacted: counts only, never stream objects
@@ -215,8 +241,10 @@ export function resolveStreams(options, done) {
     return;
   }
 
-  function settle(index, entry, status, reason, list) {
+  function settle(index, provider, status, reason, list) {
+    var entry = provider.entry;
     var kept = [];
+    var own = [];
     if (list) {
       for (var i = 0; i < list.length; i++) {
         var stream = list[i];
@@ -237,11 +265,28 @@ export function resolveStreams(options, done) {
           }
         }
         copy.provider = String(entry.name || 'Add-on');
+        copy.providerKey = typeof provider.key === 'number' ? provider.key : -1;
         kept.push(copy);
         streams.push(copy);
       }
+      for (var o = 0; o < list.length && o < 20; o++) {
+        var mine = list[o];
+        if (!mine || typeof mine !== 'object') {
+          continue;
+        }
+        var mineCopy = {};
+        for (var f2 in mine) {
+          if (Object.prototype.hasOwnProperty.call(mine, f2)) {
+            mineCopy[f2] = mine[f2];
+          }
+        }
+        mineCopy.provider = String(entry.name || 'Add-on');
+        mineCopy.providerKey = typeof provider.key === 'number' ? provider.key : -1;
+        own.push(mineCopy);
+      }
     }
     var logEntry = statusFor(entry);
+    providerStreams[index] = own;
     report.push({
       index: index,
       name: String(entry.name || 'Add-on'),
@@ -249,7 +294,8 @@ export function resolveStreams(options, done) {
       status: status,
       reason: reason || '',
       httpStatus: logEntry ? logEntry.status : 0,
-      count: kept.length
+      count: kept.length,
+      answered: own.length
     });
     pending -= 1;
     if (pending === 0) {
@@ -262,11 +308,11 @@ export function resolveStreams(options, done) {
       var entry = provider.entry;
       addonClient.streams(entry.url, type, id, function (err, data) {
         if (err) {
-          settle(index, entry, 'error', failureReason(err), null);
+          settle(index, provider, 'error', failureReason(err), null);
           return;
         }
         var list = data && data.streams && data.streams.length ? data.streams : [];
-        settle(index, entry, list.length ? 'ok' : 'empty', '', list);
+        settle(index, provider, list.length ? 'ok' : 'empty', '', list);
       });
     })(providers[p], p);
   }

@@ -323,6 +323,7 @@
     "diagnostics.close": "Zatvori",
     "diagnostics.sources": "Izvori (zadnje traženje)",
     "diagnostics.playback": "Reprodukcija (dodatak · tip · engine)",
+    "diagnostics.subtitles": "Titlovi (izvori · učitano)",
     "diagnostics.sourcesNone": "Izvori još nisu traženi.",
     "diagnostics.candidates": "kandidata:",
     "diagnostics.noCandidates": 'Nema kandidata — nijedan dodatak ne nudi "stream".',
@@ -347,6 +348,15 @@
     "settings.invalid": "Neispravna datoteka profila.",
     "settings.done": "Uvoz završen.",
     "settings.seeDiagnostics": "Pojedinosti: Dijagnostika",
+    "settings.emby": "Emby poslužitelj",
+    "settings.embyUrl": "http(s)://adresa-poslužitelja:8096",
+    "settings.embyUser": "Emby korisničko ime",
+    "settings.embyPass": "Emby lozinka",
+    "settings.embyConnect": "Spoji se",
+    "settings.embyDisconnect": "Odspoji",
+    "settings.embyConnected": "Spojeno:",
+    "settings.embyDisconnected": "Nije spojeno.",
+    "settings.embyFailed": "Emby prijava nije uspjela.",
     "row.error": "Katalog nije dostupan",
     "row.retryHint": "Provjerite vezu i pokušajte ponovno.",
     "addons.add": "Dodaj",
@@ -395,6 +405,28 @@
     "picker.posBottom": "dno",
     "picker.posMiddle": "sredina",
     "picker.posTop": "gore",
+    "picker.providers": "Dodaci s izvorima",
+    "picker.providerHint": "dodataka · OK prikazuje izvore · BACK zatvara",
+    "picker.items": "izvora",
+    "picker.statusOk": "spremno",
+    "picker.statusEmpty": "nema izvora",
+    "picker.statusError": "greška",
+    "picker.providerEmpty": "Ovaj dodatak nije vratio izvore.",
+    "picker.providerFailed": "Zahtjev prema dodatku nije uspio.",
+    "picker.skippedGroup": "Preskočeni dodaci",
+    "picker.skippedNote": "Ovaj dodatak ne može poslužiti ovu stavku — razlog je uz naziv.",
+    "cap.catalog": "katalog",
+    "cap.meta": "detalji",
+    "cap.stream": "izvori",
+    "cap.subtitles": "titlovi",
+    "lists.watchlist": "Moje liste",
+    "lists.watched": "Gledano",
+    "lists.title": "Moje liste",
+    "lists.empty": "Lista je prazna.",
+    "lists.added": "Dodano na listu.",
+    "lists.removed": "Uklonjeno s liste.",
+    "lists.remove": "Ukloni",
+    "lists.open": "Prikaži",
     "import.auth": "traži autorizaciju",
     "import.notFound": "nije pronađen",
     "import.server": "greška poslužitelja",
@@ -448,6 +480,7 @@
     "diagnostics.close": "Close",
     "diagnostics.sources": "Sources (last request)",
     "diagnostics.playback": "Playback (add-on · type · engine)",
+    "diagnostics.subtitles": "Subtitles (sources · loaded)",
     "diagnostics.sourcesNone": "No source request yet.",
     "diagnostics.candidates": "candidates:",
     "diagnostics.noCandidates": 'No candidates — no add-on advertises "stream".',
@@ -472,6 +505,15 @@
     "settings.invalid": "Invalid profile file.",
     "settings.done": "Import finished.",
     "settings.seeDiagnostics": "Details: Diagnostics",
+    "settings.emby": "Emby Server",
+    "settings.embyUrl": "http(s)://server-address:8096",
+    "settings.embyUser": "Emby username",
+    "settings.embyPass": "Emby password",
+    "settings.embyConnect": "Connect",
+    "settings.embyDisconnect": "Disconnect",
+    "settings.embyConnected": "Connected:",
+    "settings.embyDisconnected": "Not connected.",
+    "settings.embyFailed": "Emby sign-in failed.",
     "row.error": "Catalog unavailable",
     "row.retryHint": "Check the connection and try again.",
     "addons.add": "Add",
@@ -520,6 +562,28 @@
     "picker.posBottom": "bottom",
     "picker.posMiddle": "middle",
     "picker.posTop": "top",
+    "picker.providers": "Add-ons with sources",
+    "picker.providerHint": "add-ons · OK shows sources · BACK closes",
+    "picker.items": "sources",
+    "picker.statusOk": "ready",
+    "picker.statusEmpty": "no sources",
+    "picker.statusError": "error",
+    "picker.providerEmpty": "This add-on returned no sources.",
+    "picker.providerFailed": "The request to this add-on failed.",
+    "picker.skippedGroup": "Skipped add-ons",
+    "picker.skippedNote": "This add-on cannot serve this item — the reason is shown next to it.",
+    "cap.catalog": "catalog",
+    "cap.meta": "details",
+    "cap.stream": "sources",
+    "cap.subtitles": "subtitles",
+    "lists.watchlist": "My Stuff",
+    "lists.watched": "Watched",
+    "lists.title": "My Stuff",
+    "lists.empty": "This list is empty.",
+    "lists.added": "Added to the list.",
+    "lists.removed": "Removed from the list.",
+    "lists.remove": "Remove",
+    "lists.open": "Open",
     "import.auth": "requires authorisation",
     "import.notFound": "not found",
     "import.server": "server error",
@@ -1425,11 +1489,11 @@
         cards[i].updateLanguage(current2);
       }
     }
-    function appendItems(items) {
-      if (!items || !items.length) {
+    function appendItems(items2) {
+      if (!items2 || !items2.length) {
         return;
       }
-      row.items = row.items.concat(items);
+      row.items = row.items.concat(items2);
       appendCards(CHUNK);
       measure();
     }
@@ -1953,16 +2017,16 @@
         return;
       }
       finished = true;
-      var items = -1;
+      var items2 = -1;
       if (!err && data) {
         if (data.metas) {
-          items = data.metas.length;
+          items2 = data.metas.length;
         } else if (data.meta) {
-          items = 1;
+          items2 = 1;
         } else if (data.streams) {
-          items = data.streams.length;
+          items2 = data.streams.length;
         } else if (data.subtitles) {
-          items = data.subtitles.length;
+          items2 = data.subtitles.length;
         }
       }
       record({
@@ -1973,7 +2037,7 @@
         skip: ctx.skip || 0,
         status,
         error: err ? err.message : "",
-        items,
+        items: items2,
         ms: Date.now() - started
       });
       done(err, data);
@@ -2102,13 +2166,31 @@
   ];
   function summarize(url, manifest) {
     var resources = [];
+    var resourceDetails = [];
     var raw = manifest.resources || [];
     for (var i = 0; i < raw.length && resources.length < 8; i++) {
       var entry = raw[i];
       var name = typeof entry === "string" ? entry : entry && entry.name ? String(entry.name) : "";
-      if (name && resources.indexOf(name) === -1) {
-        resources.push(name);
+      if (!name || resources.indexOf(name) > -1) {
+        continue;
       }
+      resources.push(name);
+      var detail = { name, types: [], idPrefixes: [] };
+      if (entry && typeof entry === "object") {
+        var types = entry.types || [];
+        for (var ti = 0; ti < types.length && ti < 8; ti++) {
+          if (typeof types[ti] === "string") {
+            detail.types.push(types[ti]);
+          }
+        }
+        var prefixes = entry.idPrefixes || [];
+        for (var pi = 0; pi < prefixes.length && pi < 8; pi++) {
+          if (typeof prefixes[pi] === "string") {
+            detail.idPrefixes.push(prefixes[pi]);
+          }
+        }
+      }
+      resourceDetails.push(detail);
     }
     var catalogs = [];
     var rawCats = manifest.catalogs || [];
@@ -2153,10 +2235,30 @@
       description: String(manifest.description || ""),
       logo: manifest.logo ? String(manifest.logo) : "",
       resources,
+      resourceDetails,
       types,
       idPrefixes,
       catalogs
     };
+  }
+  function capabilitiesOf(entry) {
+    var out = [];
+    var list = entry && entry.resources || [];
+    for (var i = 0; i < list.length; i++) {
+      var name = list[i];
+      var detail = null;
+      var details = entry && entry.resourceDetails || [];
+      for (var d = 0; d < details.length; d++) {
+        if (details[d] && details[d].name === name) {
+          detail = details[d];
+          break;
+        }
+      }
+      var types = (detail && detail.types && detail.types.length ? detail.types : entry.types) || [];
+      var prefixes = (detail && detail.idPrefixes && detail.idPrefixes.length ? detail.idPrefixes : entry.idPrefixes) || [];
+      out.push({ name, types, idPrefixes: prefixes });
+    }
+    return out;
   }
   function listAddons() {
     var list = getItem(KEY, []);
@@ -2379,6 +2481,18 @@
       }
       return row;
     }
+    function capabilityText(addon) {
+      var caps = capabilitiesOf(addon);
+      var labels = [];
+      for (var i = 0; i < caps.length; i++) {
+        var key = "cap." + caps[i].name;
+        var label = caps[i].name === "catalog" ? t("cap.catalog") : caps[i].name === "meta" ? t("cap.meta") : caps[i].name === "stream" ? t("cap.stream") : caps[i].name === "subtitles" ? t("cap.subtitles") : key;
+        if (labels.indexOf(label) === -1) {
+          labels.push(label);
+        }
+      }
+      return labels.join(" · ");
+    }
     function render() {
       focusables = [];
       installedSection.innerHTML = "";
@@ -2396,7 +2510,7 @@
       } else {
         for (var i = 0; i < installed.length; i++) {
           (function(addon) {
-            var resourceText = (addon.resources || []).join(", ");
+            var resourceText = capabilityText(addon);
             var metaText = resourceText + " · " + (addon.catalogs || []).length + " " + t("addons.catalogs");
             installedSection.appendChild(
               addonRow(
@@ -2575,18 +2689,24 @@
         sources.appendChild(skipRow);
       }
     }
-    function render(info) {
+    function render(info2) {
       focusables = [];
       actions.innerHTML = "";
       list.innerHTML = "";
       title.textContent = t("diagnostics.title");
-      env.textContent = info.environment;
-      renderSources(info.sources);
-      if (info.playback) {
+      env.textContent = info2.environment;
+      renderSources(info2.sources);
+      if (info2.subtitles) {
+        var subsRow = document.createElement("div");
+        subsRow.className = "diagnostics__row" + (info2.subtitles.error ? " is-error" : "");
+        subsRow.textContent = t("diagnostics.subtitles") + ": " + info2.subtitles.items + (info2.subtitles.langs ? " · " + info2.subtitles.langs : "") + (info2.subtitles.providers ? " · " + info2.subtitles.providers : "") + (info2.subtitles.loaded ? " · " + info2.subtitles.loaded + " (" + info2.subtitles.cues + ")" : "") + (info2.subtitles.error ? " · " + info2.subtitles.error : "");
+        sources.appendChild(subsRow);
+      }
+      if (info2.playback) {
         var playbackRow = document.createElement("div");
-        playbackRow.className = "diagnostics__row" + (info.playback.error ? " is-error" : "");
-        var engine = info.playback.engine === "avplay" ? "AVPlay" : info.playback.engine === "html5" ? "HTML5" : "—";
-        playbackRow.textContent = t("diagnostics.playback") + ": " + (info.playback.provider || "—") + " · " + (info.playback.type || "—") + " · " + engine + (info.playback.reason ? " · " + info.playback.reason : "") + (info.playback.error ? " · " + info.playback.error : "");
+        playbackRow.className = "diagnostics__row" + (info2.playback.error ? " is-error" : "");
+        var engine = info2.playback.engine === "avplay" ? "AVPlay" : info2.playback.engine === "html5" ? "HTML5" : "—";
+        playbackRow.textContent = t("diagnostics.playback") + ": " + (info2.playback.provider || "—") + " · " + (info2.playback.type || "—") + " · " + engine + (info2.playback.reason ? " · " + info2.playback.reason : "") + (info2.playback.error ? " · " + info2.playback.error : "");
         sources.appendChild(playbackRow);
       }
       button(t("diagnostics.retry"), "retry", function() {
@@ -2599,15 +2719,15 @@
           handlers.onClose();
         }
       });
-      if (!info.entries.length) {
+      if (!info2.entries.length) {
         var empty = document.createElement("div");
         empty.className = "diagnostics__row";
         empty.textContent = t("diagnostics.empty");
         list.appendChild(empty);
         return;
       }
-      for (var i = 0; i < info.entries.length; i++) {
-        var entry = info.entries[i];
+      for (var i = 0; i < info2.entries.length; i++) {
+        var entry = info2.entries[i];
         var row = document.createElement("div");
         row.className = "diagnostics__row" + (entry.error ? " is-error" : "");
         var head = document.createElement("span");
@@ -2691,6 +2811,39 @@
     summary.className = "settings__summary";
     var actions = document.createElement("div");
     actions.className = "details__actions";
+    var embySection = document.createElement("div");
+    embySection.className = "settings__emby";
+    var embyHeading = document.createElement("h3");
+    embyHeading.className = "details__section settings__embyTitle";
+    var embyStatus = document.createElement("div");
+    embyStatus.className = "addons__status";
+    var embyUrl = document.createElement("input");
+    embyUrl.className = "addon-input settings__embyUrl";
+    embyUrl.setAttribute("type", "text");
+    embyUrl.setAttribute("spellcheck", "false");
+    embyUrl.setAttribute("inputmode", "url");
+    embyUrl.setAttribute("autocomplete", "off");
+    embyUrl.setAttribute("data-settings-field", "emby-url");
+    var embyUser = document.createElement("input");
+    embyUser.className = "addon-input settings__embyUser";
+    embyUser.setAttribute("type", "text");
+    embyUser.setAttribute("spellcheck", "false");
+    embyUser.setAttribute("autocomplete", "off");
+    embyUser.setAttribute("data-settings-field", "emby-user");
+    var embyPass = document.createElement("input");
+    embyPass.className = "addon-input settings__embyPass";
+    embyPass.setAttribute("type", "password");
+    embyPass.setAttribute("spellcheck", "false");
+    embyPass.setAttribute("autocomplete", "off");
+    embyPass.setAttribute("data-settings-field", "emby-pass");
+    var embyActions = document.createElement("div");
+    embyActions.className = "details__actions";
+    embySection.appendChild(embyHeading);
+    embySection.appendChild(embyStatus);
+    embySection.appendChild(embyUrl);
+    embySection.appendChild(embyUser);
+    embySection.appendChild(embyPass);
+    embySection.appendChild(embyActions);
     var urlInput = document.createElement("input");
     urlInput.className = "addon-input settings__url";
     urlInput.setAttribute("type", "text");
@@ -2707,7 +2860,7 @@
     var focusables = [];
     var handlers = { onImportUrl: null, onImportText: null, onClose: null };
     var importBtn = null;
-    function button(label, id, handler) {
+    function button(label, id, handler, target) {
       var el = document.createElement("div");
       el.className = "btn";
       el.setAttribute("role", "button");
@@ -2718,7 +2871,7 @@
       el.appendChild(span);
       el.addEventListener("click", handler);
       focusables.push({ el, activate: handler });
-      actions.appendChild(el);
+      (target || actions).appendChild(el);
       if (id === "import-url") {
         importBtn = el;
       }
@@ -2730,6 +2883,7 @@
     content.appendChild(status);
     content.appendChild(summary);
     content.appendChild(actions);
+    content.appendChild(embySection);
     content.appendChild(fileInput);
     root.appendChild(scrim);
     root.appendChild(content);
@@ -2767,6 +2921,56 @@
           handlers.onClose();
         }
       });
+      embyHeading.textContent = t("settings.emby");
+      embyUrl.setAttribute("placeholder", t("settings.embyUrl"));
+      embyUser.setAttribute("placeholder", t("settings.embyUser"));
+      embyPass.setAttribute("placeholder", t("settings.embyPass"));
+      var embyState = handlers.embyState ? handlers.embyState() : null;
+      if (embyState && embyState.connected) {
+        embyStatus.textContent = t("settings.embyConnected") + " " + (embyState.name || "") + " (" + (embyState.host || "") + ")";
+        embyStatus.className = "addons__status";
+      } else {
+        embyStatus.textContent = t("settings.embyDisconnected");
+        embyStatus.className = "addons__status is-error";
+      }
+      button(
+        t("settings.embyConnect"),
+        "emby-connect",
+        function() {
+          if (handlers.onEmbyConnect) {
+            handlers.onEmbyConnect(
+              String(embyUrl.value || "").trim(),
+              String(embyUser.value || "").trim(),
+              String(embyPass.value || "")
+            );
+          }
+        },
+        embyActions
+      );
+      button(
+        t("settings.embyDisconnect"),
+        "emby-disconnect",
+        function() {
+          if (handlers.onEmbyDisconnect) {
+            handlers.onEmbyDisconnect();
+          }
+        },
+        embyActions
+      );
+      var embyFields = [embyUrl, embyUser, embyPass];
+      for (var f = 0; f < embyFields.length; f++) {
+        (function(field) {
+          focusables.push({
+            el: field,
+            activate: function() {
+              try {
+                field.focus();
+              } catch (err) {
+              }
+            }
+          });
+        })(embyFields[f]);
+      }
       var last = getProfileSummary();
       if (!last) {
         summary.textContent = t("settings.noProfile");
@@ -2807,6 +3011,13 @@
         status.textContent = message || "";
         status.className = "addons__status" + (isError ? " is-error" : "");
       },
+      setEmbyStatus: function(message, isError) {
+        embyStatus.textContent = message || "";
+        embyStatus.className = "addons__status" + (isError ? " is-error" : "");
+      },
+      embyFields: function() {
+        return { url: embyUrl, user: embyUser, pass: embyPass };
+      },
       focusables: function() {
         return focusables;
       },
@@ -2814,6 +3025,9 @@
         handlers.onImportUrl = next.onImportUrl || null;
         handlers.onImportText = next.onImportText || null;
         handlers.onClose = next.onClose || null;
+        handlers.embyState = next.embyState || null;
+        handlers.onEmbyConnect = next.onEmbyConnect || null;
+        handlers.onEmbyDisconnect = next.onEmbyDisconnect || null;
       },
       isOpen: function() {
         return root.classList.contains("is-open");
@@ -2997,13 +3211,13 @@
         return;
       }
       var metas = data && data.metas ? data.metas : [];
-      var items = [];
+      var items2 = [];
       for (var i = 0; i < metas.length; i++) {
         if (metas[i] && metas[i].id) {
-          items.push(normalizeMeta(metas[i], addon.url));
+          items2.push(normalizeMeta(metas[i], addon.url));
         }
       }
-      cb(null, items);
+      cb(null, items2);
     });
   }
   function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
@@ -3017,14 +3231,14 @@
         startCount += 1;
         pending += 1;
         (function(addon, catalog) {
-          fetchCatalogPage(addon, catalog, 0, function(err, items) {
+          fetchCatalogPage(addon, catalog, 0, function(err, items2) {
             pending -= 1;
             if (err) {
               failures.push({ addon, catalog, error: err.message });
-            } else if (!items.length) {
+            } else if (!items2.length) {
               failures.push({ addon, catalog, error: "empty catalog" });
             } else {
-              rows.push({ addon, catalog, items });
+              rows.push({ addon, catalog, items: items2 });
             }
             if (pending === 0) {
               done({ rows, failures, attempted: startCount });
@@ -3049,50 +3263,53 @@
     var list = entry && entry.resources || [];
     return list.indexOf(resource) > -1;
   }
-  function typeAllowed(entry, type) {
-    var types = entry && entry.types || [];
-    return types.length === 0 || types.indexOf(type) > -1;
-  }
-  function prefixAllowed(entry, id) {
-    var prefixes = entry && entry.idPrefixes || [];
-    if (!prefixes.length) {
-      return true;
-    }
-    var value = String(id);
-    for (var i = 0; i < prefixes.length; i++) {
-      if (value.indexOf(prefixes[i]) === 0) {
-        return true;
-      }
-    }
-    return false;
-  }
   function streamCandidates(addons, type, id) {
     var out = [];
     var skipped = [];
     var list = addons || [];
+    var value = String(id || "");
     for (var i = 0; i < list.length; i++) {
       var entry = list[i];
       if (!entry || !entry.url) {
         continue;
       }
       var known = !!entry.resources && entry.resources.length > 0;
-      if (known && !advertises(entry, "stream")) {
+      var cap = null;
+      if (known) {
+        var caps = capabilitiesOf(entry);
+        for (var c = 0; c < caps.length; c++) {
+          if (caps[c].name === "stream") {
+            cap = caps[c];
+            break;
+          }
+        }
+      }
+      if (known && !cap) {
         skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "noStreamResource" });
         continue;
       }
-      if (!typeAllowed(entry, type)) {
+      if (cap && cap.types.length && cap.types.indexOf(type) === -1) {
         skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "typeMismatch" });
         continue;
       }
-      if (!prefixAllowed(entry, id)) {
-        skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "idPrefixes" });
-        continue;
+      if (cap && cap.idPrefixes.length) {
+        var matched = false;
+        for (var p = 0; p < cap.idPrefixes.length; p++) {
+          if (value.indexOf(cap.idPrefixes[p]) === 0) {
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "idPrefixes" });
+          continue;
+        }
       }
       if (out.length >= MAX_PROVIDERS) {
         skipped.push({ name: String(entry.name || "Add-on"), host: hostOf2(entry.url), reason: "limit" });
         continue;
       }
-      out.push({ entry, unverified: !known });
+      out.push({ entry, unverified: !known, key: out.length });
     }
     return { providers: out, skipped };
   }
@@ -3131,6 +3348,7 @@
     var found = streamCandidates(opts.addons || [], type, id);
     var providers = found.providers;
     var report = [];
+    var providerStreams = [];
     var streams = [];
     var seen = {};
     var pending = providers.length;
@@ -3157,6 +3375,10 @@
         attempted: providers.length,
         id: String(id || ""),
         type,
+        // Each provider's OWN answers (not the merged/de-duplicated list): the
+        // second picker stage must show what that add-on returned, even when every
+        // URL it returned was already served by an earlier add-on.
+        providerStreams,
         when: Date.now()
       };
       lastReport = {
@@ -3197,8 +3419,10 @@
       finish();
       return;
     }
-    function settle(index, entry, status, reason, list) {
+    function settle(index, provider, status, reason, list) {
+      var entry = provider.entry;
       var kept = [];
+      var own = [];
       if (list) {
         for (var i = 0; i < list.length; i++) {
           var stream = list[i];
@@ -3217,11 +3441,28 @@
             }
           }
           copy.provider = String(entry.name || "Add-on");
+          copy.providerKey = typeof provider.key === "number" ? provider.key : -1;
           kept.push(copy);
           streams.push(copy);
         }
+        for (var o = 0; o < list.length && o < 20; o++) {
+          var mine = list[o];
+          if (!mine || typeof mine !== "object") {
+            continue;
+          }
+          var mineCopy = {};
+          for (var f2 in mine) {
+            if (Object.prototype.hasOwnProperty.call(mine, f2)) {
+              mineCopy[f2] = mine[f2];
+            }
+          }
+          mineCopy.provider = String(entry.name || "Add-on");
+          mineCopy.providerKey = typeof provider.key === "number" ? provider.key : -1;
+          own.push(mineCopy);
+        }
       }
       var logEntry = statusFor(entry);
+      providerStreams[index] = own;
       report.push({
         index,
         name: String(entry.name || "Add-on"),
@@ -3229,7 +3470,8 @@
         status,
         reason: reason || "",
         httpStatus: logEntry ? logEntry.status : 0,
-        count: kept.length
+        count: kept.length,
+        answered: own.length
       });
       pending -= 1;
       if (pending === 0) {
@@ -3241,11 +3483,11 @@
         var entry = provider.entry;
         addonClient.streams(entry.url, type, id, function(err, data) {
           if (err) {
-            settle(index, entry, "error", failureReason(err), null);
+            settle(index, provider, "error", failureReason(err), null);
             return;
           }
           var list = data && data.streams && data.streams.length ? data.streams : [];
-          settle(index, entry, list.length ? "ok" : "empty", "", list);
+          settle(index, provider, list.length ? "ok" : "empty", "", list);
         });
       })(providers[p], p);
     }
@@ -3844,7 +4086,7 @@
       if (state.open) {
         close(false);
       }
-      var info = meta || {};
+      var info2 = meta || {};
       state.open = true;
       state.backend = "";
       state.status = "loading";
@@ -3854,8 +4096,8 @@
       state.error = "";
       state.url = source && source.url ? source.url : "";
       state.type = source && source.type ? source.type : "auto";
-      state.title = info.title || t("player.titleFallback");
-      state.sourceIndex = typeof info.sourceIndex === "number" ? info.sourceIndex : -1;
+      state.title = info2.title || t("player.titleFallback");
+      state.sourceIndex = typeof info2.sourceIndex === "number" ? info2.sourceIndex : -1;
       titleEl.textContent = state.title;
       errorText.textContent = "";
       errorHint.textContent = "";
@@ -3925,6 +4167,7 @@
       var target = Math.max(0, Math.min(ms || 0, limit));
       backend.seek(target);
       state.position = target;
+      renderCue();
       showHud();
       paint();
     }
@@ -4093,12 +4336,12 @@
     if (!proxy) {
       return false;
     }
-    var request = proxy.request || proxy;
-    if (!request || typeof request !== "object") {
+    var request2 = proxy.request || proxy;
+    if (!request2 || typeof request2 !== "object") {
       return false;
     }
-    for (var key in request) {
-      if (Object.prototype.hasOwnProperty.call(request, key)) {
+    for (var key in request2) {
+      if (Object.prototype.hasOwnProperty.call(request2, key)) {
         return true;
       }
     }
@@ -4349,6 +4592,114 @@
     };
   }
 
+  // app/js/state/lists.js
+  var KEY3 = "lists";
+  var BUILTIN = [
+    { id: "watchlist", nameKey: "lists.watchlist" },
+    { id: "watched", nameKey: "lists.watched" }
+  ];
+  function normalize(raw) {
+    var data = raw && typeof raw === "object" ? raw : {};
+    var lists = Object.prototype.toString.call(data) === "[object Array]" ? data : [];
+    return lists;
+  }
+  function allLists() {
+    var stored = normalize(getItem(KEY3, []));
+    if (!stored.length) {
+      return BUILTIN.map(function(def) {
+        return { id: def.id, nameKey: def.nameKey, items: [] };
+      });
+    }
+    return stored;
+  }
+  function persist2(lists) {
+    setItem(KEY3, lists);
+  }
+  function listById(id) {
+    var lists = allLists();
+    for (var i = 0; i < lists.length; i++) {
+      if (lists[i].id === id) {
+        return lists[i];
+      }
+    }
+    return null;
+  }
+  function itemSnapshot(item) {
+    if (!item) {
+      return null;
+    }
+    var title = item.title || { hr: "", en: "" };
+    return {
+      id: String(item.id || ""),
+      kind: String(item.kind || "movie"),
+      title: String(title.hr || title.en || ""),
+      year: parseInt(item.year, 10) || 0,
+      poster: String(item.poster || item.image || "").slice(0, 400)
+    };
+  }
+  function hasItem(listId, itemId) {
+    var list = listById(listId);
+    if (!list) {
+      return false;
+    }
+    for (var i = 0; i < list.items.length; i++) {
+      if (list.items[i].id === String(itemId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function addItem(listId, item) {
+    var snapshot = itemSnapshot(item);
+    if (!snapshot || !snapshot.id) {
+      return false;
+    }
+    var lists = allLists();
+    for (var i = 0; i < lists.length; i++) {
+      if (lists[i].id !== listId) {
+        continue;
+      }
+      if (hasItem(listId, snapshot.id)) {
+        return false;
+      }
+      lists[i].items = lists[i].items || [];
+      lists[i].items.unshift(snapshot);
+      persist2(lists);
+      return true;
+    }
+    return false;
+  }
+  function removeItem(listId, itemId) {
+    var lists = allLists();
+    for (var i = 0; i < lists.length; i++) {
+      if (lists[i].id !== listId) {
+        continue;
+      }
+      var kept = [];
+      var removed = false;
+      var items2 = lists[i].items || [];
+      for (var j = 0; j < items2.length; j++) {
+        if (items2[j].id === String(itemId)) {
+          removed = true;
+        } else {
+          kept.push(items2[j]);
+        }
+      }
+      lists[i].items = kept;
+      persist2(lists);
+      return removed;
+    }
+    return false;
+  }
+  function listItemCount() {
+    var lists = allLists();
+    var total = 0;
+    for (var i = 0; i < lists.length; i++) {
+      total += (lists[i].items || []).length;
+    }
+    return total;
+  }
+
   // app/js/data/subtitles.js
   var MAX_SUBTITLE_ADDONS = 6;
   function parseCues(text) {
@@ -4415,7 +4766,7 @@
   }
   function candidateSubtitles(options, done) {
     var opts = options || {};
-    var items = [];
+    var items2 = [];
     var seen = {};
     var providers = [];
     var streamSubs = opts.streamSubs || [];
@@ -4429,7 +4780,7 @@
       }
       seen[value] = true;
       var code = String(lang || "").toLowerCase();
-      items.push({
+      items2.push({
         url: value,
         lang: code,
         label: code ? code.toUpperCase() : "SUB",
@@ -4448,7 +4799,7 @@
       }
     }
     if (!targets.length) {
-      done({ items, providers });
+      done({ items: items2, providers });
       return;
     }
     var pending = targets.length;
@@ -4469,11 +4820,453 @@
           });
           pending -= 1;
           if (pending === 0) {
-            done({ items, providers });
+            done({ items: items2, providers });
           }
         });
       })(targets[t2]);
     }
+  }
+
+  // app/js/data/emby.js
+  var KEY4 = "emby";
+  var TIMEOUT2 = 12e3;
+  function store() {
+    var data = getItem(KEY4, null);
+    return data && typeof data === "object" ? data : null;
+  }
+  function hostOf3(url) {
+    var match = /^https?:\/\/[^/]+/i.exec(String(url || ""));
+    return match ? match[0] : "";
+  }
+  function config() {
+    var data = store();
+    if (!data || !data.url || !data.token) {
+      return null;
+    }
+    return { url: data.url, token: data.token, userId: data.userId, name: data.name || "" };
+  }
+  function isConfigured() {
+    return !!config();
+  }
+  function saveConfig(next) {
+    var base = store() || {};
+    setItem(KEY4, {
+      url: String(next.url || "").replace(/\/+$/, ""),
+      token: String(next.token || ""),
+      userId: String(next.userId || ""),
+      name: String(next.name || ""),
+      deviceId: base.deviceId || "",
+      when: Date.now()
+    });
+  }
+  function disconnect() {
+    setItem(KEY4, null);
+  }
+  function deviceId() {
+    var data = store() || {};
+    if (data.deviceId) {
+      return data.deviceId;
+    }
+    var id = "wutizen-" + String(Math.random()).slice(2, 10);
+    data.deviceId = id;
+    setItem(KEY4, data);
+    return id;
+  }
+  function authHeader() {
+    return 'MediaBrowser Client="WuTizen", Device="Samsung TV", DeviceId="' + deviceId() + '", Version="0.7.0"';
+  }
+  function normalizeServer(input) {
+    var url = String(input || "").trim();
+    if (!url) {
+      return "";
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      url = "http://" + url;
+    }
+    return url.replace(/\/+$/, "");
+  }
+  function protocolError(serverUrl) {
+    try {
+      if (window.location.protocol === "https:" && /^http:\/\//i.test(serverUrl)) {
+        return "mixedContent";
+      }
+    } catch (err) {
+    }
+    return "";
+  }
+  function request(options, cb) {
+    var cfg = options.config || config();
+    if (!cfg) {
+      cb(new Error("auth"));
+      return;
+    }
+    var url = cfg.url + options.path + (options.path.indexOf("?") > -1 ? "&" : "?") + "api_key=" + cfg.token;
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    function finish(err, data) {
+      if (done) {
+        return;
+      }
+      done = true;
+      cb(err, data);
+    }
+    try {
+      xhr.open(options.method || "GET", url, true);
+      xhr.timeout = TIMEOUT2;
+      xhr.setRequestHeader("X-Emby-Authorization", authHeader());
+      xhr.setRequestHeader("Accept", "application/json");
+      if (options.body) {
+        xhr.setRequestHeader("Content-Type", "application/json");
+      }
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          var data = null;
+          try {
+            data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+          } catch (err) {
+            finish(new Error("http"));
+            return;
+          }
+          finish(null, data);
+        } else if (xhr.status === 401 || xhr.status === 403) {
+          finish(new Error("auth"));
+        } else if (xhr.status === 0) {
+          finish(new Error("unreachable"));
+        } else {
+          finish(new Error("http"));
+        }
+      };
+      xhr.ontimeout = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.onerror = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.send(options.body ? JSON.stringify(options.body) : void 0);
+    } catch (err2) {
+      finish(new Error("unreachable"));
+    }
+  }
+  function connect(serverUrl, username, password, cb) {
+    var server = normalizeServer(serverUrl);
+    if (!server) {
+      cb(new Error("http"));
+      return;
+    }
+    var blocked = protocolError(server);
+    if (blocked) {
+      cb(new Error(blocked));
+      return;
+    }
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    function finish(err, data) {
+      if (done) {
+        return;
+      }
+      done = true;
+      cb(err, data);
+    }
+    try {
+      xhr.open("POST", server + "/Users/AuthenticateByName", true);
+      xhr.timeout = TIMEOUT2;
+      xhr.setRequestHeader("X-Emby-Authorization", authHeader());
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        if (xhr.status === 401 || xhr.status === 403) {
+          finish(new Error("auth"));
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          finish(new Error(xhr.status === 0 ? "unreachable" : "http"));
+          return;
+        }
+        var data = null;
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch (err) {
+          finish(new Error("http"));
+          return;
+        }
+        if (!data || !data.AccessToken || !data.User || !data.User.Id) {
+          finish(new Error("auth"));
+          return;
+        }
+        saveConfig({ url: server, token: data.AccessToken, userId: data.User.Id, name: "" });
+        info(function(err2, systemInfo) {
+          var name = "";
+          if (!err2 && systemInfo) {
+            name = systemInfo.ServerName;
+            saveConfig({ url: server, token: data.AccessToken, userId: data.User.Id, name });
+          }
+          finish(null, { userId: data.User.Id, name, host: hostOf3(server) });
+        });
+      };
+      xhr.ontimeout = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.onerror = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.send(JSON.stringify({ Username: String(username || ""), Pw: String(password || "") }));
+    } catch (err3) {
+      finish(new Error("unreachable"));
+    }
+  }
+  function info(cb) {
+    request({ path: "/System/Info" }, function(err, data) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      cb(null, {
+        ServerName: String(data && data.ServerName || ""),
+        Version: String(data && data.Version || "")
+      });
+    });
+  }
+  function libraries(cb) {
+    var cfg = config();
+    if (!cfg) {
+      cb(new Error("auth"));
+      return;
+    }
+    request({ path: "/Users/" + cfg.userId + "/Views" }, function(err, data) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      var raw = data && data.Items || [];
+      var out = [];
+      for (var i = 0; i < raw.length; i++) {
+        out.push({
+          id: String(raw[i].Id || ""),
+          name: String(raw[i].Name || ""),
+          type: String(raw[i].CollectionType || "")
+        });
+      }
+      cb(null, out);
+    });
+  }
+  function normalizeItem(raw) {
+    var ids = raw.ProviderIds || {};
+    return {
+      id: String(raw.Id || ""),
+      name: String(raw.Name || ""),
+      type: String(raw.Type || ""),
+      year: parseInt(raw.ProductionYear, 10) || 0,
+      season: parseInt(raw.ParentIndexNumber, 10) || 0,
+      episode: parseInt(raw.IndexNumber, 10) || 0,
+      imdb: String(ids.Imdb || "").toLowerCase(),
+      tmdb: String(ids.Tmdb || ""),
+      tvdb: String(ids.Tvdb || ""),
+      sources: raw.MediaSources || []
+    };
+  }
+  var ITEM_FIELDS = "Fields=ProviderIds,ProductionYear,ParentIndexNumber,IndexNumber,MediaSources&Limit=200";
+  function items(viewId, cb) {
+    var cfg = config();
+    if (!cfg) {
+      cb(new Error("auth"));
+      return;
+    }
+    var query = "/Users/" + cfg.userId + "/Items?ParentId=" + encodeURIComponent(viewId) + "&Recursive=true&IncludeItemTypes=Movie,Series&" + ITEM_FIELDS;
+    request({ path: query }, function(err, data) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      var raw = data && data.Items || [];
+      var out = [];
+      for (var i = 0; i < raw.length; i++) {
+        out.push(normalizeItem(raw[i]));
+      }
+      cb(null, out);
+    });
+  }
+  function fetchCandidates(type, extra, cb) {
+    var cfg = config();
+    if (!cfg) {
+      cb(new Error("auth"));
+      return;
+    }
+    var query = "/Users/" + cfg.userId + "/Items?Recursive=true&IncludeItemTypes=" + type + "&" + ITEM_FIELDS + (extra || "");
+    request({ path: query }, function(err, data) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      var raw = data && data.Items || [];
+      var out = [];
+      for (var i = 0; i < raw.length; i++) {
+        out.push(normalizeItem(raw[i]));
+      }
+      cb(null, out);
+    });
+  }
+  function findForItem(item, cb) {
+    var type = (item && item.kind) === "series" ? "Series" : "Movie";
+    var imdb = String(item && item.id || "").split(":")[0].toLowerCase();
+    var tmdb = String(item && item.tmdb || "");
+    var tvdb = String(item && item.tvdb || "");
+    var extra = "";
+    if (/^tt\d+$/.test(imdb)) {
+      extra = "&AnyProviderIdEquals=imdb." + encodeURIComponent(imdb);
+    } else if (tmdb) {
+      extra = "&AnyProviderIdEquals=tmdb." + encodeURIComponent(tmdb);
+    } else if (tvdb) {
+      extra = "&AnyProviderIdEquals=tvdb." + encodeURIComponent(tvdb);
+    }
+    fetchCandidates(type, extra, function(err, candidates) {
+      if (err) {
+        cb(err);
+        return;
+      }
+      for (var i = 0; i < candidates.length; i++) {
+        if (imdb && candidates[i].imdb === imdb) {
+          cb(null, candidates[i], "imdb");
+          return;
+        }
+        if (tmdb && candidates[i].tmdb === tmdb) {
+          cb(null, candidates[i], "tmdb");
+          return;
+        }
+        if (tvdb && candidates[i].tvdb === tvdb) {
+          cb(null, candidates[i], "tvdb");
+          return;
+        }
+      }
+      var title = String(item && item.title && (item.title.hr || item.title.en) || "").trim().toLowerCase();
+      if (!title) {
+        cb(null, null, "none");
+        return;
+      }
+      var year = parseInt(item && item.year, 10) || 0;
+      var matches = [];
+      for (var c = 0; c < candidates.length; c++) {
+        if (candidates[c].name.trim().toLowerCase() !== title) {
+          continue;
+        }
+        if (year && candidates[c].year && candidates[c].year !== year) {
+          continue;
+        }
+        matches.push(candidates[c]);
+      }
+      if (matches.length === 1) {
+        cb(null, matches[0], "title");
+        return;
+      }
+      cb(null, null, matches.length ? "ambiguous" : "none");
+    });
+  }
+  function mediaLabel(source) {
+    var parts = [];
+    var height = parseInt(source.Height, 10) || 0;
+    if (height >= 2e3) {
+      parts.push("2160P");
+    } else if (height >= 1e3) {
+      parts.push("1080P");
+    } else if (height >= 700) {
+      parts.push("720P");
+    }
+    if (source.VideoCodec) {
+      parts.push(String(source.VideoCodec).toUpperCase());
+    }
+    if (source.Bitrate) {
+      parts.push(Math.round(source.Bitrate / 1e6) + " Mbps");
+    }
+    var tracks = source.MediaStreams || [];
+    for (var i = 0; i < tracks.length; i++) {
+      if (tracks[i].Type === "Audio") {
+        parts.push(String(tracks[i].DisplayTitle || tracks[i].Codec || ""));
+        break;
+      }
+    }
+    var subs = 0;
+    for (var s = 0; s < tracks.length; s++) {
+      if (tracks[s].Type === "Subtitle") {
+        subs += 1;
+      }
+    }
+    if (subs) {
+      parts.push(subs + " sub");
+    }
+    return parts.join(" · ");
+  }
+  function directPlayOk(source) {
+    var codec = String(source.VideoCodec || "").toLowerCase();
+    return !codec || codec === "h264" || codec === "avc" || codec === "hevc" || codec === "h265";
+  }
+  function directUrl(cfg, itemId, sourceId) {
+    return cfg.url + "/Videos/" + encodeURIComponent(itemId) + "/stream?Static=true&MediaSourceId=" + encodeURIComponent(sourceId || "") + "&api_key=" + cfg.token;
+  }
+  function transcodeUrl(cfg, itemId, sourceId) {
+    return cfg.url + "/Videos/" + encodeURIComponent(itemId) + "/stream.mp4?Static=false&VideoCodec=h264&AudioCodec=aac&MaxStreamingBitrate=8000000" + (sourceId ? "&MediaSourceId=" + encodeURIComponent(sourceId) : "") + "&api_key=" + cfg.token;
+  }
+  function streamsFor(embyItem) {
+    var cfg = config();
+    if (!cfg || !embyItem) {
+      return [];
+    }
+    var out = [];
+    var sources = embyItem.sources || [];
+    for (var i = 0; i < sources.length; i++) {
+      var source = sources[i];
+      var sourceId = String(source.Id || "");
+      var label = mediaLabel(source);
+      var ok = directPlayOk(source);
+      var subs = subtitlesFor(source);
+      out.push({
+        name: "Emby Server",
+        title: (ok ? "Direct Play" : "Direct Play") + (label ? " · " + label : ""),
+        url: directUrl(cfg, embyItem.id, sourceId),
+        behaviorHints: { notWebReady: true, filename: embyItem.name },
+        subtitles: subs
+      });
+      if (!ok) {
+        out.push({
+          name: "Emby Server",
+          title: "Transcode · H.264/AAC" + (label ? " · " + label : ""),
+          url: transcodeUrl(cfg, embyItem.id, sourceId),
+          behaviorHints: { notWebReady: true, filename: embyItem.name },
+          subtitles: subs
+        });
+      }
+    }
+    return out;
+  }
+  function subtitlesFor(source) {
+    var cfg = config();
+    if (!cfg || !source) {
+      return [];
+    }
+    var out = [];
+    var tracks = source.MediaStreams || [];
+    for (var i = 0; i < tracks.length; i++) {
+      var track = tracks[i];
+      if (track.Type !== "Subtitle" || !track.DeliveryUrl) {
+        continue;
+      }
+      out.push({
+        id: "emby-" + String(track.Index),
+        lang: String(track.Language || "").toLowerCase().slice(0, 5),
+        url: cfg.url + track.DeliveryUrl + "&api_key=" + cfg.token
+      });
+    }
+    return out;
+  }
+  function stateSummary() {
+    var cfg = config();
+    if (!cfg) {
+      return { connected: false, name: "", host: "" };
+    }
+    return { connected: true, name: cfg.name || "", host: hostOf3(cfg.url) };
   }
 
   // app/js/main.js
@@ -4698,14 +5491,18 @@
       sourcePicker.close();
       subtitlePicker.close();
       unregisterPickerFocusables();
-      if (!player.isOpen()) {
-        focusManager.setScope(details.el);
-        var rows = details.sourceRows();
-        if (rows.length) {
-          focusManager.focus(rows[0].el);
-        } else {
-          focusManager.focus(details.buttons[0].el);
-        }
+      pickerStage = "";
+      pickerProviderKey = -1;
+      if (player.isOpen()) {
+        focusManager.setScope(null);
+        return;
+      }
+      focusManager.setScope(details.el);
+      var rows = details.sourceRows();
+      if (rows.length) {
+        focusManager.focus(rows[0].el);
+      } else {
+        focusManager.focus(details.buttons[0].el);
       }
     }
     var playback = { provider: "", type: "", reason: "", title: "" };
@@ -4715,72 +5512,198 @@
       if (!stream) {
         return null;
       }
-      var info = classifyStream(stream);
+      var info2 = classifyStream(stream);
       if (!switching) {
         playerReturnFocus = focusManager.getCurrent();
       }
       playback = {
         provider: String(stream.provider || ""),
-        type: info.type || "",
-        reason: info.reason || "",
-        title: info.label || ""
+        type: info2.type || "",
+        reason: info2.reason || "",
+        title: info2.label || ""
       };
-      player.open(info, { title: playerTitle(), sourceIndex: index });
+      player.open(info2, { title: playerTitle(), sourceIndex: index });
+      lastPlayedStream = stream;
       applySelectedSubtitle();
-      logInfo("playback: " + (info.ok ? info.type : "refused:" + info.reason) + " source=" + index);
-      return info;
+      logInfo("playback: " + (info2.ok ? info2.type : "refused:" + info2.reason) + " source=" + index);
+      return info2;
     }
-    function openSourcePicker(switching) {
-      var streams = details.allStreams();
-      if (!streams.length) {
-        toast.show(t("player.noSources"));
-        return;
-      }
-      var current2 = player.isOpen() ? player.state().sourceIndex : -1;
+    function openMyStuff() {
+      var lists = allLists();
       var rows = [];
-      var lastProvider = null;
-      for (var i = 0; i < streams.length; i++) {
-        var info = classifyStream(streams[i]);
-        var meta = metaOf(streams[i]);
-        var provider = String(streams[i].provider || "");
-        if (provider && provider !== lastProvider) {
-          rows.push({ group: true, label: provider });
-        }
-        lastProvider = provider;
-        rows.push({
-          id: i,
-          active: i === current2,
-          label: info.label,
-          meta: [meta.label, info.ok ? "" : t("player.sourceBlocked")].filter(Boolean).join(" · "),
-          onActivate: /* @__PURE__ */ (function(index) {
-            return function() {
-              var wasPlaying = player.isOpen();
-              if (wasPlaying) {
-                player.close(false);
+      for (var i = 0; i < lists.length; i++) {
+        (function(list) {
+          rows.push({ group: true, label: t(list.nameKey || "lists.title") });
+          var items2 = list.items || [];
+          if (!items2.length) {
+            rows.push({
+              id: "empty-" + list.id,
+              label: t("lists.empty"),
+              onActivate: function() {
+                toast.show(t("lists.empty"));
               }
-              sourcePicker.close();
-              unregisterPickerFocusables();
-              playStreamAt(index, wasPlaying);
-            };
-          })(i)
+            });
+            return;
+          }
+          for (var j = 0; j < items2.length; j++) {
+            (function(item) {
+              rows.push({
+                id: list.id + "-" + item.id,
+                label: item.title || item.id,
+                meta: [item.kind, item.year ? String(item.year) : ""].filter(Boolean).join(" · ") + " · " + t("lists.remove"),
+                onActivate: function() {
+                  removeItem(list.id, item.id);
+                  toast.show(t("lists.removed"));
+                  openMyStuff();
+                }
+              });
+            })(items2[j]);
+          }
+        })(lists[i]);
+      }
+      subtitlePicker.show({ title: t("lists.title"), note: listItemCount() + " · BACK", rows });
+      focusManager.setScope(subtitlePicker.el);
+      registerPickerFocusables(subtitlePicker);
+    }
+    var pickerStage = "";
+    var pickerProviderKey = -1;
+    var providerStreams = [];
+    function providerStatusLabel(provider) {
+      if (provider.status === "ok") {
+        return t("picker.statusOk");
+      }
+      if (provider.status === "empty") {
+        return t("picker.statusEmpty");
+      }
+      return t("picker.statusError") + (provider.reason ? " · " + provider.reason : "");
+    }
+    function providerPickerRows() {
+      var report = lastStreamReport();
+      var providers = report && report.providers || [];
+      var rows = [];
+      for (var p = 0; p < providers.length; p++) {
+        (function(provider, index) {
+          rows.push({
+            id: "p" + index,
+            label: provider.name,
+            meta: [
+              providerStatusLabel(provider),
+              (typeof provider.answered === "number" ? provider.answered : provider.count) + " " + t("picker.items")
+            ].filter(Boolean).join(" · "),
+            onActivate: function() {
+              openProviderStreams(index);
+            }
+          });
+        })(providers[p], p);
+      }
+      var skipped = report && report.skipped || [];
+      if (skipped.length) {
+        rows.push({ group: true, label: t("picker.skippedGroup") });
+        for (var s2 = 0; s2 < skipped.length; s2++) {
+          rows.push({
+            id: "x" + s2,
+            label: skipped[s2].name,
+            meta: skipped[s2].reason,
+            onActivate: function() {
+              toast.show(t("picker.skippedNote"));
+            }
+          });
+        }
+      }
+      return rows;
+    }
+    function openProviderStreams(key) {
+      var report = lastStreamReport() || { providers: [] };
+      var provider = report.providers[key] || null;
+      var own = providerStreams[key] || [];
+      var rows = [];
+      for (var i = 0; i < own.length; i++) {
+        (function(stream) {
+          var info2 = classifyStream(stream);
+          var meta = metaOf(stream);
+          rows.push({
+            id: "s" + i,
+            label: info2.label,
+            meta: [meta.label, info2.ok ? "" : t("player.sourceBlocked")].filter(Boolean).join(" · "),
+            onActivate: function() {
+              playProviderStream(stream);
+            }
+          });
+        })(own[i]);
+      }
+      if (!rows.length) {
+        var failed = provider && provider.status === "error";
+        rows.push({
+          id: "empty",
+          label: failed ? t("picker.providerFailed") : t("picker.providerEmpty"),
+          meta: provider ? provider.reason || "" : "",
+          onActivate: function() {
+            if (pickerStage === "streams") {
+              openSourcePicker(player.isOpen());
+            }
+          }
         });
       }
+      pickerStage = "streams";
+      pickerProviderKey = key;
       sourcePicker.show({
-        title: t("picker.sources"),
-        note: streams.length + " " + t("picker.sourcesHint"),
+        title: provider ? provider.name : t("picker.sources"),
+        note: provider ? providerStatusLabel(provider) + " · " + provider.host : "",
         rows
       });
       focusManager.setScope(sourcePicker.el);
       registerPickerFocusables(sourcePicker);
     }
+    function playProviderStream(stream) {
+      var wasPlaying = player.isOpen();
+      if (wasPlaying) {
+        player.close(false);
+      }
+      closePickers();
+      var info2 = classifyStream(stream);
+      if (!wasPlaying) {
+        playerReturnFocus = focusManager.getCurrent();
+      }
+      playback = {
+        provider: String(stream.provider || ""),
+        type: info2.type || "",
+        reason: info2.reason || "",
+        title: info2.label || ""
+      };
+      player.open(info2, { title: playerTitle(), sourceIndex: -1 });
+      lastPlayedStream = stream;
+      applySelectedSubtitle();
+      logInfo("playback: " + (info2.ok ? info2.type : "refused:" + info2.reason) + " provider=" + playback.provider);
+    }
+    function openSourcePicker(switching) {
+      var report = lastStreamReport();
+      var providers = report && report.providers || [];
+      if (!providers.length) {
+        toast.show(t("player.noSources"));
+        return;
+      }
+      pickerStage = "providers";
+      pickerProviderKey = -1;
+      sourcePicker.show({
+        title: t("picker.providers"),
+        note: providers.length + " " + t("picker.providerHint"),
+        rows: providerPickerRows()
+      });
+      focusManager.setScope(sourcePicker.el);
+      registerPickerFocusables(sourcePicker);
+      void switching;
+    }
     var subtitleItems = [];
     var subtitleSelected = -1;
     var subtitleCues = [];
     var subtitleLoading = false;
+    var subtitleProviders = [];
+    var subtitleStatus = { loaded: "", cues: 0, error: "" };
+    var lastPlayedStream = null;
     function currentStreamSubs() {
-      var index = player.isOpen() ? player.state().sourceIndex : -1;
       var streams = details.allStreams();
-      var stream = index >= 0 ? streams[index] : null;
+      var index = player.isOpen() ? player.state().sourceIndex : -1;
+      var stream = lastPlayedStream || (index >= 0 ? streams[index] : null);
       return stream && stream.subtitles ? stream.subtitles : [];
     }
     function posLabel(position) {
@@ -4811,15 +5734,18 @@
       subtitleSelected = index;
       fetchText(item.url, function(err, text) {
         if (err) {
+          subtitleStatus = { loaded: "", cues: 0, error: err.message || "blocked" };
           toast.show(t("player.subtitleFailed"));
           return;
         }
         var cues = parseCues(text);
         if (!cues.length) {
+          subtitleStatus = { loaded: "", cues: 0, error: "no cues" };
           toast.show(t("player.subtitleEmpty"));
           return;
         }
         subtitleCues = cues;
+        subtitleStatus = { loaded: item.label, cues: cues.length, error: "" };
         applySelectedSubtitle();
         toast.show(item.label + " · " + cues.length);
       });
@@ -4934,6 +5860,7 @@
         function(result) {
           subtitleLoading = false;
           subtitleItems = result.items;
+          subtitleProviders = result.providers || [];
           showSubtitlePicker();
         }
       );
@@ -4957,7 +5884,9 @@
           playable.push(i);
         }
       }
-      if (playable.length > 1) {
+      var report = lastStreamReport();
+      var providerCount = (report && report.providers ? report.providers.length : 0) || 1;
+      if (providerCount > 1 || playable.length > 1) {
         openSourcePicker(false);
         return;
       }
@@ -4971,6 +5900,47 @@
         focusManager.focus(details.sourceRows()[0].el);
       }
     });
+    function applyEmbyProvider(item, result, done) {
+      if (!isConfigured()) {
+        done(result);
+        return;
+      }
+      findForItem(item, function(err, found, how) {
+        var key = result.providers.length;
+        var streams = [];
+        var status = "ok";
+        var reason = "";
+        if (err) {
+          status = "error";
+          reason = err.message;
+        } else if (!found) {
+          status = "empty";
+          reason = how === "ambiguous" ? "ambiguous" : "noMatch";
+        } else {
+          streams = streamsFor(found);
+          status = streams.length ? "ok" : "empty";
+          if (!streams.length) {
+            reason = "noSources";
+          }
+        }
+        result.providerStreams = result.providerStreams || [];
+        result.providerStreams[key] = streams;
+        result.providers.push({
+          index: key,
+          name: "Emby Server",
+          host: stateSummary().host,
+          status,
+          reason,
+          httpStatus: 0,
+          count: streams.length,
+          answered: streams.length
+        });
+        for (var i = 0; i < streams.length; i++) {
+          result.streams.push(streams[i]);
+        }
+        done(result);
+      });
+    }
     function loadStreams(videoId, focusFirst) {
       var item = details.currentItem();
       if (!item || !item.addonUrl) {
@@ -4992,11 +5962,17 @@
           if (!details.isOpen()) {
             return;
           }
-          details.setStreams(result.streams, true, result);
-          syncStreamFocusables();
-          if (focusFirst && details.sourceRows().length) {
-            focusManager.focus(details.sourceRows()[0].el);
-          }
+          applyEmbyProvider(item, result, function(finalResult) {
+            if (!details.isOpen()) {
+              return;
+            }
+            providerStreams = finalResult.providerStreams || [];
+            details.setStreams(finalResult.streams, true, finalResult);
+            syncStreamFocusables();
+            if (focusFirst && details.sourceRows().length) {
+              focusManager.focus(details.sourceRows()[0].el);
+            }
+          });
         }
       );
     }
@@ -5232,6 +6208,30 @@
       },
       onClose: function() {
         router.pop();
+      },
+      embyState: function() {
+        return stateSummary();
+      },
+      onEmbyConnect: function(url, user, pass) {
+        settingsView.setEmbyStatus(t("common.loading"));
+        connect(url, user, pass, function(err, data) {
+          if (err) {
+            settingsView.setEmbyStatus(t("settings.embyFailed") + " · " + err.message, true);
+            return;
+          }
+          settingsView.render();
+          registerSettings();
+          settingsView.embyFields().pass.value = "";
+          settingsView.setEmbyStatus(t("settings.embyConnected") + " " + (data.name || "") + " (" + data.host + ")");
+          loadStreams(selectedVideoId, false);
+        });
+      },
+      onEmbyDisconnect: function() {
+        disconnect();
+        settingsView.render();
+        registerSettings();
+        settingsView.setEmbyStatus(t("settings.embyDisconnected"), true);
+        loadStreams(selectedVideoId, false);
       }
     });
     var settingsScreen = {
@@ -5277,6 +6277,18 @@
         environment: envSummary(),
         entries: diagnosticsList(),
         sources: lastStreamReport(),
+        subtitles: {
+          items: subtitleItems.length,
+          langs: subtitleItems.map(function(item) {
+            return item.label;
+          }).join(","),
+          providers: subtitleProviders.map(function(provider) {
+            return provider.name + ":" + provider.status + ":" + provider.count;
+          }).join(", "),
+          loaded: subtitleStatus.loaded,
+          cues: subtitleStatus.cues,
+          error: subtitleStatus.error
+        },
         playback: {
           provider: playback.provider,
           type: playback.type,
@@ -5355,13 +6367,13 @@
           return;
         }
         loading = true;
-        fetchCatalogPage(source.addon, source.catalog, rowDef.items.length, function(err, items) {
+        fetchCatalogPage(source.addon, source.catalog, rowDef.items.length, function(err, items2) {
           loading = false;
-          if (err || !items.length) {
+          if (err || !items2.length) {
             exhausted = true;
             return;
           }
-          shelfApi.appendItems(items);
+          shelfApi.appendItems(items2);
         });
       };
     }
@@ -5481,6 +6493,10 @@
         toast.show(t("toast.language"));
         return;
       }
+      if (id === "lists") {
+        openMyStuff();
+        return;
+      }
       if (id === "addons") {
         addonsReturnFocus = focusManager.getCurrent();
         router.push(addonsScreen);
@@ -5521,6 +6537,20 @@
         focusManager.register(button.el, function() {
           if (button.id === "play") {
             playCurrent();
+            return;
+          }
+          if (button.id === "watchlist" || button.id === "watched") {
+            var listId = button.id === "watchlist" ? "watchlist" : "watched";
+            var item = details.currentItem();
+            if (item && hasItem(listId, item.id)) {
+              toast.show(t("lists.added"));
+              return;
+            }
+            if (item && addItem(listId, item)) {
+              toast.show(t("lists.added"));
+              return;
+            }
+            toast.show(t("common.wip"));
             return;
           }
           toast.show(t("common.wip"));
@@ -5621,6 +6651,10 @@
         }
         event.preventDefault();
         if (action === "back") {
+          if (sourcePicker.isOpen() && pickerStage === "streams") {
+            openSourcePicker(player.isOpen());
+            return;
+          }
           closePickers();
           return;
         }
@@ -5768,12 +6802,15 @@
       focusManager.focusFirst();
     }
     loadAddonCatalogs();
-    refreshAddonMetadata(function(info) {
-      if (info && info.refreshed) {
-        logInfo("addons: metadata refreshed " + info.refreshed + "/" + info.total);
+    refreshAddonMetadata(function(info2) {
+      if (info2 && info2.refreshed) {
+        logInfo("addons: metadata refreshed " + info2.refreshed + "/" + info2.total);
         loadAddonCatalogs();
       }
     });
+    function embyPath(url) {
+      return String(url || "").replace(/^https?:\/\/[^/]+/i, "").replace(/([?&])api_key=[^&]*/gi, "$1api_key=***").replace(/[?&]$/, "");
+    }
     window.WuTizenDebug = {
       profile: {
         importText: function(text) {
@@ -5807,6 +6844,12 @@
         providers: function() {
           return streamProviders(listAddons(), "movie", "tt0000000");
         },
+        provider: function(key) {
+          return (providerStreams[key] || []).map(function(stream) {
+            var info2 = classifyStream(stream);
+            return { ok: info2.ok, reason: info2.reason, label: info2.label };
+          });
+        },
         last: function() {
           return lastStreamReport();
         }
@@ -5814,15 +6857,16 @@
       sources: {
         list: function() {
           return details.allStreams().map(function(stream, index) {
-            var info = classifyStream(stream);
+            var info2 = classifyStream(stream);
             var meta = metaOf(stream);
             return {
               index,
               provider: String(stream.provider || ""),
-              ok: info.ok,
-              reason: info.reason,
-              type: info.type,
-              label: info.label,
+              providerKey: typeof stream.providerKey === "number" ? stream.providerKey : -1,
+              ok: info2.ok,
+              reason: info2.reason,
+              type: info2.type,
+              label: info2.label,
               resolution: meta.resolution,
               hdr: meta.hdr,
               codec: meta.codec,
@@ -5851,6 +6895,9 @@
           var el = document.querySelector(".picker.is-open");
           return el ? el.textContent : "";
         },
+        stage: function() {
+          return pickerStage;
+        },
         open: function() {
           return sourcePicker.isOpen() || subtitlePicker.isOpen();
         }
@@ -5872,6 +6919,146 @@
         return new Promise(function(resolve) {
           refreshAddonMetadata(resolve);
         });
+      },
+      lists: {
+        add: function(listId) {
+          var item = details.currentItem();
+          return item ? addItem(listId || "watchlist", item) : false;
+        },
+        remove: function(listId, id) {
+          return removeItem(listId || "watchlist", id);
+        },
+        count: function() {
+          return listItemCount();
+        },
+        names: function() {
+          return allLists().map(function(list) {
+            return list.id + ":" + (list.items || []).length;
+          }).join(",");
+        },
+        open: function() {
+          openMyStuff();
+          return true;
+        }
+      },
+      emby: {
+        connect: function(url, user, pass) {
+          return new Promise(function(resolve) {
+            connect(url, user, pass, function(err, data) {
+              resolve(
+                err ? { connected: false, error: err.message } : { connected: true, name: data.name, host: data.host }
+              );
+            });
+          });
+        },
+        state: function() {
+          return stateSummary();
+        },
+        libraries: function() {
+          return new Promise(function(resolve) {
+            libraries(function(err, list) {
+              resolve(err ? { error: err.message } : list);
+            });
+          });
+        },
+        items: function(viewId) {
+          return new Promise(function(resolve) {
+            items(viewId, function(err, list) {
+              resolve(
+                err ? { error: err.message } : list.map(function(item) {
+                  return { id: item.id, name: item.name, imdb: item.imdb, sources: item.sources.length };
+                })
+              );
+            });
+          });
+        },
+        find: function(item) {
+          return new Promise(function(resolve) {
+            findForItem(item, function(err, found, how) {
+              resolve(
+                err ? { error: err.message } : { how, id: found ? found.id : "", name: found ? found.name : "" }
+              );
+            });
+          });
+        },
+        streams: function(item) {
+          return new Promise(function(resolve) {
+            findForItem(item, function(err, found) {
+              if (err || !found) {
+                resolve({ error: err ? err.message : "none" });
+                return;
+              }
+              var list = streamsFor(found);
+              resolve({
+                count: list.length,
+                codecs: (found.sources || []).map(function(src) {
+                  return String(src.VideoCodec || "(none)");
+                }),
+                titles: list.map(function(stream) {
+                  return stream.title;
+                }),
+                // Paths only, with the token redacted: enough to prove the
+                // documented endpoints, nothing that could leak a credential.
+                paths: list.map(function(stream) {
+                  return embyPath(stream.url);
+                }),
+                subtitleTracks: list.length && list[0].subtitles ? list[0].subtitles.length : 0
+              });
+            });
+          });
+        },
+        subtitles: function(item) {
+          return new Promise(function(resolve) {
+            findForItem(item, function(err, found) {
+              if (err || !found || !found.sources.length) {
+                resolve({ error: err ? err.message : "none" });
+                return;
+              }
+              var list = subtitlesFor(found.sources[0]);
+              resolve(
+                list.map(function(track) {
+                  return { id: track.id, lang: track.lang, path: embyPath(track.url) };
+                })
+              );
+            });
+          });
+        },
+        disconnect: function() {
+          disconnect();
+          return stateSummary();
+        }
+      },
+      embySettings: {
+        fill: function(url, user, pass) {
+          var fields = settingsView.embyFields();
+          fields.url.value = url || "";
+          fields.user.value = user || "";
+          fields.pass.value = pass || "";
+          return true;
+        },
+        connect: function() {
+          var el = document.querySelector('[data-settings-action="emby-connect"]');
+          if (!el) {
+            return false;
+          }
+          el.click();
+          return true;
+        },
+        disconnect: function() {
+          var el = document.querySelector('[data-settings-action="emby-disconnect"]');
+          if (!el) {
+            return false;
+          }
+          el.click();
+          return true;
+        },
+        status: function() {
+          var el = document.querySelector(".settings__emby .addons__status");
+          return el ? el.textContent : "";
+        },
+        passwordValue: function() {
+          return settingsView.embyFields().pass.value;
+        }
       },
       player: {
         state: function() {
