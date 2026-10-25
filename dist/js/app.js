@@ -357,6 +357,22 @@
     "settings.embyConnected": "Spojeno:",
     "settings.embyDisconnected": "Nije spojeno.",
     "settings.embyFailed": "Emby prijava nije uspjela.",
+    "settings.conf": "Konfigurator s računala (PC/mobitel)",
+    "settings.confHost": "Adresa konfiguratora (npr. 192.168.1.20:8765)",
+    "settings.confCode": "Kod za uparivanje (6 znamenki)",
+    "settings.confStart": "Poveži se",
+    "settings.confApply": "Primijeni",
+    "settings.confIdle": "Pokrenite konfigurator na računalu i upišite kod.",
+    "settings.confWaiting": "Čekam odobrenje na računalu…",
+    "settings.confReceived": "Postavke su primljene. Pritisnite Primijeni.",
+    "settings.confExpired": "Kod je istekao ili je već iskorišten.",
+    "settings.confInvalid": "Neispravna adresa ili kod.",
+    "settings.confUnreachable": "Konfigurator nije dostupan na mreži.",
+    "settings.confApplied": "Postavke primijenjene.",
+    "settings.confNothing": "Nema primljenih postavki.",
+    "settings.confEmbyFailed": "Emby iz primljenih postavki nije prihvaćen.",
+    "settings.confProfileFailed": "Profil iz primljenih postavki nije ispravan.",
+    "settings.confPrefs": "preferencije spremljene",
     "row.error": "Katalog nije dostupan",
     "row.retryHint": "Provjerite vezu i pokušajte ponovno.",
     "addons.add": "Dodaj",
@@ -514,6 +530,22 @@
     "settings.embyConnected": "Connected:",
     "settings.embyDisconnected": "Not connected.",
     "settings.embyFailed": "Emby sign-in failed.",
+    "settings.conf": "Configurator from PC/phone",
+    "settings.confHost": "Configurator address (e.g. 192.168.1.20:8765)",
+    "settings.confCode": "Pairing code (6 digits)",
+    "settings.confStart": "Connect",
+    "settings.confApply": "Apply",
+    "settings.confIdle": "Start the configurator on your PC and enter the code.",
+    "settings.confWaiting": "Waiting for approval on your PC…",
+    "settings.confReceived": "Settings received. Press Apply.",
+    "settings.confExpired": "The code expired or was already used.",
+    "settings.confInvalid": "Invalid address or code.",
+    "settings.confUnreachable": "The configurator is not reachable on the network.",
+    "settings.confApplied": "Settings applied.",
+    "settings.confNothing": "No settings received.",
+    "settings.confEmbyFailed": "The Emby server from the received settings was rejected.",
+    "settings.confProfileFailed": "The profile in the received settings is invalid.",
+    "settings.confPrefs": "preferences saved",
     "row.error": "Catalog unavailable",
     "row.retryHint": "Check the connection and try again.",
     "addons.add": "Add",
@@ -1587,16 +1619,16 @@
     el.className = "toast";
     el.setAttribute("role", "status");
     el.setAttribute("aria-live", "polite");
-    var timer = 0;
+    var timer2 = 0;
     function show(message) {
       el.textContent = message;
       el.classList.add("is-visible");
-      if (timer) {
-        clearTimeout(timer);
+      if (timer2) {
+        clearTimeout(timer2);
       }
-      timer = setTimeout(function() {
+      timer2 = setTimeout(function() {
         el.classList.remove("is-visible");
-        timer = 0;
+        timer2 = 0;
       }, 2600);
     }
     return { el, show };
@@ -1883,12 +1915,12 @@
         sourceRowList.push({ el: row, stream: streamList[i2] || {}, index: i2 });
       }
     }
-    function setSourcesStatus(state) {
+    function setSourcesStatus(state2) {
       while (sourcesInfo.firstChild) {
         sourcesInfo.removeChild(sourcesInfo.firstChild);
       }
       sourcesHeading.style.display = "";
-      if (state === "loading") {
+      if (state2 === "loading") {
         var line = document.createElement("div");
         line.className = "details__sourceSummary";
         line.textContent = t("details.loadingSources");
@@ -1948,14 +1980,14 @@
     }
     var http = /^HTTP (\d{3})/.exec(message);
     if (http) {
-      var status = parseInt(http[1], 10);
-      if (status === 401 || status === 403) {
+      var status2 = parseInt(http[1], 10);
+      if (status2 === 401 || status2 === 403) {
         return "auth";
       }
-      if (status === 404) {
+      if (status2 === 404) {
         return "notFound";
       }
-      return status >= 500 ? "server" : "http";
+      return status2 >= 500 ? "server" : "http";
     }
     if (/invalid JSON/i.test(message)) {
       return "notAddon";
@@ -2011,7 +2043,7 @@
     var started = Date.now();
     var xhr = new XMLHttpRequest();
     var finished = false;
-    var status = 0;
+    var status2 = 0;
     function finish(err, data) {
       if (finished) {
         return;
@@ -2035,7 +2067,7 @@
         type: ctx.type || "",
         id: ctx.id || "",
         skip: ctx.skip || 0,
-        status,
+        status: status2,
         error: err ? err.message : "",
         items: items2,
         ms: Date.now() - started
@@ -2049,7 +2081,7 @@
         if (xhr.readyState !== 4) {
           return;
         }
-        status = xhr.status;
+        status2 = xhr.status;
         if (xhr.status >= 200 && xhr.status < 300) {
           var data = null;
           try {
@@ -2426,8 +2458,8 @@
     title.className = "details__title addons__title";
     var hint = document.createElement("p");
     hint.className = "details__desc addons__hint";
-    var status = document.createElement("div");
-    status.className = "addons__status";
+    var status2 = document.createElement("div");
+    status2.className = "addons__status";
     var installedSection = document.createElement("div");
     var presetsSection = document.createElement("div");
     var customSection = document.createElement("div");
@@ -2438,7 +2470,7 @@
     customInput.setAttribute("placeholder", t("addons.urlPlaceholder"));
     content.appendChild(title);
     content.appendChild(hint);
-    content.appendChild(status);
+    content.appendChild(status2);
     content.appendChild(installedSection);
     content.appendChild(presetsSection);
     content.appendChild(customSection);
@@ -2572,8 +2604,8 @@
       } });
     }
     function setStatus(message, isError) {
-      status.textContent = message || "";
-      status.className = "addons__status" + (isError ? " is-error" : "");
+      status2.textContent = message || "";
+      status2.className = "addons__status" + (isError ? " is-error" : "");
     }
     return {
       el: root,
@@ -2805,8 +2837,8 @@
     title.className = "details__title settings__title";
     var hint = document.createElement("p");
     hint.className = "details__desc addons__hint";
-    var status = document.createElement("div");
-    status.className = "addons__status";
+    var status2 = document.createElement("div");
+    status2.className = "addons__status";
     var summary = document.createElement("div");
     summary.className = "settings__summary";
     var actions = document.createElement("div");
@@ -2838,12 +2870,35 @@
     embyPass.setAttribute("data-settings-field", "emby-pass");
     var embyActions = document.createElement("div");
     embyActions.className = "details__actions";
+    var confHeading = document.createElement("h3");
+    confHeading.className = "details__section settings__confTitle";
+    var confStatus = document.createElement("div");
+    confStatus.className = "addons__status";
+    var confHost = document.createElement("input");
+    confHost.className = "addon-input settings__confHost";
+    confHost.setAttribute("type", "text");
+    confHost.setAttribute("spellcheck", "false");
+    confHost.setAttribute("inputmode", "url");
+    confHost.setAttribute("autocomplete", "off");
+    var confCode = document.createElement("input");
+    confCode.className = "addon-input settings__confCode";
+    confCode.setAttribute("type", "text");
+    confCode.setAttribute("spellcheck", "false");
+    confCode.setAttribute("autocomplete", "off");
+    confCode.setAttribute("placeholder", "000000");
+    var confActions = document.createElement("div");
+    confActions.className = "details__actions";
     embySection.appendChild(embyHeading);
     embySection.appendChild(embyStatus);
     embySection.appendChild(embyUrl);
     embySection.appendChild(embyUser);
     embySection.appendChild(embyPass);
     embySection.appendChild(embyActions);
+    content.appendChild(confHeading);
+    content.appendChild(confStatus);
+    content.appendChild(confHost);
+    content.appendChild(confCode);
+    content.appendChild(confActions);
     var urlInput = document.createElement("input");
     urlInput.className = "addon-input settings__url";
     urlInput.setAttribute("type", "text");
@@ -2880,7 +2935,7 @@
     content.appendChild(title);
     content.appendChild(hint);
     content.appendChild(urlInput);
-    content.appendChild(status);
+    content.appendChild(status2);
     content.appendChild(summary);
     content.appendChild(actions);
     content.appendChild(embySection);
@@ -2971,6 +3026,50 @@
           });
         })(embyFields[f]);
       }
+      confHeading.textContent = t("settings.conf");
+      confHost.setAttribute("placeholder", t("settings.confHost"));
+      confCode.setAttribute("placeholder", t("settings.confCode"));
+      if (handlers.confHost) {
+        var saved = handlers.confHost();
+        if (saved && !confHost.value) {
+          confHost.value = saved;
+        }
+      }
+      confStatus.textContent = handlers.confStatus ? handlers.confStatus() : t("settings.confIdle");
+      button(
+        t("settings.confStart"),
+        "conf-start",
+        function() {
+          if (handlers.onConfStart) {
+            handlers.onConfStart(String(confHost.value || "").trim(), String(confCode.value || "").trim());
+          }
+        },
+        confActions
+      );
+      button(
+        t("settings.confApply"),
+        "conf-apply",
+        function() {
+          if (handlers.onConfApply) {
+            handlers.onConfApply();
+          }
+        },
+        confActions
+      );
+      var confFields = [confHost, confCode];
+      for (var cf = 0; cf < confFields.length; cf++) {
+        (function(field) {
+          focusables.push({
+            el: field,
+            activate: function() {
+              try {
+                field.focus();
+              } catch (err) {
+              }
+            }
+          });
+        })(confFields[cf]);
+      }
       var last = getProfileSummary();
       if (!last) {
         summary.textContent = t("settings.noProfile");
@@ -3008,8 +3107,8 @@
         return importBtn;
       },
       setStatus: function(message, isError) {
-        status.textContent = message || "";
-        status.className = "addons__status" + (isError ? " is-error" : "");
+        status2.textContent = message || "";
+        status2.className = "addons__status" + (isError ? " is-error" : "");
       },
       setEmbyStatus: function(message, isError) {
         embyStatus.textContent = message || "";
@@ -3017,6 +3116,13 @@
       },
       embyFields: function() {
         return { url: embyUrl, user: embyUser, pass: embyPass };
+      },
+      setConfStatus: function(message) {
+        confStatus.textContent = message || "";
+        confStatus.className = "addons__status";
+      },
+      confFields: function() {
+        return { host: confHost, code: confCode };
       },
       focusables: function() {
         return focusables;
@@ -3028,6 +3134,10 @@
         handlers.embyState = next.embyState || null;
         handlers.onEmbyConnect = next.onEmbyConnect || null;
         handlers.onEmbyDisconnect = next.onEmbyDisconnect || null;
+        handlers.confHost = next.confHost || null;
+        handlers.confStatus = next.confStatus || null;
+        handlers.onConfStart = next.onConfStart || null;
+        handlers.onConfApply = next.onConfApply || null;
       },
       isOpen: function() {
         return root.classList.contains("is-open");
@@ -3223,16 +3333,16 @@
   function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
     var rows = [];
     var failures = [];
-    var pending = 0;
+    var pending2 = 0;
     var startCount = 0;
     for (var a = 0; a < addons.length && a < maxAddons; a++) {
       var catalogs = addons[a].catalogs || [];
       for (var c = 0; c < catalogs.length && c < maxCatalogs; c++) {
         startCount += 1;
-        pending += 1;
+        pending2 += 1;
         (function(addon, catalog) {
           fetchCatalogPage(addon, catalog, 0, function(err, items2) {
-            pending -= 1;
+            pending2 -= 1;
             if (err) {
               failures.push({ addon, catalog, error: err.message });
             } else if (!items2.length) {
@@ -3240,7 +3350,7 @@
             } else {
               rows.push({ addon, catalog, items: items2 });
             }
-            if (pending === 0) {
+            if (pending2 === 0) {
               done({ rows, failures, attempted: startCount });
             }
           });
@@ -3351,7 +3461,7 @@
     var providerStreams = [];
     var streams = [];
     var seen = {};
-    var pending = providers.length;
+    var pending2 = providers.length;
     var logStart = Date.now() - 1;
     function statusFor(entry) {
       var log2 = diagnosticsList();
@@ -3415,11 +3525,11 @@
       });
       return;
     }
-    if (!pending) {
+    if (!pending2) {
       finish();
       return;
     }
-    function settle(index, provider, status, reason, list) {
+    function settle(index, provider, status2, reason, list) {
       var entry = provider.entry;
       var kept = [];
       var own = [];
@@ -3467,14 +3577,14 @@
         index,
         name: String(entry.name || "Add-on"),
         host: hostOf2(entry.url),
-        status,
+        status: status2,
         reason: reason || "",
         httpStatus: logEntry ? logEntry.status : 0,
         count: kept.length,
         answered: own.length
       });
-      pending -= 1;
-      if (pending === 0) {
+      pending2 -= 1;
+      if (pending2 === 0) {
         finish();
       }
     }
@@ -3626,7 +3736,7 @@
     root.appendChild(video);
     root.appendChild(subtitleEl);
     root.appendChild(hud);
-    var state = {
+    var state2 = {
       open: false,
       backend: "",
       status: "idle",
@@ -3664,7 +3774,7 @@
         }
         return;
       }
-      var at = state.position + cueOffset;
+      var at = state2.position + cueOffset;
       var text = "";
       for (var i = 0; i < cues.length; i++) {
         if (at >= cues[i].start && at <= cues[i].end) {
@@ -3676,34 +3786,34 @@
       }
     }
     function avplayActive() {
-      return state.backend === "avplay";
+      return state2.backend === "avplay";
     }
     function rootClass() {
-      return "player" + (state.open ? " is-open" : "") + (state.error ? " has-error" : "") + (avplayActive() ? " is-avplay" : "") + (hud.className.indexOf("is-idle") > -1 ? " is-idle" : "");
+      return "player" + (state2.open ? " is-open" : "") + (state2.error ? " has-error" : "") + (avplayActive() ? " is-avplay" : "") + (hud.className.indexOf("is-idle") > -1 ? " is-idle" : "");
     }
     function paint() {
-      if (!state.open) {
+      if (!state2.open) {
         return;
       }
-      var pct = state.duration > 0 ? Math.min(100, state.position / state.duration * 100) : 0;
-      var bPct = state.duration > 0 ? Math.min(100, state.buffered / state.duration * 100) : 0;
+      var pct = state2.duration > 0 ? Math.min(100, state2.position / state2.duration * 100) : 0;
+      var bPct = state2.duration > 0 ? Math.min(100, state2.buffered / state2.duration * 100) : 0;
       played.style.width = pct + "%";
       buffered.style.width = bPct + "%";
       knob.style.left = pct + "%";
-      bar.className = "player__bar" + (state.duration > 0 ? "" : " is-live");
-      timeEl.textContent = formatTime(state.position) + " / " + formatTime(state.duration);
+      bar.className = "player__bar" + (state2.duration > 0 ? "" : " is-live");
+      timeEl.textContent = formatTime(state2.position) + " / " + formatTime(state2.duration);
       var statusText = "";
-      if (state.status === "buffering" || state.status === "loading") {
+      if (state2.status === "buffering" || state2.status === "loading") {
         statusText = t("player.loading");
-      } else if (state.status === "ended") {
+      } else if (state2.status === "ended") {
         statusText = t("player.ended");
       }
       statusEl.textContent = statusText;
-      var busy = state.status === "buffering" || state.status === "loading";
-      spinner.className = "player__spinner" + (busy && !state.error ? "" : " is-hidden");
-      errorBox.className = "player__error" + (state.error ? " is-visible" : "");
+      var busy = state2.status === "buffering" || state2.status === "loading";
+      spinner.className = "player__spinner" + (busy && !state2.error ? "" : " is-hidden");
+      errorBox.className = "player__error" + (state2.error ? " is-visible" : "");
       root.className = rootClass();
-      backendEl.textContent = state.backend === "avplay" ? t("player.backendAvplay") : t("player.backendHtml5");
+      backendEl.textContent = state2.backend === "avplay" ? t("player.backendAvplay") : t("player.backendHtml5");
     }
     function showHud() {
       hud.className = "player__hud";
@@ -3712,7 +3822,7 @@
         hudTimer = null;
       }
       root.className = rootClass();
-      if (state.status === "playing") {
+      if (state2.status === "playing") {
         hudTimer = setTimeout(function() {
           hud.className = "player__hud is-idle";
           root.className = rootClass();
@@ -3782,45 +3892,45 @@
       }
     };
     video.addEventListener("loadedmetadata", function() {
-      state.duration = html5.duration();
-      if (state.status === "loading") {
-        state.status = "buffering";
+      state2.duration = html5.duration();
+      if (state2.status === "loading") {
+        state2.status = "buffering";
       }
       paint();
     });
     video.addEventListener("playing", function() {
       clearOpenTimer();
-      state.status = "playing";
+      state2.status = "playing";
       showHud();
       paint();
     });
     video.addEventListener("pause", function() {
-      if (state.status === "ended" || state.status === "error") {
+      if (state2.status === "ended" || state2.status === "error") {
         return;
       }
-      state.status = "paused";
+      state2.status = "paused";
       showHud();
       paint();
     });
     video.addEventListener("waiting", function() {
-      if (state.status === "playing") {
-        state.status = "buffering";
+      if (state2.status === "playing") {
+        state2.status = "buffering";
         paint();
       }
     });
     video.addEventListener("progress", function() {
-      state.buffered = html5.buffered();
+      state2.buffered = html5.buffered();
       paint();
     });
     video.addEventListener("ended", function() {
-      state.status = "ended";
-      state.position = state.duration;
+      state2.status = "ended";
+      state2.position = state2.duration;
       stopTicker();
       showHud();
       paint();
     });
     video.addEventListener("error", function() {
-      if (!state.open || avplayActive()) {
+      if (!state2.open || avplayActive()) {
         return;
       }
       fail(html5Reason(video.error), video.error ? String(video.error.message || "") : "");
@@ -3829,23 +3939,23 @@
       var rect = platform.displayRect ? platform.displayRect() : { x: 0, y: 0, w: 1920, h: 1080 };
       var listener = {
         onbufferingstart: function() {
-          state.status = "buffering";
+          state2.status = "buffering";
           paint();
         },
         onbufferingprogress: function() {
-          state.status = "buffering";
+          state2.status = "buffering";
         },
         onbufferingcomplete: function() {
-          state.status = "playing";
+          state2.status = "playing";
           showHud();
           paint();
         },
         oncurrentplaytime: function(ms) {
-          state.position = ms;
+          state2.position = ms;
         },
         onstreamcompleted: function() {
-          state.status = "ended";
-          state.position = state.duration;
+          state2.status = "ended";
+          state2.position = state2.duration;
           stopTicker();
           showHud();
           paint();
@@ -3856,7 +3966,7 @@
         },
         onplaying: function() {
           clearOpenTimer();
-          state.status = "playing";
+          state2.status = "playing";
           showHud();
           paint();
         }
@@ -3892,7 +4002,7 @@
                 settled = true;
                 clearTimeout(guard);
                 try {
-                  state.duration = api.getDuration ? api.getDuration() : 0;
+                  state2.duration = api.getDuration ? api.getDuration() : 0;
                   api.play();
                 } catch (err) {
                   done(err);
@@ -3945,22 +4055,22 @@
         },
         time: function() {
           try {
-            return api.getCurrentTime ? api.getCurrentTime() : state.position;
+            return api.getCurrentTime ? api.getCurrentTime() : state2.position;
           } catch (err) {
-            return state.position;
+            return state2.position;
           }
         },
         duration: function() {
           try {
-            return api.getDuration ? api.getDuration() : state.duration;
+            return api.getDuration ? api.getDuration() : state2.duration;
           } catch (err) {
-            return state.duration;
+            return state2.duration;
           }
         },
         buffered: function() {
           try {
             if (api.getBufferedAmount) {
-              return api.getBufferedAmount() / 100 * state.duration;
+              return api.getBufferedAmount() / 100 * state2.duration;
             }
           } catch (err) {
           }
@@ -3983,20 +4093,20 @@
     function startTicker() {
       stopTicker();
       ticker = setInterval(function() {
-        if (!backend || !state.open || state.status === "error") {
+        if (!backend || !state2.open || state2.status === "error") {
           return;
         }
         var time = backend.time();
         var duration = backend.duration();
         if (duration > 0) {
-          state.duration = duration;
+          state2.duration = duration;
         }
         if (time >= 0) {
-          state.position = time;
+          state2.position = time;
         }
         var bufferedAmount = backend.buffered();
         if (bufferedAmount > 0) {
-          state.buffered = bufferedAmount;
+          state2.buffered = bufferedAmount;
         }
         renderCue();
         paint();
@@ -4026,8 +4136,8 @@
     function fail(reason, detail) {
       stopTicker();
       clearOpenTimer();
-      state.status = "error";
-      state.error = reason;
+      state2.status = "error";
+      state2.error = reason;
       errorText.textContent = reasonText(reason);
       errorHint.textContent = detail ? String(detail).slice(0, 120) : t("player.hint");
       spinner.className = "player__spinner is-hidden";
@@ -4040,7 +4150,7 @@
     }
     function tryBackend(index) {
       if (index >= backendOrder.length) {
-        fail(state.error || "unsupported", "");
+        fail(state2.error || "unsupported", "");
         return;
       }
       var name = backendOrder[index];
@@ -4051,21 +4161,21 @@
           return;
         }
         backend = createAvPlay(api);
-        state.backend = "avplay";
-        state.lastBackend = "avplay";
+        state2.backend = "avplay";
+        state2.lastBackend = "avplay";
         video.setAttribute("data-backend", "avplay");
         video.removeAttribute("src");
         document.documentElement.className = (document.documentElement.className + " is-avplay").replace(/^\s+/, "");
       } else {
         backend = html5;
-        state.backend = "html5";
-        state.lastBackend = "html5";
+        state2.backend = "html5";
+        state2.lastBackend = "html5";
         video.setAttribute("data-backend", "html5");
       }
-      state.status = "loading";
+      state2.status = "loading";
       paint();
-      backend.open(state.url, state.type, function(err) {
-        if (!state.open) {
+      backend.open(state2.url, state2.type, function(err) {
+        if (!state2.open) {
           return;
         }
         if (err) {
@@ -4083,22 +4193,22 @@
       });
     }
     function open(source, meta) {
-      if (state.open) {
+      if (state2.open) {
         close(false);
       }
       var info2 = meta || {};
-      state.open = true;
-      state.backend = "";
-      state.status = "loading";
-      state.position = 0;
-      state.duration = 0;
-      state.buffered = 0;
-      state.error = "";
-      state.url = source && source.url ? source.url : "";
-      state.type = source && source.type ? source.type : "auto";
-      state.title = info2.title || t("player.titleFallback");
-      state.sourceIndex = typeof info2.sourceIndex === "number" ? info2.sourceIndex : -1;
-      titleEl.textContent = state.title;
+      state2.open = true;
+      state2.backend = "";
+      state2.status = "loading";
+      state2.position = 0;
+      state2.duration = 0;
+      state2.buffered = 0;
+      state2.error = "";
+      state2.url = source && source.url ? source.url : "";
+      state2.type = source && source.type ? source.type : "auto";
+      state2.title = info2.title || t("player.titleFallback");
+      state2.sourceIndex = typeof info2.sourceIndex === "number" ? info2.sourceIndex : -1;
+      titleEl.textContent = state2.title;
       errorText.textContent = "";
       errorHint.textContent = "";
       hud.className = "player__hud";
@@ -4107,7 +4217,7 @@
       document.documentElement.className = (document.documentElement.className + " is-player").replace(/^\s+/, "");
       applyCueStyle();
       paint();
-      if (!source || source.ok !== true || !state.url) {
+      if (!source || source.ok !== true || !state2.url) {
         fail(source && source.reason || "noUrl", "");
         return;
       }
@@ -4122,76 +4232,76 @@
         }
         backendOrder.push("html5");
       }
-      logInfo("player: engines " + backendOrder.join(",") + " type=" + state.type);
+      logInfo("player: engines " + backendOrder.join(",") + " type=" + state2.type);
       clearOpenTimer();
       openTimer = setTimeout(function() {
-        if (state.open && state.status !== "playing" && state.status !== "paused" && !state.error) {
-          fail("timeout", state.status);
+        if (state2.open && state2.status !== "playing" && state2.status !== "paused" && !state2.error) {
+          fail("timeout", state2.status);
         }
       }, OPEN_TIMEOUT_MS);
       tryBackend(0);
     }
     function play() {
-      if (!backend || state.error) {
+      if (!backend || state2.error) {
         return;
       }
       backend.play();
-      state.status = "playing";
+      state2.status = "playing";
       showHud();
       paint();
     }
     function pause() {
-      if (!backend || state.error) {
+      if (!backend || state2.error) {
         return;
       }
       backend.pause();
-      state.status = "paused";
+      state2.status = "paused";
       showHud();
       paint();
     }
     function toggle() {
-      if (!backend || state.error) {
+      if (!backend || state2.error) {
         return;
       }
-      if (state.status === "playing") {
+      if (state2.status === "playing") {
         pause();
       } else {
         play();
       }
     }
     function seekTo(ms) {
-      if (!backend || state.error) {
+      if (!backend || state2.error) {
         return;
       }
-      var limit = state.duration > 0 ? state.duration - 1e3 : ms;
+      var limit = state2.duration > 0 ? state2.duration - 1e3 : ms;
       var target = Math.max(0, Math.min(ms || 0, limit));
       backend.seek(target);
-      state.position = target;
+      state2.position = target;
       renderCue();
       showHud();
       paint();
     }
     function seekBy(deltaMs) {
-      seekTo(state.position + deltaMs);
+      seekTo(state2.position + deltaMs);
     }
     function close(notify) {
-      var wasOpen = state.open;
+      var wasOpen = state2.open;
       teardown();
-      state.open = false;
-      state.status = "idle";
-      state.backend = "";
-      state.error = "";
-      state.position = 0;
-      state.duration = 0;
-      state.buffered = 0;
-      state.url = "";
+      state2.open = false;
+      state2.status = "idle";
+      state2.backend = "";
+      state2.error = "";
+      state2.position = 0;
+      state2.duration = 0;
+      state2.buffered = 0;
+      state2.url = "";
       root.className = "player";
       hud.className = "player__hud";
       errorBox.className = "player__error";
       timeEl.textContent = "";
       statusEl.textContent = "";
       cues = [];
-      state.subtitle = "";
+      state2.subtitle = "";
       subtitleEl.textContent = "";
       applyCueStyle();
       if (wasOpen && notify !== false && onClose) {
@@ -4199,7 +4309,7 @@
       }
     }
     function handleAction(action) {
-      if (!state.open) {
+      if (!state2.open) {
         return false;
       }
       if (action === "enter") {
@@ -4244,7 +4354,7 @@
       el: root,
       video,
       isOpen: function() {
-        return state.open;
+        return state2.open;
       },
       open,
       close,
@@ -4258,7 +4368,7 @@
       /** Attach parsed cues (engine independent overlay). */
       setCues: function(list, label) {
         cues = list || [];
-        state.subtitle = label || "";
+        state2.subtitle = label || "";
         cueOffset = 0;
         applyCueStyle();
         renderCue();
@@ -4266,7 +4376,7 @@
       },
       clearCues: function() {
         cues = [];
-        state.subtitle = "";
+        state2.subtitle = "";
         cueOffset = 0;
         subtitleEl.textContent = "";
         applyCueStyle();
@@ -4287,7 +4397,7 @@
       },
       cueState: function() {
         return {
-          label: state.subtitle,
+          label: state2.subtitle,
           cues: cues.length,
           offset: cueOffset,
           size: cueSize,
@@ -4297,18 +4407,18 @@
       },
       state: function() {
         return {
-          open: state.open,
-          backend: state.backend,
-          lastBackend: state.lastBackend || "",
-          status: state.status,
-          position: Math.round(state.position),
-          duration: Math.round(state.duration),
-          buffered: Math.round(state.buffered),
-          error: state.error,
-          type: state.type,
-          title: state.title,
-          sourceIndex: state.sourceIndex,
-          subtitle: state.subtitle,
+          open: state2.open,
+          backend: state2.backend,
+          lastBackend: state2.lastBackend || "",
+          status: state2.status,
+          position: Math.round(state2.position),
+          duration: Math.round(state2.duration),
+          buffered: Math.round(state2.buffered),
+          error: state2.error,
+          type: state2.type,
+          title: state2.title,
+          sourceIndex: state2.sourceIndex,
+          subtitle: state2.subtitle,
           shellHidden: document.documentElement.className.indexOf("is-player") > -1
         };
       },
@@ -4714,11 +4824,11 @@
         if (!match) {
           continue;
         }
-        var start2 = (parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseInt(match[3], 10)) * 1e3 + parseInt((match[4] + "00").slice(0, 3), 10);
+        var start3 = (parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseInt(match[3], 10)) * 1e3 + parseInt((match[4] + "00").slice(0, 3), 10);
         var end = (parseInt(match[5], 10) * 3600 + parseInt(match[6], 10) * 60 + parseInt(match[7], 10)) * 1e3 + parseInt((match[8] + "00").slice(0, 3), 10);
         var body = lines.slice(l + 1).join("\n").replace(/<[^>]+>/g, "").replace(/\{[^}]*\}/g, "").trim();
         if (body) {
-          cues.push({ start: start2, end, text: body });
+          cues.push({ start: start3, end, text: body });
         }
         break;
       }
@@ -4802,7 +4912,7 @@
       done({ items: items2, providers });
       return;
     }
-    var pending = targets.length;
+    var pending2 = targets.length;
     for (var t2 = 0; t2 < targets.length; t2++) {
       (function(entry) {
         addonClient.subtitles(entry.url, opts.type || "movie", opts.id, "", function(err, data) {
@@ -4818,8 +4928,8 @@
             status: err ? "error" : added ? "ok" : "empty",
             count: added
           });
-          pending -= 1;
-          if (pending === 0) {
+          pending2 -= 1;
+          if (pending2 === 0) {
             done({ items: items2, providers });
           }
         });
@@ -5267,6 +5377,116 @@
       return { connected: false, name: "", host: "" };
     }
     return { connected: true, name: cfg.name || "", host: hostOf3(cfg.url) };
+  }
+
+  // app/js/data/configurator.js
+  var KEY5 = "configurator";
+  var POLL_MS = 2e3;
+  var MAX_MS = 8 * 60 * 1e3;
+  var timer = null;
+  var status = "idle";
+  var pending = null;
+  var listeners2 = null;
+  function normalizeHost(input) {
+    var url = String(input || "").trim();
+    if (!url) {
+      return "";
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      url = "http://" + url;
+    }
+    return url.replace(/\/+$/, "");
+  }
+  function savedHost() {
+    var data = getItem(KEY5, null);
+    return data && data.host ? String(data.host) : "";
+  }
+  function rememberHost(host) {
+    setItem(KEY5, { host: normalizeHost(host) });
+  }
+  function state() {
+    return { status, hasPayload: !!pending };
+  }
+  function stop() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    status = "idle";
+  }
+  function emit(next, detail) {
+    status = next;
+    if (listeners2 && listeners2.onStatus) {
+      listeners2.onStatus(next, detail || "");
+    }
+  }
+  function start(options, handlers) {
+    var host = normalizeHost(options && options.host);
+    var code = String(options && options.code || "").replace(/\D/g, "");
+    listeners2 = handlers || null;
+    pending = null;
+    stop();
+    if (!host || code.length !== 6) {
+      emit("invalid");
+      return false;
+    }
+    if (host.indexOf("https://") !== 0 && String(window.location.protocol) === "https:") {
+      emit("mixedContent");
+      return false;
+    }
+    rememberHost(host);
+    emit("waiting");
+    var started = Date.now();
+    timer = setInterval(function() {
+      if (Date.now() - started > MAX_MS) {
+        stop();
+        emit("expired");
+        return;
+      }
+      var xhr = new XMLHttpRequest();
+      try {
+        xhr.open("GET", host + "/api/session/" + code + "/claim", true);
+        xhr.timeout = 8e3;
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) {
+            return;
+          }
+          var data = null;
+          try {
+            data = JSON.parse(xhr.responseText);
+          } catch (err) {
+            data = null;
+          }
+          if (xhr.status === 200 && data && data.state === "ready") {
+            stop();
+            pending = data.payload || {};
+            emit("ready");
+            if (listeners2 && listeners2.onPayload) {
+              listeners2.onPayload(pending);
+            }
+            return;
+          }
+          if (xhr.status === 404 || xhr.status === 409) {
+            stop();
+            emit(xhr.status === 409 ? "delivered" : "expired");
+          }
+        };
+        xhr.onerror = function() {
+          emit("unreachable");
+        };
+        xhr.send();
+      } catch (err2) {
+        stop();
+        emit("unreachable");
+      }
+    }, POLL_MS);
+    return true;
+  }
+  function payload() {
+    return pending;
+  }
+  function clearPayload() {
+    pending = null;
   }
 
   // app/js/main.js
@@ -5908,17 +6128,17 @@
       findForItem(item, function(err, found, how) {
         var key = result.providers.length;
         var streams = [];
-        var status = "ok";
+        var status2 = "ok";
         var reason = "";
         if (err) {
-          status = "error";
+          status2 = "error";
           reason = err.message;
         } else if (!found) {
-          status = "empty";
+          status2 = "empty";
           reason = how === "ambiguous" ? "ambiguous" : "noMatch";
         } else {
           streams = streamsFor(found);
-          status = streams.length ? "ok" : "empty";
+          status2 = streams.length ? "ok" : "empty";
           if (!streams.length) {
             reason = "noSources";
           }
@@ -5929,7 +6149,7 @@
           index: key,
           name: "Emby Server",
           host: stateSummary().host,
-          status,
+          status: status2,
           reason,
           httpStatus: 0,
           count: streams.length,
@@ -6232,8 +6452,136 @@
         registerSettings();
         settingsView.setEmbyStatus(t("settings.embyDisconnected"), true);
         loadStreams(selectedVideoId, false);
-      }
+      },
+      confHost: function() {
+        return savedHost();
+      },
+      confStatus: function() {
+        var st = state();
+        if (st.hasPayload) {
+          return t("settings.confReceived");
+        }
+        if (st.status === "waiting") {
+          return t("settings.confWaiting");
+        }
+        if (st.status === "expired" || st.status === "delivered") {
+          return t("settings.confExpired");
+        }
+        if (st.status === "invalid") {
+          return t("settings.confInvalid");
+        }
+        if (st.status === "unreachable" || st.status === "mixedContent") {
+          return t("settings.confUnreachable");
+        }
+        return t("settings.confIdle");
+      },
+      onConfStart: function(host, code) {
+        settingsView.setConfStatus(t("settings.confWaiting"));
+        start(
+          { host, code },
+          {
+            onStatus: function(next) {
+              settingsView.render();
+              registerSettings();
+            },
+            onPayload: function() {
+              settingsView.render();
+              registerSettings();
+            }
+          }
+        );
+      },
+      onConfApply: applyConfiguratorPayload
     });
+    function applyConfiguratorPayload() {
+      var data = payload();
+      if (!data) {
+        settingsView.setConfStatus(t("settings.confNothing"));
+        return Promise.resolve(null);
+      }
+      var summary = { addons: 0, skipped: 0, emby: false, profile: null, prefs: false };
+      var waiting = 1;
+      var resolveFn = null;
+      var promised = new Promise(function(resolve) {
+        resolveFn = resolve;
+      });
+      function settle() {
+        waiting -= 1;
+        if (waiting === 0) {
+          resolveFn(summary);
+        }
+      }
+      if (data.emby && data.emby.url) {
+        summary.emby = true;
+        waiting += 1;
+        connect(data.emby.url, data.emby.user || "", data.emby.pass || "", function(err) {
+          settingsView.setConfStatus(
+            err ? t("settings.confEmbyFailed") + " · " + err.message : t("settings.confApplied"),
+            !!err
+          );
+          settingsView.render();
+          registerSettings();
+          settle();
+        });
+      }
+      var urls = data.addons || [];
+      var index = 0;
+      function nextAddon() {
+        if (index >= urls.length) {
+          finishApply(summary);
+          settle();
+          return;
+        }
+        var url = urls[index];
+        index += 1;
+        addAddon(url, function(err) {
+          if (err) {
+            summary.skipped += 1;
+          } else {
+            summary.addons += 1;
+          }
+          nextAddon();
+        });
+      }
+      if (urls.length) {
+        waiting += 1;
+        nextAddon();
+      }
+      if (data.prefs && typeof data.prefs === "object") {
+        try {
+          setItem("prefs", data.prefs);
+          summary.prefs = true;
+        } catch (err) {
+          summary.prefs = false;
+        }
+      }
+      if (data.profile) {
+        importProfile(data.profile).then(
+          function(result) {
+            summary.profile = result;
+            settingsView.render();
+            registerSettings();
+          },
+          function(err) {
+            settingsView.setConfStatus(t("settings.confProfileFailed") + " · " + err.message);
+          }
+        );
+      }
+      clearPayload();
+      settle();
+      return promised;
+    }
+    function finishApply(summary) {
+      if (summary.addons || summary.skipped) {
+        addonsView.render();
+        loadAddonCatalogs();
+      }
+      settingsView.setConfStatus(
+        t("settings.confApplied") + " · " + summary.addons + " / " + (summary.addons + summary.skipped) + (summary.prefs ? " · " + t("settings.confPrefs") : "")
+      );
+      settingsView.render();
+      registerSettings();
+    }
     var settingsScreen = {
       name: "settings",
       show: function() {
@@ -7060,6 +7408,25 @@
           return settingsView.embyFields().pass.value;
         }
       },
+      configurator: {
+        start: function(host, code) {
+          return start({ host, code }, {
+            onStatus: function() {
+            },
+            onPayload: function() {
+            }
+          });
+        },
+        state: function() {
+          return state();
+        },
+        apply: function() {
+          return applyConfiguratorPayload();
+        },
+        savedHost: function() {
+          return savedHost();
+        }
+      },
       player: {
         state: function() {
           return player.state();
@@ -7168,7 +7535,7 @@
     logInfo("boot complete", { cards: document.querySelectorAll(".card").length });
   }
   var booted = false;
-  function start() {
+  function start2() {
     if (booted) {
       return;
     }
@@ -7179,5 +7546,5 @@
       logError("boot failed", err && err.stack ? err.stack : err);
     }
   }
-  start();
+  start2();
 })();

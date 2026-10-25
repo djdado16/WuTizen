@@ -41,6 +41,8 @@ import { createPicker } from './ui/views/picker.js';
 import { allLists, addItem, removeItem, hasItem, listItemCount } from './state/lists.js';
 import { candidateSubtitles, fetchText, parseCues } from './data/subtitles.js';
 import * as emby from './data/emby.js';
+import * as configurator from './data/configurator.js';
+import { setItem as storageSet } from './platform/storage.js';
 import {
   listAddons,
   addAddon,
@@ -1168,8 +1170,144 @@ function boot() {
       registerSettings();
       settingsView.setEmbyStatus(t('settings.embyDisconnected'), true);
       loadStreams(selectedVideoId, false);
-    }
+    },
+    confHost: function () {
+      return configurator.savedHost();
+    },
+    confStatus: function () {
+      var st = configurator.state();
+      if (st.hasPayload) {
+        return t('settings.confReceived');
+      }
+      if (st.status === 'waiting') {
+        return t('settings.confWaiting');
+      }
+      if (st.status === 'expired' || st.status === 'delivered') {
+        return t('settings.confExpired');
+      }
+      if (st.status === 'invalid') {
+        return t('settings.confInvalid');
+      }
+      if (st.status === 'unreachable' || st.status === 'mixedContent') {
+        return t('settings.confUnreachable');
+      }
+      return t('settings.confIdle');
+    },
+    onConfStart: function (host, code) {
+      settingsView.setConfStatus(t('settings.confWaiting'));
+      configurator.start(
+        { host: host, code: code },
+        {
+          onStatus: function (next) {
+            settingsView.render();
+            registerSettings();
+          },
+          onPayload: function () {
+            settingsView.render();
+            registerSettings();
+          }
+        }
+      );
+    },
+    onConfApply: applyConfiguratorPayload
   });
+
+  /** Apply a payload received from the PC configurator (user pressed Apply). */
+  function applyConfiguratorPayload() {
+    var data = configurator.payload();
+    if (!data) {
+      settingsView.setConfStatus(t('settings.confNothing'));
+      return Promise.resolve(null);
+    }
+    var summary = { addons: 0, skipped: 0, emby: false, profile: null, prefs: false };
+    var waiting = 1;
+    var resolveFn = null;
+    var promised = new Promise(function (resolve) {
+      resolveFn = resolve;
+    });
+    function settle() {
+      waiting -= 1;
+      if (waiting === 0) {
+        resolveFn(summary);
+      }
+    }
+    if (data.emby && data.emby.url) {
+      summary.emby = true;
+      waiting += 1;
+      emby.connect(data.emby.url, data.emby.user || '', data.emby.pass || '', function (err) {
+        settingsView.setConfStatus(
+          err ? t('settings.confEmbyFailed') + ' · ' + err.message : t('settings.confApplied'),
+          !!err
+        );
+        settingsView.render();
+        registerSettings();
+        settle();
+      });
+    }
+    var urls = data.addons || [];
+    var index = 0;
+    function nextAddon() {
+      if (index >= urls.length) {
+        finishApply(summary);
+        settle();
+        return;
+      }
+      var url = urls[index];
+      index += 1;
+      addAddon(url, function (err) {
+        if (err) {
+          summary.skipped += 1;
+        } else {
+          summary.addons += 1;
+        }
+        nextAddon();
+      });
+    }
+    if (urls.length) {
+      waiting += 1;
+      nextAddon();
+    }
+    if (data.prefs && typeof data.prefs === 'object') {
+      try {
+        storageSet('prefs', data.prefs);
+        summary.prefs = true;
+      } catch (err) {
+        summary.prefs = false;
+      }
+    }
+    if (data.profile) {
+      importProfile(data.profile).then(
+        function (result) {
+          summary.profile = result;
+          settingsView.render();
+          registerSettings();
+        },
+        function (err) {
+          settingsView.setConfStatus(t('settings.confProfileFailed') + ' · ' + err.message);
+        }
+      );
+    }
+    configurator.clearPayload();
+    settle();
+    return promised;
+  }
+
+  function finishApply(summary) {
+    if (summary.addons || summary.skipped) {
+      addonsView.render();
+      loadAddonCatalogs();
+    }
+    settingsView.setConfStatus(
+      t('settings.confApplied') +
+        ' · ' +
+        summary.addons +
+        ' / ' +
+        (summary.addons + summary.skipped) +
+        (summary.prefs ? ' · ' + t('settings.confPrefs') : '')
+    );
+    settingsView.render();
+    registerSettings();
+  }
 
   var settingsScreen = {
     name: 'settings',
@@ -2133,6 +2271,23 @@ function boot() {
       },
       passwordValue: function () {
         return settingsView.embyFields().pass.value;
+      }
+    },
+    configurator: {
+      start: function (host, code) {
+        return configurator.start({ host: host, code: code }, {
+          onStatus: function () {},
+          onPayload: function () {}
+        });
+      },
+      state: function () {
+        return configurator.state();
+      },
+      apply: function () {
+        return applyConfiguratorPayload();
+      },
+      savedHost: function () {
+        return configurator.savedHost();
       }
     },
     player: {

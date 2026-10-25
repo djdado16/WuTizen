@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WuTizen configurator</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; background: #0d0f14; color: #f2f2f6; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.hint { color: #9aa3b2; margin: 0 0 18px; }
+  fieldset { border: 1px solid #2a3040; border-radius: 10px; margin: 0 0 16px; padding: 14px; }
+  legend { padding: 0 6px; color: #9aa3b2; }
+  label { display: block; margin: 8px 0 4px; color: #c8cfdb; }
+  input, textarea { width: 100%; box-sizing: border-box; padding: 9px; border-radius: 8px; border: 1px solid #2a3040; background: #131722; color: #f2f2f6; }
+  textarea { min-height: 84px; font-family: ui-monospace, monospace; font-size: 13px; }
+  button { padding: 11px 18px; border-radius: 8px; border: 0; background: #e1007a; color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
+  button[disabled] { background: #3a2b35; color: #8b7f86; cursor: default; }
+  .code { font-size: 34px; letter-spacing: 8px; font-weight: 700; color: #ff3d7f; }
+  .status { margin-top: 12px; color: #9aa3b2; }
+  .warn { color: #ffce6b; }
+</style>
+</head>
+<body>
+<h1>WuTizen configurator</h1>
+<p class="hint">Local network only. Fill in what you want to change, start pairing, then enter the code on the TV.</p>
+
+<fieldset>
+  <legend>Emby server</legend>
+  <label>Server URL (http(s)://host:8096)</label>
+  <input id="embyUrl" placeholder="http://192.168.1.20:8096" autocomplete="off">
+  <label>Username</label>
+  <input id="embyUser" autocomplete="off">
+  <label>Password</label>
+  <input id="embyPass" type="password" autocomplete="off">
+</fieldset>
+
+<fieldset>
+  <legend>Stremio add-ons (one manifest URL per line)</legend>
+  <textarea id="addons" placeholder="https://example.com/manifest.json"></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>WuPlay profile export (JSON, optional)</legend>
+  <textarea id="profile" placeholder='{"addons":[...],"profiles":[...]}'></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Preferences</legend>
+  <label>Interface language</label>
+  <input id="lang" placeholder="hr / en" autocomplete="off">
+  <label>Subtitle size (m, l, xl)</label>
+  <input id="subSize" placeholder="m" autocomplete="off">
+</fieldset>
+
+<button id="start">Start pairing</button>
+<span class="code" id="code"></span>
+<div class="status" id="status"></div>
+<p class="warn">Credentials travel over plain HTTP on your own network. Stop this server (Ctrl+C) when the transfer is done.</p>
+
+<script>
+(function () {
+  var code = null;
+  var startBtn = document.getElementById('start');
+  var codeEl = document.getElementById('code');
+  var statusEl = document.getElementById('status');
+
+  function payload() {
+    var data = { emby: {}, addons: [], prefs: {} };
+    var url = document.getElementById('embyUrl').value.trim();
+    var user = document.getElementById('embyUser').value.trim();
+    var pass = document.getElementById('embyPass').value;
+    if (url) { data.emby.url = url; data.emby.user = user; data.emby.pass = pass; }
+    document.getElementById('addons').value.split('\n').forEach(function (line) {
+      var value = line.trim();
+      if (/^https?:\/\//i.test(value)) { data.addons.push(value); }
+    });
+    var profile = document.getElementById('profile').value.trim();
+    if (profile) { data.profile = profile; }
+    var lang = document.getElementById('lang').value.trim().toLowerCase();
+    if (lang) { data.prefs.lang = lang; }
+    var subSize = document.getElementById('subSize').value.trim().toLowerCase();
+    if (subSize) { data.prefs.subSize = subSize; }
+    return data;
+  }
+
+  startBtn.addEventListener('click', function () {
+    startBtn.disabled = true;
+    statusEl.textContent = 'Creating a pairing session…';
+    fetch('/api/session', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        code = data.code;
+        codeEl.textContent = code;
+        statusEl.textContent = 'Enter this code on the TV (Settings → Konfigurator), then press Approve.';
+        var approve = document.createElement('button');
+        approve.textContent = 'Approve & send';
+        approve.style.marginTop = '14px';
+        approve.addEventListener('click', function () {
+          approve.disabled = true;
+          statusEl.textContent = 'Sending…';
+          fetch('/api/session/' + code + '/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload())
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+              statusEl.textContent = res.approved
+                ? 'Approved. The TV applies the settings when it polls (a few seconds). You can close this page.'
+                : 'Failed: ' + (res.error || 'unknown error');
+            })
+            .catch(function () { statusEl.textContent = 'Failed to reach the configurator.'; });
+        });
+        document.body.appendChild(approve);
+      })
+      .catch(function () { statusEl.textContent = 'Failed to create a session.'; startBtn.disabled = false; });
+  });
+})();
+</script>
+</body>
+</html>

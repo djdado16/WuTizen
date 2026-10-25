@@ -88,12 +88,37 @@ export function createSettingsView() {
   embyPass.setAttribute('data-settings-field', 'emby-pass');
   var embyActions = document.createElement('div');
   embyActions.className = 'details__actions';
+
+  // --- PC/Mobile configurator -------------------------------------------------
+  var confHeading = document.createElement('h3');
+  confHeading.className = 'details__section settings__confTitle';
+  var confStatus = document.createElement('div');
+  confStatus.className = 'addons__status';
+  var confHost = document.createElement('input');
+  confHost.className = 'addon-input settings__confHost';
+  confHost.setAttribute('type', 'text');
+  confHost.setAttribute('spellcheck', 'false');
+  confHost.setAttribute('inputmode', 'url');
+  confHost.setAttribute('autocomplete', 'off');
+  var confCode = document.createElement('input');
+  confCode.className = 'addon-input settings__confCode';
+  confCode.setAttribute('type', 'text');
+  confCode.setAttribute('spellcheck', 'false');
+  confCode.setAttribute('autocomplete', 'off');
+  confCode.setAttribute('placeholder', '000000');
+  var confActions = document.createElement('div');
+  confActions.className = 'details__actions';
   embySection.appendChild(embyHeading);
   embySection.appendChild(embyStatus);
   embySection.appendChild(embyUrl);
   embySection.appendChild(embyUser);
   embySection.appendChild(embyPass);
   embySection.appendChild(embyActions);
+  content.appendChild(confHeading);
+  content.appendChild(confStatus);
+  content.appendChild(confHost);
+  content.appendChild(confCode);
+  content.appendChild(confActions);
 
   var urlInput = document.createElement('input');
   urlInput.className = 'addon-input settings__url';
@@ -235,6 +260,52 @@ export function createSettingsView() {
       })(embyFields[f]);
     }
 
+    confHeading.textContent = t('settings.conf');
+    confHost.setAttribute('placeholder', t('settings.confHost'));
+    confCode.setAttribute('placeholder', t('settings.confCode'));
+    if (handlers.confHost) {
+      var saved = handlers.confHost();
+      if (saved && !confHost.value) {
+        confHost.value = saved;
+      }
+    }
+    confStatus.textContent = handlers.confStatus ? handlers.confStatus() : t('settings.confIdle');
+    button(
+      t('settings.confStart'),
+      'conf-start',
+      function () {
+        if (handlers.onConfStart) {
+          handlers.onConfStart(String(confHost.value || '').trim(), String(confCode.value || '').trim());
+        }
+      },
+      confActions
+    );
+    button(
+      t('settings.confApply'),
+      'conf-apply',
+      function () {
+        if (handlers.onConfApply) {
+          handlers.onConfApply();
+        }
+      },
+      confActions
+    );
+    var confFields = [confHost, confCode];
+    for (var cf = 0; cf < confFields.length; cf++) {
+      (function (field) {
+        focusables.push({
+          el: field,
+          activate: function () {
+            try {
+              field.focus();
+            } catch (err) {
+              /* ignored */
+            }
+          }
+        });
+      })(confFields[cf]);
+    }
+
     var last = getProfileSummary();
     if (!last) {
       summary.textContent = t('settings.noProfile');
@@ -304,6 +375,13 @@ export function createSettingsView() {
     embyFields: function () {
       return { url: embyUrl, user: embyUser, pass: embyPass };
     },
+    setConfStatus: function (message) {
+      confStatus.textContent = message || '';
+      confStatus.className = 'addons__status';
+    },
+    confFields: function () {
+      return { host: confHost, code: confCode };
+    },
     focusables: function () {
       return focusables;
     },
@@ -314,6 +392,10 @@ export function createSettingsView() {
       handlers.embyState = next.embyState || null;
       handlers.onEmbyConnect = next.onEmbyConnect || null;
       handlers.onEmbyDisconnect = next.onEmbyDisconnect || null;
+      handlers.confHost = next.confHost || null;
+      handlers.confStatus = next.confStatus || null;
+      handlers.onConfStart = next.onConfStart || null;
+      handlers.onConfApply = next.onConfApply || null;
     },
     isOpen: function () {
       return root.classList.contains('is-open');

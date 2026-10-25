@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.7.1 — 2026-10-25 — PC/Mobile configurator
+
+### Added
+- **Local-network configurator** (`tools/configurator/`): a dependency-free Node server + browser page to configure WuTizen from a PC or phone — Emby server, Stremio add-on URLs, a WuPlay profile export and preferences (language, subtitle size). The TV only makes **outbound** requests (a TizenBrew webview cannot host a server).
+- **Pairing**: the PC issues a 6-digit code (8 min TTL, single use); the user types it on the TV (Settings → “Konfigurator s računala”). The payload is handed over only after **“Approve & send”** on the PC, delivered **once**, and only then applied on the TV (Add-ons are added, never replaced; lists/profiles untouched).
+- Preferences are stored under `wuplay.prefs`; the PC address is remembered (`wuplay.configurator`) while the pairing code is never persisted.
+
+### Security
+- Pairing code: 6 digits, in-memory only, expires after 8 minutes, single use; an unapproved session never returns a payload and a delivered one cannot be replayed.
+- No cloud storage, no relays, LAN only; the server logs session events but never payloads, credentials or URLs.
+- `https` TV + `http` configurator is refused as mixed content. Limitation: transfer is plain HTTP on the LAN, and credentials are stored in `localStorage` (not encrypted) — documented in `docs/CONFIGURATOR.md`.
+
+### Tests
+- 10 new browser checks (231 total): malformed code rejected, 6-digit code issued, TV waits without payload, approved payload arrives, apply adds new add-ons and reports the rejected one, preferences stored, Emby credentials validated, replay blocked, unapproved session yields nothing, existing add-ons survive.
+
 ## v0.7.0 — 2026-10-25 — Provider-first picker, capabilities, My Stuff, native Emby client
 
 ### Fixed

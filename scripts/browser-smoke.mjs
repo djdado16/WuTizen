@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startServer } from './serve.mjs';
 import { startMockAddon } from './mock-addon.mjs';
+import { startConfigurator } from '../tools/configurator/server.mjs';
 
 const APP_PORT = 8123;
 const CDP_PORT = 9223;
@@ -269,6 +270,8 @@ if (!browserPath) {
 
 let serverHandle = null;
 let mockAddon = null;
+let configuratorServer = null;
+const CONF_PORT = 8131;
 let chromeProcess = null;
 let userDataDir = null;
 let client = null;
@@ -290,6 +293,9 @@ function shutdown(code) {
   if (mockAddon && mockAddon.server) {
     mockAddon.server.close();
   }
+  if (configuratorServer && configuratorServer.server) {
+    configuratorServer.server.close();
+  }
   if (userDataDir) {
     rm(userDataDir, { recursive: true, force: true }).catch(() => {});
   }
@@ -306,6 +312,8 @@ try {
   console.log('[smoke] serving dist/ at ' + APP_URL);
   mockAddon = await startMockAddon(ADDON_PORT);
   console.log('[smoke] mock add-on at ' + mockAddon.url);
+  configuratorServer = await startConfigurator(CONF_PORT, {});
+  console.log('[smoke] configurator at ' + configuratorServer.url);
 
   userDataDir = await mkdtemp(path.join(os.tmpdir(), 'wuplay-smoke-'));
   chromeProcess = spawn(
@@ -1678,6 +1686,71 @@ try {
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
+
+  /* ---- v0.7.1 configurator: pairing, approval, apply, replay ------------ */
+  const confHost = 'http://127.0.0.1:' + CONF_PORT;
+  check(
+    'a malformed pairing code is rejected before any request',
+    (await evaluate(
+      client,
+      'window.WuTizenDebug.configurator.start(' + JSON.stringify(confHost) + ', "12345")'
+    )) === false &&
+      (await evaluate(client, 'window.WuTizenDebug.configurator.state().status')) === 'invalid'
+  );
+  const sessionA = await (await fetch(confHost + '/api/session', { method: 'POST' })).json();
+  check('the PC issues a 6-digit pairing code', /^\d{6}$/.test(String(sessionA.code)), String(sessionA.code));
+  await evaluate(
+    client,
+    'window.WuTizenDebug.configurator.start(' + JSON.stringify(confHost) + ', ' + JSON.stringify(sessionA.code) + ')'
+  );
+  check(
+    'the TV waits for approval and receives nothing yet',
+    (await evaluate(client, 'window.WuTizenDebug.configurator.state().status')) === 'waiting' &&
+      (await evaluate(client, 'window.WuTizenDebug.configurator.state().hasPayload')) === false
+  );
+  await fetch(confHost + '/api/session/' + sessionA.code + '/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emby: { url: 'http://127.0.0.1:' + ADDON_PORT, user: 'demo', pass: 'demo-pass' },
+      addons: [
+        'http://127.0.0.1:' + ADDON_PORT + '/sb/CONF-CFG/manifest.json',
+        'http://127.0.0.1:' + ADDON_PORT + '/bad/manifest.json'
+      ],
+      prefs: { lang: 'hr', subSize: 'l' }
+    })
+  });
+  check(
+    'the approved payload reaches the TV',
+    !!(await waitFor(client, 'window.WuTizenDebug.configurator.state().hasPayload ? 1 : 0', 12000))
+  );
+  const applied = await evaluate(client, 'window.WuTizenDebug.configurator.apply()');
+  check(
+    'applying adds new add-ons and reports the rejected one',
+    !!applied && applied.addons === 1 && applied.skipped === 1,
+    JSON.stringify(applied).slice(0, 60)
+  );
+  check(
+    'preferences from the payload are stored',
+    String(await evaluate(client, 'localStorage.getItem("wuplay.prefs")')).indexOf('subSize') > -1
+  );
+  check(
+    'Emby credentials from the payload are validated and stored',
+    !!(await waitFor(client, 'window.WuTizenDebug.emby.state().connected ? 1 : 0', 12000))
+  );
+  const replay = await fetch(confHost + '/api/session/' + sessionA.code + '/claim');
+  check('a delivered session cannot be replayed', replay.status === 404 || replay.status === 409, String(replay.status));
+  const sessionB = await (await fetch(confHost + '/api/session', { method: 'POST' })).json();
+  const pendingClaim = await (await fetch(confHost + '/api/session/' + sessionB.code + '/claim')).json();
+  check(
+    'an unapproved session never yields a payload',
+    pendingClaim.state === 'waiting' && typeof pendingClaim.payload === 'undefined',
+    String(pendingClaim.state)
+  );
+  check(
+    'existing add-ons survive the transfer',
+    (await evaluate(client, 'window.WuTizenDebug.addon.list().length')) > 0
+  );
 
   /* ---- Emby client (API-level tests, synthetic server) ------------------- */
   const embyUrl = 'http://127.0.0.1:' + ADDON_PORT;
