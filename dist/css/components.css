@@ -469,6 +469,26 @@
   color: var(--text-dim);
 }
 
+/* source list status: loading, counts and per-add-on failures (hosts only) */
+.details__sourcesInfo {
+  margin-top: 8px;
+}
+
+.details__sourceSummary {
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+.details__provider {
+  margin-top: 4px;
+  font-size: 17px;
+  color: var(--text-dim);
+}
+
+.details__provider.is-error {
+  color: #ffb3b3;
+}
+
 /* --- player (Milestone 5) -------------------------------------------------- */
 
 .player {

@@ -33,6 +33,7 @@ import { createSettingsView } from './ui/views/settings.js';
 import { parseProfile, summarizeImport } from './data/profileImport.js';
 import { saveProfileSummary, getProfileSummary } from './state/profile.js';
 import { normalizeMeta, fetchCatalogPage, loadCatalogRows } from './data/catalogs.js';
+import { resolveStreams, streamProviders } from './data/streamResolver.js';
 import { createPlayer } from './playback/player.js';
 import { classifyStream } from './playback/sources.js';
 import {
@@ -243,12 +244,7 @@ function boot() {
         syncEpisodeFocusables();
       }
     });
-    addonClient.streams(item.addonUrl, type, item.id, function (err, data) {
-      if (details.isOpen()) {
-        details.setStreams(!err && data && data.streams ? data.streams : [], true);
-        syncStreamFocusables();
-      }
-    });
+    loadStreams(item.id, false);
   }
 
   /** Dismiss the top layer in one call, whatever the stack depth grew to. */
@@ -330,7 +326,40 @@ function boot() {
     }
   });
 
-  /* ---- stream rows ------------------------------------------------------ */
+  /* ---- stream discovery (all providers, not just the catalog add-on) -----
+     Emby Bridge / TorBox are stream-only add-ons, so the catalog add-on that
+     produced the item usually answers nothing. Every installed add-on that
+     advertises `stream` is asked, and the answers are merged. */
+
+  function loadStreams(videoId, focusFirst) {
+    var item = details.currentItem();
+    if (!item || !item.addonUrl) {
+      details.setStreams([], true, null);
+      syncStreamFocusables();
+      return;
+    }
+    details.setStreams([], false); // clear while loading
+    details.setSourcesStatus('loading');
+    syncStreamFocusables();
+    resolveStreams(
+      {
+        item: item,
+        type: item.kind || 'movie',
+        videoId: videoId || '',
+        addons: listAddons()
+      },
+      function (result) {
+        if (!details.isOpen()) {
+          return;
+        }
+        details.setStreams(result.streams, true, result);
+        syncStreamFocusables();
+        if (focusFirst && details.sourceRows().length) {
+          focusManager.focus(details.sourceRows()[0].el);
+        }
+      }
+    );
+  }
 
   function unregisterList(list) {
     for (var i = 0; i < list.length; i++) {
@@ -381,19 +410,7 @@ function boot() {
     }
     selectedVideoId = card.videoId;
     selectedVideoLabel = card.label || '';
-    details.setStreams([], false);
-    syncStreamFocusables();
-    addonClient.streams(item.addonUrl, item.kind, card.videoId, function (err, data) {
-      if (!details.isOpen()) {
-        return;
-      }
-      details.setStreams(!err && data && data.streams ? data.streams : [], true);
-      syncStreamFocusables();
-      var rows = details.sourceRows();
-      if (rows.length) {
-        focusManager.focus(rows[0].el);
-      }
-    });
+    loadStreams(card.videoId, true);
   }
 
   /* ---- add-on manager screen -------------------------------------------- */
@@ -1222,6 +1239,24 @@ function boot() {
     },
     diagnostics: function () {
       return diagnosticsList();
+    },
+    streams: {
+      resolve: function (id, type, videoId) {
+        return new Promise(function (resolve) {
+          resolveStreams(
+            {
+              item: { id: id, kind: type || 'movie' },
+              type: type || 'movie',
+              videoId: videoId || '',
+              addons: listAddons()
+            },
+            resolve
+          );
+        });
+      },
+      providers: function () {
+        return streamProviders(listAddons(), 'movie', 'tt0000000');
+      }
     },
     player: {
       state: function () {

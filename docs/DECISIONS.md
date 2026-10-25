@@ -185,3 +185,28 @@ a served 20 s WAV sample (play/pause/seek/progress/ended), exercise the AVPlay
 adapter against a stub of Samsung's API, and cover episode selection, torrent
 refusal and cleanup. Remaining device limits (subtitles, resume, DASH without
 AVPlay) are listed in `docs/PLAYBACK.md` rather than implied to work.
+
+## D18 — Stream discovery across add-ons (v0.5.1)
+**Context:** on the TV, movie/episode details said "no sources" while Emby Bridge
+and TorBox were visibly installed. Verified in code: `openDetails()` called
+`addonClient.streams(item.addonUrl, …)`, i.e. it asked **the catalog add-on only**
+(Cinemeta-style, no `stream` resource). Stream providers are separate,
+catalog-less add-ons, so they were never queried. Second, smaller defect found on
+the same path: the id path segment was `encodeURIComponent`-ed, producing
+`tt0944947%3A1%3A2` for episodes.
+**Decision:**
+- `data/streamResolver.js` fans out to **all installed add-ons advertising the
+  `stream` resource**, filtered by `manifest.types` and the resource's
+  `idPrefixes` (stored per add-on by the Milestone 5 `summarize` change);
+- ids keep literal colons; `:` is the only character un-escaped;
+- results are merged and de-duplicated by url / infoHash+fileIdx / externalUrl /
+  ytId — duplicates are dropped, valid HTTP streams and torrent entries are kept;
+- every request is reported as `ok | empty | error(reason)` and the details screen
+  prints counts plus `name (host) · reason`, so "no streams returned" is
+  distinguishable from `auth`/network failures;
+- only host-level data leaves the resolver: no URL, path, query or token is
+  rendered or logged.
+**Consequences:** 15 new smoke checks (132 total) with synthetic Emby-Bridge- and
+TorBox-shaped providers (object/string resources, `idPrefixes`, path config), a
+401 provider and an empty provider; they verify fan-out, dedupe, id form, type
+filtering and redaction. Existing add-on storage and profiles are untouched.

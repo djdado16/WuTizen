@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.1 — 2026-10-25 — Stream discovery across all add-ons
+
+### Fixed
+- **"No available sources" on movie/episode details, although Emby Bridge / TorBox were installed.** The details screen only asked the add-on that produced the catalog item (usually Cinemeta or another catalog provider) for `/stream/…`. Stream providers are separate, catalog-less add-ons, so they were never queried. New `data/streamResolver.js` asks **every installed add-on that advertises the `stream` resource**, filters by `manifest.types` and the resource's `idPrefixes`, and merges the answers.
+- **Series episode ids were percent-encoded** (`tt0944947%3A1%3A2`). Colons in the id path segment now stay literal (`tt0944947:1:2`), which providers like Emby Bridge/TorBox expect.
+- Configured add-on paths and authentication are used as stored (the resolver never rebuilds or strips the base URL).
+
+### Added
+- Merged, de-duplicated source list (by url / infoHash+fileIdx / externalUrl / ytId) — valid HTTP streams are never dropped; torrent entries are kept and refused with an explanation at play time.
+- Details screen shows **loading**, then "*N* sources · *k*/*m* add-ons answered", plus one line per add-on that returned nothing or failed, as **name (host) · reason** — so "no streams" is distinguishable from `auth`, `notFound`, `server`, `timeout` and `unreachable`. No URL, path or token is displayed or logged.
+- `WuTizenDebug.streams.resolve(id, type, videoId)` / `.providers()` for diagnostics.
+
+### Tests
+- 15 new browser checks (132 total): synthetic **Emby Bridge** (object-form resource with `idPrefixes`, path-level config), **TorBox** (string resources, duplicate URL, torrent entry), a **401** provider and an **empty** provider; provider fan-out, per-add-on status, dedupe, provider endpoints preserved, literal-colon episode ids, `types` filtering, no URLs/tokens in the report or the UI, and details rendering merged sources.
+
 ## v0.5.0 — 2026-10-25 — Video playback (Milestone 5)
 
 ### Added

@@ -947,6 +947,108 @@ try {
     JSON.stringify(stremioMapped).slice(0, 60)
   );
 
+  /* ---- fix: stream discovery across ALL installed providers --------------
+     Emby Bridge / TorBox are stream-only add-ons; the catalog add-on answers
+     nothing for a stream request, which produced "no sources" on the TV. */
+  const providerPaths = ['/emby/manifest.json', '/torbox/manifest.json', '/noauth/manifest.json', '/emptyprov/manifest.json'];
+  for (const providerPath of providerPaths) {
+    await evaluate(
+      client,
+      'window.WuTizenDebug.addon.add(' +
+        JSON.stringify('http://127.0.0.1:' + ADDON_PORT + providerPath) +
+        ')'
+    );
+  }
+  const providerNames = await evaluate(
+    client,
+    'window.WuTizenDebug.streams.providers().map(function (a) { return a.name; }).join(",")'
+  );
+  check(
+    'every installed add-on advertising "stream" is a candidate',
+    /Emby Bridge/.test(providerNames) && /TorBox/.test(providerNames) && /Needs Login/.test(providerNames),
+    String(providerNames).slice(0, 80)
+  );
+
+  const resolved = await evaluate(client, 'window.WuTizenDebug.streams.resolve("tt0111161", "movie")');
+  const resolvedNames = resolved.streams.map((s) => s.name || s.title || '');
+  check(
+    'streams come from the providers, not the catalog add-on',
+    resolvedNames.indexOf('Emby 1080p') > -1 && resolvedNames.indexOf('TorBox 1080p') > -1,
+    resolvedNames.join(' | ').slice(0, 80)
+  );
+  const resolvedUrls = resolved.streams.map((s) => s.url || 'hash:' + s.infoHash).filter(Boolean);
+  check(
+    'each provider’s own endpoint is preserved',
+    resolvedUrls.some((u) => u.indexOf('?e=0') > -1) && resolvedUrls.some((u) => u.indexOf('?tb=1') > -1),
+    resolvedUrls.length + ' streams'
+  );
+  check(
+    'merged answers are de-duplicated',
+    new Set(resolvedUrls).size === resolvedUrls.length,
+    resolvedUrls.length + ' streams, ' + new Set(resolvedUrls).size + ' unique'
+  );
+  check(
+    'torrent entries are merged too (refused at play time, not dropped)',
+    resolved.streams.some((s) => !!s.infoHash)
+  );
+  const providerStatus = {};
+  resolved.providers.forEach((p) => {
+    providerStatus[p.name] = p.status + (p.reason ? ':' + p.reason : '');
+  });
+  check(
+    'per-add-on status distinguishes ok / empty / error',
+    providerStatus['Emby Bridge'] === 'ok' &&
+      providerStatus['TorBox'] === 'ok' &&
+      providerStatus['Empty Provider'] === 'empty' &&
+      /^error/.test(providerStatus['Needs Login'] || ''),
+    JSON.stringify(providerStatus).slice(0, 90)
+  );
+  check(
+    'an authentication failure is reported as auth, not as "no streams"',
+    JSON.stringify(resolved.providers).indexOf('"auth"') > -1,
+    JSON.stringify(resolved.providers).slice(0, 70)
+  );
+  check(
+    'the resolver report carries no URLs, paths or tokens',
+    JSON.stringify(resolved.providers).indexOf('sample.wav') === -1 &&
+      JSON.stringify(resolved.providers).indexOf('/emby') === -1 &&
+      JSON.stringify(resolved.providers).indexOf('?e=') === -1
+  );
+
+  const episodeResolved = await evaluate(
+    client,
+    'window.WuTizenDebug.streams.resolve("tt0944947:1:1", "series")'
+  );
+  check(
+    'episode ids reach providers with literal colons',
+    episodeResolved.streams.some((s) => /Emby id tt0944947:1:1/.test(s.name || '')),
+    episodeResolved.streams.map((s) => s.name || '').join(' | ').slice(0, 70)
+  );
+  check(
+    'add-ons whose types exclude the request are skipped',
+    !episodeResolved.providers.some((p) => p.name === 'Empty Provider'),
+    episodeResolved.providers.map((p) => p.name).join(',')
+  );
+
+  // UI: a catalog item must now list the providers' sources.
+  await waitFor(client, 'document.querySelectorAll(".card").length > 0', 10000);
+  await evaluate(client, 'window.WuTizenDebug.addon.focusFirstCard()');
+  await press(client, 'Enter', 13);
+  const uiSources = await waitFor(client, 'document.querySelectorAll(".source-row").length', 12000);
+  check('details lists sources for a catalog item', !!uiSources, uiSources ? uiSources + ' rows' : 'none');
+  const infoText = String(await evaluate(client, 'document.querySelector(".details__sourcesInfo").textContent'));
+  check('details reports how many add-ons answered', /\d+\s*\/\s*\d+/.test(infoText), infoText.slice(0, 60));
+  check(
+    'the failing provider is shown by name + host',
+    (await evaluate(client, 'document.querySelectorAll(".details__provider.is-error").length')) > 0
+  );
+  check(
+    'no stream URL or query string is rendered',
+    infoText.indexOf('sample.wav') === -1 && infoText.indexOf('?e=') === -1 && infoText.indexOf('/stream/') === -1,
+    infoText.slice(0, 70)
+  );
+  await press(client, 'Unidentified', 10009);
+
   /* ---- Milestone 5: import diagnostics (host + reason, no paths) -------- */
   const brokenFixture = JSON.stringify({
     profiles: [{ name: 'Broken Profile' }],

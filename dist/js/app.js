@@ -306,6 +306,9 @@
     "details.markWatched": "Označi kao gledano",
     "details.episodes": "Epizode",
     "details.sources": "Izvori",
+    "details.loadingSources": "Traženje izvora po dodacima…",
+    "details.sourcesFrom": "izvora · dodataka odgovorilo:",
+    "details.providerEmpty": "nema izvora",
     "addons.title": "Dodaci",
     "addons.hint": "Stremio-kompatibilni dodaci. Adresa se pohranjuje samo na ovom televizoru.",
     "addons.installed": "Instalirani dodaci",
@@ -397,6 +400,9 @@
     "details.markWatched": "Mark Watched",
     "details.episodes": "Episodes",
     "details.sources": "Sources",
+    "details.loadingSources": "Asking add-ons for sources…",
+    "details.sourcesFrom": "sources · add-ons answered:",
+    "details.providerEmpty": "no sources",
     "addons.title": "Add-ons",
     "addons.hint": "Stremio-compatible add-ons. The address is stored on this TV only.",
     "addons.installed": "Installed add-ons",
@@ -1537,6 +1543,8 @@
     sourcesHeading.setAttribute("data-detail-section", "sources");
     var sources = document.createElement("div");
     sources.className = "details__sources";
+    var sourcesInfo = document.createElement("div");
+    sourcesInfo.className = "details__sourcesInfo";
     content.appendChild(title);
     content.appendChild(meta);
     content.appendChild(desc);
@@ -1545,6 +1553,7 @@
     content.appendChild(section);
     content.appendChild(episodes);
     content.appendChild(sourcesHeading);
+    content.appendChild(sourcesInfo);
     content.appendChild(sources);
     root.appendChild(bg);
     root.appendChild(scrim);
@@ -1676,20 +1685,65 @@
       }
       return parts.join(" · ");
     }
-    function setStreams(list, settled) {
+    function reasonLabel(reason) {
+      if (reason === "auth") {
+        return t("import.auth");
+      }
+      if (reason === "notFound") {
+        return t("import.notFound");
+      }
+      if (reason === "server") {
+        return t("import.server");
+      }
+      if (reason === "timeout") {
+        return t("import.timeout");
+      }
+      if (reason === "notAddon") {
+        return t("import.notAddon");
+      }
+      return t("import.unreachable");
+    }
+    function setStreams(list, settled, report) {
       while (sources.firstChild) {
         sources.removeChild(sources.firstChild);
+      }
+      while (sourcesInfo.firstChild) {
+        sourcesInfo.removeChild(sourcesInfo.firstChild);
       }
       sourceRowList = [];
       streamList = list || [];
       var visible2 = Math.min(streamList.length, 8);
       var isReal = !!(currentItem && currentItem.addonUrl);
+      var providers = report && report.providers || [];
       sourcesHeading.style.display = visible2 > 0 || isReal && settled === true ? "" : "none";
-      if (visible2 === 0 && isReal && settled === true) {
-        var empty = document.createElement("div");
-        empty.className = "details__empty";
-        empty.textContent = t("player.noSources");
-        sources.appendChild(empty);
+      if (settled === true && isReal) {
+        var summary = document.createElement("div");
+        summary.className = "details__sourceSummary";
+        if (visible2 > 0) {
+          var answered = 0;
+          for (var a = 0; a < providers.length; a++) {
+            if (providers[a].status === "ok") {
+              answered += 1;
+            }
+          }
+          summary.textContent = streamList.length + " " + t("details.sourcesFrom") + " " + answered + "/" + providers.length;
+        } else {
+          summary.textContent = t("player.noSources");
+        }
+        sourcesInfo.appendChild(summary);
+        for (var p = 0; p < providers.length && p < 4; p++) {
+          var provider = providers[p];
+          if (provider.status === "ok") {
+            continue;
+          }
+          var line = document.createElement("div");
+          line.className = "details__provider is-" + provider.status;
+          var label2 = provider.name + " (" + provider.host + ")";
+          line.textContent = label2 + " · " + (provider.status === "empty" ? t("details.providerEmpty") : reasonLabel(provider.reason));
+          sourcesInfo.appendChild(line);
+        }
+      }
+      if (visible2 === 0) {
         return;
       }
       for (var i2 = 0; i2 < visible2; i2++) {
@@ -1703,12 +1757,25 @@
         sourceRowList.push({ el: row, stream: streamList[i2] || {}, index: i2 });
       }
     }
+    function setSourcesStatus(state) {
+      while (sourcesInfo.firstChild) {
+        sourcesInfo.removeChild(sourcesInfo.firstChild);
+      }
+      sourcesHeading.style.display = "";
+      if (state === "loading") {
+        var line = document.createElement("div");
+        line.className = "details__sourceSummary";
+        line.textContent = t("details.loadingSources");
+        sourcesInfo.appendChild(line);
+      }
+    }
     return {
       el: root,
       buttons: buttonList,
       setItem: setItem2,
       setLanguage: setLanguage2,
       setStreams,
+      setSourcesStatus,
       title: function() {
         if (!currentItem) {
           return "";
@@ -1879,12 +1946,18 @@
       finish(new Error("request failed"));
     }
   }
+  function encodeId(id) {
+    return encodeURIComponent(String(id)).replace(/%3A/gi, ":");
+  }
   function resourceUrl(base, resource, type, id, extra) {
-    var url = base + "/" + resource + "/" + encodeURIComponent(type) + "/" + encodeURIComponent(id);
+    var url = base + "/" + resource + "/" + encodeURIComponent(type) + "/" + encodeId(id);
     if (extra) {
       url += "/" + extra;
     }
     return url + ".json";
+  }
+  function failureReason(err) {
+    return reasonOfError(err);
   }
   var addonClient = {
     manifest: function(base, cb) {
@@ -1987,6 +2060,25 @@
         types.push(rawTypes[t2]);
       }
     }
+    var idPrefixes = [];
+    function addPrefix(value) {
+      if (typeof value === "string" && value && idPrefixes.indexOf(value) === -1 && idPrefixes.length < 8) {
+        idPrefixes.push(value);
+      }
+    }
+    for (var r2 = 0; r2 < raw.length; r2++) {
+      var entry2 = raw[r2];
+      if (entry2 && typeof entry2 === "object" && entry2.name === "stream" && entry2.idPrefixes) {
+        for (var p = 0; p < entry2.idPrefixes.length; p++) {
+          addPrefix(entry2.idPrefixes[p]);
+        }
+      }
+    }
+    if (!idPrefixes.length && manifest.idPrefixes) {
+      for (var p2 = 0; p2 < manifest.idPrefixes.length; p2++) {
+        addPrefix(manifest.idPrefixes[p2]);
+      }
+    }
     return {
       url,
       id: String(manifest.id || url),
@@ -1996,6 +2088,7 @@
       logo: manifest.logo ? String(manifest.logo) : "",
       resources,
       types,
+      idPrefixes,
       catalogs
     };
   }
@@ -2752,6 +2845,136 @@
     }
     if (startCount === 0) {
       done({ rows, failures, attempted: 0 });
+    }
+  }
+
+  // app/js/data/streamResolver.js
+  var MAX_PROVIDERS = 10;
+  var MAX_STREAMS = 40;
+  function hostOf2(url) {
+    var match = /^https?:\/\/[^/]+/i.exec(String(url || ""));
+    return match ? match[0] : "(no host)";
+  }
+  function advertises(entry, resource) {
+    var list = entry && entry.resources || [];
+    return list.indexOf(resource) > -1;
+  }
+  function typeAllowed(entry, type) {
+    var types = entry && entry.types || [];
+    return types.length === 0 || types.indexOf(type) > -1;
+  }
+  function prefixAllowed(entry, id) {
+    var prefixes = entry && entry.idPrefixes || [];
+    if (!prefixes.length) {
+      return true;
+    }
+    var value = String(id);
+    for (var i = 0; i < prefixes.length; i++) {
+      if (value.indexOf(prefixes[i]) === 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function streamProviders(addons, type, id) {
+    var out = [];
+    var list = addons || [];
+    for (var i = 0; i < list.length && out.length < MAX_PROVIDERS; i++) {
+      var entry = list[i];
+      if (!entry || !entry.url || !advertises(entry, "stream")) {
+        continue;
+      }
+      if (!typeAllowed(entry, type) || !prefixAllowed(entry, id)) {
+        continue;
+      }
+      out.push(entry);
+    }
+    return out;
+  }
+  function streamKey(stream) {
+    if (stream.url) {
+      return "u:" + String(stream.url);
+    }
+    if (stream.infoHash) {
+      return "h:" + String(stream.infoHash) + ":" + String(stream.fileIdx || 0);
+    }
+    if (stream.externalUrl) {
+      return "e:" + String(stream.externalUrl);
+    }
+    if (stream.ytId) {
+      return "y:" + String(stream.ytId);
+    }
+    return "n:" + String(stream.name || "") + "|" + String(stream.title || "");
+  }
+  function resolveStreams(options, done) {
+    var opts = options || {};
+    var item = opts.item || {};
+    var type = opts.type || item.kind || "movie";
+    var id = opts.videoId || item.id;
+    var providers = streamProviders(opts.addons || [], type, id);
+    var report = [];
+    var streams = [];
+    var seen = {};
+    var pending = providers.length;
+    var attempted = 0;
+    function finish() {
+      var ordered = report.slice().sort(function(a, b) {
+        return a.index - b.index;
+      });
+      done({
+        streams: streams.slice(0, MAX_STREAMS),
+        providers: ordered,
+        attempted,
+        id: String(id || ""),
+        type
+      });
+    }
+    if (!id || !pending) {
+      done({ streams: [], providers: [], attempted: 0, id: String(id || ""), type });
+      return;
+    }
+    function settle(index, entry, status, reason, list) {
+      var kept = [];
+      if (list) {
+        for (var i = 0; i < list.length; i++) {
+          var stream = list[i];
+          if (!stream || typeof stream !== "object") {
+            continue;
+          }
+          var key = streamKey(stream);
+          if (seen[key]) {
+            continue;
+          }
+          seen[key] = true;
+          kept.push(stream);
+          streams.push(stream);
+        }
+      }
+      report.push({
+        index,
+        name: String(entry.name || "Add-on"),
+        host: hostOf2(entry.url),
+        status,
+        reason: reason || "",
+        count: kept.length
+      });
+      pending -= 1;
+      if (pending === 0) {
+        finish();
+      }
+    }
+    attempted = providers.length;
+    for (var p = 0; p < providers.length; p++) {
+      (function(entry, index) {
+        addonClient.streams(entry.url, type, id, function(err, data) {
+          if (err) {
+            settle(index, entry, "error", failureReason(err), null);
+            return;
+          }
+          var list = data && data.streams && data.streams.length ? data.streams : [];
+          settle(index, entry, list.length ? "ok" : "empty", "", list);
+        });
+      })(providers[p], p);
     }
   }
 
@@ -3730,12 +3953,7 @@
           syncEpisodeFocusables();
         }
       });
-      addonClient.streams(item.addonUrl, type, item.id, function(err, data) {
-        if (details.isOpen()) {
-          details.setStreams(!err && data && data.streams ? data.streams : [], true);
-          syncStreamFocusables();
-        }
-      });
+      loadStreams(item.id, false);
     }
     function closeDetails() {
       while (router.depth() > 0) {
@@ -3797,6 +4015,35 @@
         focusManager.focus(details.sourceRows()[0].el);
       }
     });
+    function loadStreams(videoId, focusFirst) {
+      var item = details.currentItem();
+      if (!item || !item.addonUrl) {
+        details.setStreams([], true, null);
+        syncStreamFocusables();
+        return;
+      }
+      details.setStreams([], false);
+      details.setSourcesStatus("loading");
+      syncStreamFocusables();
+      resolveStreams(
+        {
+          item,
+          type: item.kind || "movie",
+          videoId: videoId || "",
+          addons: listAddons()
+        },
+        function(result) {
+          if (!details.isOpen()) {
+            return;
+          }
+          details.setStreams(result.streams, true, result);
+          syncStreamFocusables();
+          if (focusFirst && details.sourceRows().length) {
+            focusManager.focus(details.sourceRows()[0].el);
+          }
+        }
+      );
+    }
     function unregisterList(list) {
       for (var i = 0; i < list.length; i++) {
         focusManager.unregister(list[i]);
@@ -3840,19 +4087,7 @@
       }
       selectedVideoId = card.videoId;
       selectedVideoLabel = card.label || "";
-      details.setStreams([], false);
-      syncStreamFocusables();
-      addonClient.streams(item.addonUrl, item.kind, card.videoId, function(err, data) {
-        if (!details.isOpen()) {
-          return;
-        }
-        details.setStreams(!err && data && data.streams ? data.streams : [], true);
-        syncStreamFocusables();
-        var rows = details.sourceRows();
-        if (rows.length) {
-          focusManager.focus(rows[0].el);
-        }
-      });
+      loadStreams(card.videoId, true);
     }
     var addonsReturnFocus = null;
     var addonFocusables = [];
@@ -4540,6 +4775,24 @@
       },
       diagnostics: function() {
         return diagnosticsList();
+      },
+      streams: {
+        resolve: function(id, type, videoId) {
+          return new Promise(function(resolve) {
+            resolveStreams(
+              {
+                item: { id, kind: type || "movie" },
+                type: type || "movie",
+                videoId: videoId || "",
+                addons: listAddons()
+              },
+              resolve
+            );
+          });
+        },
+        providers: function() {
+          return streamProviders(listAddons(), "movie", "tt0000000");
+        }
       },
       player: {
         state: function() {

@@ -189,6 +189,90 @@ export function startMockAddon(port) {
       return;
     }
 
+    // Stream providers (Emby Bridge / TorBox style): stream-only add-ons with
+    // idPrefixes and path-level configuration, plus explicit failure modes.
+    if (url === '/emby/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.emby',
+        version: '1.0.0',
+        name: 'Emby Bridge',
+        description: 'Stream provider (Emby Bridge shaped)',
+        resources: [{ name: 'stream', types: ['movie', 'series'], idPrefixes: ['tt'] }],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+    if (url === '/torbox/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.torbox',
+        version: '1.0.0',
+        name: 'TorBox',
+        description: 'Stream provider (TorBox shaped)',
+        resources: ['stream'],
+        types: ['movie', 'series'],
+        idPrefixes: ['tt']
+      });
+      return;
+    }
+    if (url === '/noauth/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.noauth',
+        version: '1.0.0',
+        name: 'Needs Login',
+        description: 'Stream provider that rejects requests (401)',
+        resources: ['stream'],
+        types: ['movie', 'series']
+      });
+      return;
+    }
+    if (url === '/emptyprov/manifest.json') {
+      send(200, {
+        id: 'org.wutizen.empty',
+        version: '1.0.0',
+        name: 'Empty Provider',
+        description: 'Stream provider that returns no streams',
+        resources: ['stream'],
+        types: ['movie'],
+        idPrefixes: ['tt']
+      });
+      return;
+    }
+
+    let provider = /^\/(emby|torbox|noauth|emptyprov)\/stream\/(movie|series)\/(.+)\.json$/.exec(url);
+    if (provider) {
+      const which = provider[1];
+      const videoId = provider[3];
+      const base = 'http://127.0.0.1:' + port;
+      if (which === 'noauth') {
+        res.statusCode = 401;
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      if (which === 'emptyprov') {
+        send(200, { streams: [] });
+        return;
+      }
+      if (which === 'emby') {
+        send(200, {
+          streams: [
+            { name: 'Emby 1080p', title: 'Emby direct', url: base + '/media/sample.wav?e=0' },
+            // Echoes the id: proves the exact id form that reached the provider.
+            { name: 'Emby id ' + videoId, url: base + '/media/sample.wav?e=1' }
+          ]
+        });
+        return;
+      }
+      // TorBox: one exact duplicate of an Emby URL (dedupe) and one torrent entry.
+      send(200, {
+        streams: [
+          { name: 'TorBox 1080p', url: base + '/media/sample.wav?tb=1' },
+          { name: 'TorBox duplicate', url: base + '/media/sample.wav?e=1' },
+          { name: 'TorBox torrent', infoHash: 'cafebabecafebabecafebabecafebabe', fileIdx: 0 }
+        ]
+      });
+      return;
+    }
+
     // Failing add-on: manifest is valid, every catalog request returns HTTP 500.
     if (url === '/fail/manifest.json') {
       send(200, {

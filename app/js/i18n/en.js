@@ -25,6 +25,9 @@ export default {
   'details.markWatched': 'Mark Watched',
   'details.episodes': 'Episodes',
   'details.sources': 'Sources',
+  'details.loadingSources': 'Asking add-ons for sources…',
+  'details.sourcesFrom': 'sources · add-ons answered:',
+  'details.providerEmpty': 'no sources',
 
   'addons.title': 'Add-ons',
   'addons.hint': 'Stremio-compatible add-ons. The address is stored on this TV only.',

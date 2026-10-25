@@ -25,6 +25,9 @@ export default {
   'details.markWatched': 'Označi kao gledano',
   'details.episodes': 'Epizode',
   'details.sources': 'Izvori',
+  'details.loadingSources': 'Traženje izvora po dodacima…',
+  'details.sourcesFrom': 'izvora · dodataka odgovorilo:',
+  'details.providerEmpty': 'nema izvora',
 
   'addons.title': 'Dodaci',
   'addons.hint': 'Stremio-kompatibilni dodaci. Adresa se pohranjuje samo na ovom televizoru.',

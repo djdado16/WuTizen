@@ -181,12 +181,29 @@ function requestJson(url, ctx, done) {
   }
 }
 
+/**
+ * Path segment for a Stremio id. Colons stay literal because the protocol uses
+ * them for series episodes (`tt0944947:1:1`); percent-encoding them breaks
+ * providers that parse the segment (Emby Bridge, TorBox and others).
+ */
+function encodeId(id) {
+  return encodeURIComponent(String(id)).replace(/%3A/gi, ':');
+}
+
 function resourceUrl(base, resource, type, id, extra) {
-  var url = base + '/' + resource + '/' + encodeURIComponent(type) + '/' + encodeURIComponent(id);
+  var url = base + '/' + resource + '/' + encodeURIComponent(type) + '/' + encodeId(id);
   if (extra) {
     url += '/' + extra;
   }
   return url + '.json';
+}
+
+/**
+ * Reason code for a failed request (host-safe). Shared by the import summary and
+ * the stream resolver so both report the same vocabulary.
+ */
+export function failureReason(err) {
+  return reasonOfError(err);
 }
 
 /** Callback API: cb(error, json). */

@@ -14,8 +14,24 @@ sandboxed or iframe context where the native video plane cannot be composited
 (AVPlay would show a black screen). In that case the app automatically uses
 `<video>`; on a Tizen 5.0 panel that still covers H.264 MP4 and HLS.
 
-## Remote controls
+## Stream discovery (where sources come from)
 
+Every installed add-on that advertises the `stream` resource is asked — not only
+the add-on whose catalog produced the item. That is what makes Emby Bridge /
+TorBox work: they are stream-only add-ons with no catalogs of their own.
+
+- candidates are filtered by `manifest.types` and the stream resource's
+  `idPrefixes` (`tt…`), so an add-on is never asked for an id it cannot answer;
+- ids keep literal colons (`tt0944947:1:2`) — percent-encoding them breaks
+  providers that parse the path segment (`resourceUrl` in `data/addonClient.js`);
+- answers are merged and de-duplicated by url / infoHash+fileIdx / externalUrl /
+  ytId, then capped at 40; torrent entries are kept and refused at play time;
+- the details screen shows loading, then "*N* sources · *k*/*m* add-ons
+  answered", plus "name (host) · reason" for add-ons that returned nothing or
+  failed (`auth`, `notFound`, `server`, `timeout`, `unreachable`). No URL, path
+  or token is displayed or logged.
+
+## Remote controls
 | Key | Action |
 |---|---|
 | OK | play / pause |

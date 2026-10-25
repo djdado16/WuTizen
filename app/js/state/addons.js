@@ -45,6 +45,27 @@ function summarize(url, manifest) {
       types.push(rawTypes[t]);
     }
   }
+  // idPrefixes declared by the stream resource (or the manifest) tell us which
+  // id namespaces the add-on can answer — used to skip impossible requests.
+  var idPrefixes = [];
+  function addPrefix(value) {
+    if (typeof value === 'string' && value && idPrefixes.indexOf(value) === -1 && idPrefixes.length < 8) {
+      idPrefixes.push(value);
+    }
+  }
+  for (var r2 = 0; r2 < raw.length; r2++) {
+    var entry2 = raw[r2];
+    if (entry2 && typeof entry2 === 'object' && entry2.name === 'stream' && entry2.idPrefixes) {
+      for (var p = 0; p < entry2.idPrefixes.length; p++) {
+        addPrefix(entry2.idPrefixes[p]);
+      }
+    }
+  }
+  if (!idPrefixes.length && manifest.idPrefixes) {
+    for (var p2 = 0; p2 < manifest.idPrefixes.length; p2++) {
+      addPrefix(manifest.idPrefixes[p2]);
+    }
+  }
   return {
     url: url,
     id: String(manifest.id || url),
@@ -54,6 +75,7 @@ function summarize(url, manifest) {
     logo: manifest.logo ? String(manifest.logo) : '',
     resources: resources,
     types: types,
+    idPrefixes: idPrefixes,
     catalogs: catalogs
   };
 }

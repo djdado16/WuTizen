@@ -96,6 +96,10 @@ export function createDetails() {
   var sources = document.createElement('div');
   sources.className = 'details__sources';
 
+  // Loading / per-add-on status for the source list (hosts only, never URLs).
+  var sourcesInfo = document.createElement('div');
+  sourcesInfo.className = 'details__sourcesInfo';
+
   content.appendChild(title);
   content.appendChild(meta);
   content.appendChild(desc);
@@ -104,6 +108,7 @@ export function createDetails() {
   content.appendChild(section);
   content.appendChild(episodes);
   content.appendChild(sourcesHeading);
+  content.appendChild(sourcesInfo);
   content.appendChild(sources);
 
   root.appendChild(bg);
@@ -258,26 +263,78 @@ export function createDetails() {
     return parts.join(' · ');
   }
 
+  /** Short, redacted reason for a provider that did not answer with sources. */
+  function reasonLabel(reason) {
+    if (reason === 'auth') {
+      return t('import.auth');
+    }
+    if (reason === 'notFound') {
+      return t('import.notFound');
+    }
+    if (reason === 'server') {
+      return t('import.server');
+    }
+    if (reason === 'timeout') {
+      return t('import.timeout');
+    }
+    if (reason === 'notAddon') {
+      return t('import.notAddon');
+    }
+    return t('import.unreachable');
+  }
+
   /**
    * Stream list for the current item. Rows are focusable: activating one plays
    * that stream (main.js registers them). Kept to 8 rows so the details screen
    * stays navigable with a remote.
    */
-  function setStreams(list, settled) {
+  function setStreams(list, settled, report) {
     while (sources.firstChild) {
       sources.removeChild(sources.firstChild);
+    }
+    while (sourcesInfo.firstChild) {
+      sourcesInfo.removeChild(sourcesInfo.firstChild);
     }
     sourceRowList = [];
     streamList = list || [];
     var visible = Math.min(streamList.length, 8);
     var isReal = !!(currentItem && currentItem.addonUrl);
+    var providers = (report && report.providers) || [];
     sourcesHeading.style.display = visible > 0 || (isReal && settled === true) ? '' : 'none';
 
-    if (visible === 0 && isReal && settled === true) {
-      var empty = document.createElement('div');
-      empty.className = 'details__empty';
-      empty.textContent = t('player.noSources');
-      sources.appendChild(empty);
+    if (settled === true && isReal) {
+      var summary = document.createElement('div');
+      summary.className = 'details__sourceSummary';
+      if (visible > 0) {
+        var answered = 0;
+        for (var a = 0; a < providers.length; a++) {
+          if (providers[a].status === 'ok') {
+            answered += 1;
+          }
+        }
+        summary.textContent =
+          streamList.length + ' ' + t('details.sourcesFrom') + ' ' + answered + '/' + providers.length;
+      } else {
+        summary.textContent = t('player.noSources');
+      }
+      sourcesInfo.appendChild(summary);
+
+      // Which add-on failed and why — distinguishable from "returned nothing".
+      for (var p = 0; p < providers.length && p < 4; p++) {
+        var provider = providers[p];
+        if (provider.status === 'ok') {
+          continue;
+        }
+        var line = document.createElement('div');
+        line.className = 'details__provider is-' + provider.status;
+        var label = provider.name + ' (' + provider.host + ')';
+        line.textContent =
+          label + ' · ' + (provider.status === 'empty' ? t('details.providerEmpty') : reasonLabel(provider.reason));
+        sourcesInfo.appendChild(line);
+      }
+    }
+
+    if (visible === 0) {
       return;
     }
 
@@ -293,12 +350,27 @@ export function createDetails() {
     }
   }
 
+  /** 'loading' while providers are being asked, '' to clear. */
+  function setSourcesStatus(state) {
+    while (sourcesInfo.firstChild) {
+      sourcesInfo.removeChild(sourcesInfo.firstChild);
+    }
+    sourcesHeading.style.display = '';
+    if (state === 'loading') {
+      var line = document.createElement('div');
+      line.className = 'details__sourceSummary';
+      line.textContent = t('details.loadingSources');
+      sourcesInfo.appendChild(line);
+    }
+  }
+
   return {
     el: root,
     buttons: buttonList,
     setItem: setItem,
     setLanguage: setLanguage,
     setStreams: setStreams,
+    setSourcesStatus: setSourcesStatus,
     title: function () {
       if (!currentItem) {
         return '';
