@@ -138,6 +138,51 @@ export function createSettingsView() {
   var focusables = [];
   var handlers = { onImportUrl: null, onImportText: null, onClose: null };
   var importBtn = null;
+  var importFileBtn = null;
+  var closeBtn = null;
+  var embyConnectBtn = null;
+  var embyDisconnectBtn = null;
+  var confStartBtn = null;
+  var confApplyBtn = null;
+
+  /**
+   * Visual/logical navigation order of the Settings panel. D-pad movement inside
+   * Settings follows this list instead of element geometry, so each block's action
+   * row is always reached right after its own fields.
+   */
+  function settingsOrder() {
+    return [
+      embyUrl,
+      embyUser,
+      embyPass,
+      embyConnectBtn,
+      embyDisconnectBtn,
+      urlInput,
+      importBtn,
+      importFileBtn,
+      closeBtn,
+      confHost,
+      confCode,
+      confStartBtn,
+      confApplyBtn
+    ];
+  }
+
+  /** Next/previous focusable in Settings order, or null at the ends. */
+  function nextFrom(field, direction) {
+    var order = settingsOrder();
+    var idx = order.indexOf(field);
+    if (idx === -1) {
+      return null;
+    }
+    var step = direction === 'up' ? -1 : 1;
+    for (var i = idx + step; i >= 0 && i < order.length; i += step) {
+      if (order[i]) {
+        return order[i];
+      }
+    }
+    return null;
+  }
 
   function button(label, id, handler, target) {
     var el = document.createElement('div');
@@ -193,6 +238,7 @@ export function createSettingsView() {
         handlers.onImportUrl(value);
       }
     });
+    importBtn = focusables[focusables.length - 1].el;
     button(t('settings.importFile'), 'import-file', function () {
       try {
         fileInput.click();
@@ -200,11 +246,13 @@ export function createSettingsView() {
         /* picker unavailable on this platform */
       }
     });
+    importFileBtn = focusables[focusables.length - 1].el;
     button(t('settings.close'), 'close', function () {
       if (handlers.onClose) {
         handlers.onClose();
       }
     });
+    closeBtn = focusables[focusables.length - 1].el;
 
     embyHeading.textContent = t('settings.emby');
     embyUrl.setAttribute('placeholder', t('settings.embyUrl'));
@@ -233,6 +281,7 @@ export function createSettingsView() {
       },
       embyActions
     );
+    embyConnectBtn = focusables[focusables.length - 1].el;
     button(
       t('settings.embyDisconnect'),
       'emby-disconnect',
@@ -243,6 +292,7 @@ export function createSettingsView() {
       },
       embyActions
     );
+    embyDisconnectBtn = focusables[focusables.length - 1].el;
     // The three fields use the same IME-aware editing mode as the import URL.
     var embyFields = [embyUrl, embyUser, embyPass];
     for (var f = 0; f < embyFields.length; f++) {
@@ -290,6 +340,22 @@ export function createSettingsView() {
       },
       confActions
     );
+    var confButtons = focusables.filter(function (item) {
+      var id = item.el.getAttribute ? item.el.getAttribute('data-settings-action') : null;
+      return !!id && id.indexOf('conf-') === 0;
+    });
+    confStartBtn = confButtons.length > 0 ? confButtons[0].el : null;
+    confApplyBtn = confButtons.length > 1 ? confButtons[1].el : null;
+
+    // Keep the pairing block contiguous: its fields must be immediately followed
+    // by its own action row. The block used to be created early but have its
+    // actions appended 170 lines later, so DOWN from the code field landed on the
+    // import URL field instead of the pairing actions.
+    content.appendChild(confHeading);
+    content.appendChild(confHost);
+    content.appendChild(confCode);
+    content.appendChild(confActions);
+
     var confFields = [confHost, confCode];
     for (var cf = 0; cf < confFields.length; cf++) {
       (function (field) {
@@ -379,6 +445,7 @@ export function createSettingsView() {
       confStatus.textContent = message || '';
       confStatus.className = 'addons__status';
     },
+    nextFrom: nextFrom,
     confFields: function () {
       return { host: confHost, code: confCode };
     },

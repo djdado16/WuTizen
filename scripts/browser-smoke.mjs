@@ -1685,6 +1685,76 @@ try {
 
   await sleep(200);
   check('no uncaught exceptions', client.exceptions.length === 0, client.exceptions.join('; ').slice(0, 240));
+  /* ---- v0.7.2 Settings D-pad navigation around input fields ------------- */
+  await evaluate(client, 'window.WuTizenDebug.openSettings()');
+  const focusedSel = () =>
+    evaluate(
+      client,
+      '(function(){var el=document.querySelector(".is-focused");if(!el)return "";' +
+        'var a=el.getAttribute("data-settings-action");' +
+        'if(a)return "action:"+a;' +
+        'return el.className.indexOf("settings__url")>-1?"field:import":' +
+        '(el.className.indexOf("settings__embyUrl")>-1?"field:emby-url":' +
+        '(el.className.indexOf("settings__embyUser")>-1?"field:emby-user":' +
+        '(el.className.indexOf("settings__embyPass")>-1?"field:emby-pass":' +
+        '(el.className.indexOf("settings__confHost")>-1?"field:conf-host":' +
+        '(el.className.indexOf("settings__confCode")>-1?"field:conf-code":el.className)))));})()'
+    );
+
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__embyUrl")');
+  await press(client, 'ArrowDown', 40);
+  check('DOWN from the Emby URL field goes to the Emby username', (await focusedSel()) === 'field:emby-user', await focusedSel());
+
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__embyPass")');
+  await press(client, 'ArrowDown', 40);
+  check(
+    'DOWN from the Emby password field reaches its Connect action',
+    (await focusedSel()) === 'action:emby-connect',
+    await focusedSel()
+  );
+  check(
+    'leaving a field releases the on-screen keyboard',
+    (await evaluate(client, 'document.activeElement.tagName')) !== 'INPUT'
+  );
+
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__embyUser")');
+  await press(client, 'ArrowUp', 38);
+  check('UP from the Emby username returns to the Emby URL field', (await focusedSel()) === 'field:emby-url', await focusedSel());
+
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__confCode")');
+  await press(client, 'ArrowDown', 40);
+  const afterConfDown = await focusedSel();
+  check(
+    'DOWN from the pairing-code field leaves the field (IME released)',
+    afterConfDown !== 'field:conf-code' && (await evaluate(client, 'document.activeElement.tagName')) !== 'INPUT',
+    afterConfDown
+  );
+
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__url")');
+  await press(client, 'ArrowDown', 40);
+  check('DOWN from the import URL still lands on Import', (await focusedSel()) === 'action:import-url', await focusedSel());
+  await evaluate(client, 'window.WuTizenDebug.focusSelector(".settings__confHost")');
+  await press(client, 'ArrowDown', 40);
+  check(
+    'DOWN from the configurator address reaches the pairing code',
+    (await focusedSel()) === 'field:conf-code',
+    await focusedSel()
+  );
+  check(
+    'the configurator address is pre-filled with the deployed URL',
+    (await evaluate(client, 'document.querySelector(".settings__confHost").value')) ===
+      'https://wutizen-config.pages.dev'
+  );
+  check(
+    'the permanent URL routes to Cloudflare pairing',
+    (await evaluate(client, 'window.WuTizenDebug.confRoute(window.WuTizenDebug.cloudBase())')) === 'cloud'
+  );
+  check(
+    'a LAN host still routes to the local configurator',
+    (await evaluate(client, 'window.WuTizenDebug.confRoute("192.168.1.20:8765")')) === 'lan'
+  );
+  await press(client, 'Unidentified', 10009);
+
   check('no console errors', client.consoleErrors.length === 0, client.consoleErrors.join('; ').slice(0, 240));
 
   /* ---- v0.7.1 configurator: pairing, approval, apply, replay ------------ */

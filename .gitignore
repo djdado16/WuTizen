@@ -43,3 +43,6 @@ docs/reference/
 Thumbs.db
 .DS_Store
 *.log
+cloudflare/.wrangler/
+cloudflare/dev.log
+.wrangler/

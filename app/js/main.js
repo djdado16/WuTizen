@@ -42,6 +42,7 @@ import { allLists, addItem, removeItem, hasItem, listItemCount } from './state/l
 import { candidateSubtitles, fetchText, parseCues } from './data/subtitles.js';
 import * as emby from './data/emby.js';
 import * as configurator from './data/configurator.js';
+import * as cloudPair from './data/cloudPair.js';
 import { setItem as storageSet } from './platform/storage.js';
 import {
   listAddons,
@@ -1172,14 +1173,22 @@ function boot() {
       loadStreams(selectedVideoId, false);
     },
     confHost: function () {
-      return configurator.savedHost();
+      // The permanent Cloudflare URL is pre-filled, so pairing needs only the
+      // 6-digit code typed on the TV. A saved LAN host still wins.
+      return configurator.savedHost() || cloudPair.defaultBase();
+    },
+    cloudBase: function () {
+      return cloudPair.defaultBase();
     },
     confStatus: function () {
-      var st = configurator.state();
+      var st = cloudActive ? cloudPair.state() : configurator.state();
       if (st.hasPayload) {
         return t('settings.confReceived');
       }
-      if (st.status === 'waiting') {
+      if (st.status === 'confirm') {
+        return t('settings.confSas') + ' ' + (st.sas || '');
+      }
+      if (st.status === 'confirmed' || st.status === 'waiting' || st.status === 'pairing') {
         return t('settings.confWaiting');
       }
       if (st.status === 'expired' || st.status === 'delivered') {
@@ -1188,33 +1197,63 @@ function boot() {
       if (st.status === 'invalid') {
         return t('settings.confInvalid');
       }
-      if (st.status === 'unreachable' || st.status === 'mixedContent') {
+      if (st.status === 'noCrypto' || st.status === 'mixedContent' || st.status === 'rejected' || st.status === 'unreachable') {
         return t('settings.confUnreachable');
+      }
+      if (st.status === 'decryptFailed' || st.status === 'sasMismatch') {
+        return t('settings.confInvalid');
       }
       return t('settings.confIdle');
     },
     onConfStart: function (host, code) {
       settingsView.setConfStatus(t('settings.confWaiting'));
-      configurator.start(
-        { host: host, code: code },
-        {
-          onStatus: function (next) {
-            settingsView.render();
-            registerSettings();
-          },
-          onPayload: function () {
-            settingsView.render();
-            registerSettings();
-          }
+      var handlers = {
+        onStatus: function () {
+          settingsView.render();
+          registerSettings();
+        },
+        onPayload: function () {
+          settingsView.render();
+          registerSettings();
         }
-      );
+      };
+      // A plain host/IP is the LAN configurator; http(s):// goes through Cloudflare.
+      cloudActive = cloudRoute(host) === 'cloud';
+      var base = cloudPair.normalizeBase(host);
+      if (cloudActive) {
+        cloudPair.start({ base: base, code: code }, handlers);
+        return;
+      }
+      configurator.start({ host: host, code: code }, handlers);
     },
+
     onConfApply: applyConfiguratorPayload
   });
 
   /** Apply a payload received from the PC configurator (user pressed Apply). */
+  var cloudActive = false;
+
+  /** 'cloud' for an http(s):// URL (Cloudflare), 'lan' for a bare host/IP. */
+  function cloudRoute(host) {
+    return /^https?:\/\//i.test(String(host || '').trim()) ? 'cloud' : 'lan';
+  }
+
   function applyConfiguratorPayload() {
-    var data = configurator.payload();
+    if (cloudActive) {
+      var cloud = cloudPair.state();
+      if (cloud.status === 'confirm') {
+        // Explicit SAS confirmation: the user pressed Apply because the code shown
+        // here matches the code on the browser page.
+        cloudPair.confirmSas();
+        settingsView.setConfStatus(t('settings.confSas') + ' ' + cloud.sas);
+        return Promise.resolve(null);
+      }
+      if (cloud.status === 'sasMismatch') {
+        settingsView.setConfStatus(t('settings.confInvalid'));
+        return Promise.resolve(null);
+      }
+    }
+    var data = configurator.payload() || cloudPair.payload();
     if (!data) {
       settingsView.setConfStatus(t('settings.confNothing'));
       return Promise.resolve(null);
@@ -1733,7 +1772,7 @@ function boot() {
       return null;
     }
     var type = String(el.getAttribute('type') || 'text').toLowerCase();
-    return type === 'text' || type === 'search' || type === 'url' ? el : null;
+    return type === 'text' || type === 'search' || type === 'url' || type === 'password' ? el : null;
   }
 
   /**
@@ -1753,14 +1792,62 @@ function boot() {
       }
     }
     if (moveFocus && focusManager.getCurrent() === field) {
-      var target = settingsView.isOpen() ? settingsView.importButton() : null;
+      // Settings has an explicit navigation order (settings.js `settingsOrder`), so
+      // each block's fields are followed by that block's own action row regardless
+      // of layout or geometry.
+      var target = settingsView.isOpen() && settingsView.nextFrom ? settingsView.nextFrom(field, moveFocus) : null;
       if (target) {
         focusManager.focus(target);
       } else {
-        // Add-ons view: the field's action sits to its right.
-        focusManager.move('right');
+        focusManager.move(moveFocus === 'up' ? 'up' : 'down');
       }
     }
+  }
+
+  /** Nearest focusable element below `field` inside the open Settings panel. */
+  function nextBelow(field) {
+    var panel = document.querySelector('.settings');
+    if (!panel) {
+      return null;
+    }
+    var box = field.getBoundingClientRect();
+    if (!box.height) {
+      return null;
+    }
+    var nodes = panel.querySelectorAll(
+      'button, [tabindex]:not([tabindex="-1"]), input:not([type="password"]), select, textarea'
+    );
+    var best = null;
+    var bestTop = Infinity;
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      if (el === field || el.disabled || el.offsetParent === null) {
+        continue;
+      }
+      var rect = el.getBoundingClientRect();
+      if (!rect.height || rect.top < box.bottom - 1) {
+        continue;
+      }
+      if (rect.top < bestTop || (rect.top === bestTop && best && rect.left < best.getBoundingClientRect().left)) {
+        best = el;
+        bestTop = rect.top;
+      }
+    }
+    if (!best) {
+      // Geometry unavailable (zero-height input): fall back to DOM order, which
+      // is the visual order now that every settings input is a block row.
+      var all = panel.querySelectorAll('button, input, select, textarea, [tabindex]');
+      var after = false;
+      for (var j = 0; j < all.length; j++) {
+        if (after && !all[j].disabled && all[j].offsetParent !== null && all[j].tabIndex !== -1) {
+          return all[j];
+        }
+        if (all[j] === field) {
+          after = true;
+        }
+      }
+    }
+    return best;
   }
 
   /**
@@ -1773,14 +1860,14 @@ function boot() {
       // closed Settings while the user was editing the address.
       return true;
     }
-    if (action === 'enter' || action === 'down') {
+    if (action === 'enter' || action === 'down' || action === 'up') {
       if (action === 'enter' && event.repeat) {
         return true;
       }
       event.preventDefault();
-      // "Done"/DOWN: commit + focus Import. Import itself needs its own OK, so
-      // one press can never both commit and start a request.
-      commitField(field, true);
+      // "Done"/DOWN/UP: commit + hand the remote to the next focusable in that
+      // direction (Import for the import field, that block's actions otherwise).
+      commitField(field, action === 'up' ? 'up' : 'down');
       return true;
     }
     if (action === 'back') {
@@ -1788,8 +1875,8 @@ function boot() {
       commitField(field, false); // keyboard closes, Settings stays open
       return true;
     }
-    if (action === 'left' || action === 'right' || action === 'up') {
-      return true; // caret movement / IME navigation belongs to the field
+    if (action === 'left' || action === 'right') {
+      return true; // caret movement belongs to the field
     }
     return false; // EXIT and media keys keep their meaning
   }
@@ -2273,6 +2360,16 @@ function boot() {
         return settingsView.embyFields().pass.value;
       }
     },
+    focusSelector: function (selector) {
+      var el = document.querySelector(selector);
+      return el ? focusManager.focus(el) : false;
+    },
+    confRoute: function (host) {
+      return cloudRoute(host);
+    },
+    cloudBase: function () {
+      return cloudPair.defaultBase();
+    },
     configurator: {
       start: function (host, code) {
         return configurator.start({ host: host, code: code }, {
@@ -2288,6 +2385,24 @@ function boot() {
       },
       savedHost: function () {
         return configurator.savedHost();
+      }
+    },
+    cloudPair: {
+      start: function (base, code) {
+        cloudActive = true;
+        return cloudPair.start({ base: base, code: code }, { onStatus: function () {}, onPayload: function () {} });
+      },
+      state: function () {
+        return cloudPair.state();
+      },
+      payload: function () {
+        return cloudPair.payload();
+      },
+      apply: function () {
+        return applyConfiguratorPayload();
+      },
+      stop: function () {
+        cloudPair.stop();
       }
     },
     player: {

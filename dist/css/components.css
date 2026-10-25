@@ -489,6 +489,18 @@
   color: #ffb3b3;
 }
 
+/* Settings inputs must each occupy their own row: inline-block inputs wrap onto
+   one line in the 1180px panel, which made D-pad UP/DOWN skip fields. */
+.settings__embyUrl,
+.settings__embyUser,
+.settings__embyPass,
+.settings__confHost,
+.settings__confCode {
+  display: block;
+  width: 560px;
+  margin: 8px 0 0;
+}
+
 /* --- player (Milestone 5) -------------------------------------------------- */
 
 .player {
@@ -838,4 +850,30 @@ html.is-avplay .player__video {
 .hero__meta .rating,
 .details__meta .rating {
   margin-right: 28px;
+}
+
+/* Emby block: fields stack above their own action row, so DOWN from the
+   password field reaches Connect instead of skipping to the next section. */
+.settings__emby {
+  display: block;
+}
+
+.settings__emby .details__actions {
+  margin-top: 14px;
+}
+/* Emby/configurator blocks must stack: fields above their own action row. */
+.settings .settings__emby {
+  display: block !important;
+}
+
+.settings .settings__emby .details__actions {
+  margin-top: 14px;
+  clear: both;
+}
+
+.settings .settings__emby .addon-input {
+  display: block;
+  width: 560px;
+  max-width: 100%;
+  margin-bottom: 10px;
 }

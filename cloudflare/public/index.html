@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WuTizen configurator (cloud)</title>
+<style>
+  body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:24px;background:#0d0f14;color:#f2f2f6}
+  h1{font-size:22px;margin:0 0 4px}p.hint{color:#9aa3b2;margin:0 0 18px}
+  fieldset{border:1px solid #2a3040;border-radius:10px;margin:0 0 16px;padding:14px}
+  legend{padding:0 6px;color:#9aa3b2}label{display:block;margin:8px 0 4px;color:#c8cfdb}
+  input,textarea{width:100%;box-sizing:border-box;padding:9px;border-radius:8px;border:1px solid #2a3040;background:#131722;color:#f2f2f6}
+  textarea{min-height:80px;font-family:ui-monospace,monospace;font-size:13px}
+  button{padding:11px 18px;border-radius:8px;border:0;background:#e1007a;color:#fff;font-weight:600;font-size:15px;cursor:pointer;margin-right:8px}
+  button[disabled]{background:#3a2b35;color:#8b7f86;cursor:default}
+  .code{font-size:34px;letter-spacing:8px;font-weight:700;color:#ff3d7f}
+  .status{margin-top:12px;color:#9aa3b2}.warn{color:#ffce6b;font-size:14px}
+</style>
+</head>
+<body>
+<h1>WuTizen configurator</h1>
+<p class="hint">Settings are encrypted in this browser with a key derived from the pairing code. The server only stores ciphertext.</p>
+
+<fieldset>
+  <legend>Emby server</legend>
+  <label>Server URL</label><input id="embyUrl" placeholder="https://emby.example.com" autocomplete="off">
+  <label>Username</label><input id="embyUser" autocomplete="off">
+  <label>Password</label><input id="embyPass" type="password" autocomplete="off">
+</fieldset>
+
+<fieldset>
+  <legend>Stremio add-ons (one URL per line)</legend>
+  <textarea id="addons" placeholder="https://example.com/manifest.json"></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>WuPlay profile export (JSON, optional)</legend>
+  <textarea id="profile" placeholder='{"addons":[...]}'></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Preferences</legend>
+  <label>Interface language (hr / en)</label><input id="lang" autocomplete="off">
+  <label>Subtitle size (m / l / xl)</label><input id="subSize" autocomplete="off">
+</fieldset>
+
+<button id="start">Create pairing code</button>
+<button id="send" disabled>Encrypt &amp; upload</button>
+<span class="code" id="code"></span>
+<div class="status" id="status"></div>
+<p class="warn">Then on the TV: Settings → Konfigurator → enter this code. Code expires in 10 minutes and works once.</p>
+
+<script>
+(function () {
+  var code = null;
+  var startBtn = document.getElementById('start');
+  var sendBtn = document.getElementById('send');
+  var codeEl = document.getElementById('code');
+  var statusEl = document.getElementById('status');
+  var enc = new TextEncoder();
+
+  function payload() {
+    var data = { emby: {}, addons: [], prefs: {} };
+    var url = document.getElementById('embyUrl').value.trim();
+    if (url) {
+      data.emby = {
+        url: url,
+        user: document.getElementById('embyUser').value.trim(),
+        pass: document.getElementById('embyPass').value
+      };
+    }
+    document.getElementById('addons').value.split('\n').forEach(function (line) {
+      var v = line.trim();
+      if (/^https?:\/\//i.test(v)) data.addons.push(v);
+    });
+    var profile = document.getElementById('profile').value.trim();
+    if (profile) data.profile = profile;
+    var lang = document.getElementById('lang').value.trim().toLowerCase();
+    if (lang) data.prefs.lang = lang;
+    var size = document.getElementById('subSize').value.trim().toLowerCase();
+    if (size) data.prefs.subSize = size;
+    return data;
+  }
+
+  function b64(buffer) {
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
+  }
+
+  function unb64(text) {
+    return Uint8Array.from(atob(text), function (c) { return c.charCodeAt(0); });
+  }
+
+  function api(method, path, body, tries) {
+    var left = typeof tries === 'number' ? tries : 0;
+    return fetch(path, {
+      method: method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().then(function (data) {
+        // KV propagation can lag; retry a missing/expired session a few times.
+        if (r.status === 404 && left > 0) {
+          return new Promise(function (resolve) { setTimeout(resolve, 900); }).then(function () {
+            return api(method, path, body, left - 1);
+          });
+        }
+        return data;
+      });
+    });
+  }
+
+  // SAS = first 4 bytes of SHA-256(ECDH shared secret || tvPub || pcPub) mod 900000.
+  // Mirrors app/js/data/cloudPair.js: same inputs, same order, same output.
+  function sasFrom(shared, tvPub, pcPub) {
+    var a = new Uint8Array(shared);
+    var t = unb64(tvPub);
+    var p = unb64(pcPub);
+    var all = new Uint8Array(a.length + t.length + p.length);
+    all.set(a, 0);
+    all.set(t, a.length);
+    all.set(p, a.length + t.length);
+    return crypto.subtle.digest('SHA-256', all).then(function (digest) {
+      var view = new DataView(digest);
+      return String(100000 + (view.getUint32(0) % 900000));
+    });
+  }
+
+  startBtn.addEventListener('click', function () {
+    startBtn.disabled = true;
+    statusEl.textContent = 'Creating a session…';
+    api('POST', '/api/session').then(function (data) {
+      code = data.code;
+      codeEl.textContent = code;
+      sendBtn.disabled = false;
+      statusEl.textContent = 'Enter this code on the TV (Settings → Konfigurator), then press “Encrypt & upload”.';
+    }).catch(function () {
+      statusEl.textContent = 'Could not create a session.';
+      startBtn.disabled = false;
+    });
+  });
+
+  sendBtn.addEventListener('click', function () {
+    if (!code) return;
+    sendBtn.disabled = true;
+    statusEl.textContent = 'Waiting until the TV joins…';
+    var pair = null;
+    var pcPub = null;
+    var tvPubB64 = null;
+    api('GET', '/api/session/' + code + '/device').then(function (info) {
+      if (!info || !info.tvPub) throw new Error('The TV has not joined yet.');
+      tvPubB64 = info.tvPub;
+      return crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, false, ['deriveKey', 'deriveBits']).then(function (own) {
+        pair = own;
+        return crypto.subtle.importKey('spki', unb64(info.tvPub), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+      });
+    }).then(function (tvKey) {
+      pcPub = tvKey;
+      return Promise.all([
+        crypto.subtle.deriveBits({ name: 'ECDH', public: tvKey }, pair.privateKey, 256),
+        crypto.subtle.exportKey('spki', pair.publicKey)
+      ]);
+    }).then(function (derived) {
+      var myPub = b64(derived[1]);
+      return sasFrom(derived[0], tvPubB64, myPub).then(function (sas) {
+        return { sas: sas, pub: myPub };
+      });
+    }).then(function (session) {
+      // Publish our key + SAS. The TV shows the same SAS and must confirm it.
+      return api('POST', '/api/session/' + code + '/commit', { pub: session.pub, sas: session.sas }).then(function () {
+        codeEl.textContent = session.sas.slice(0, 3) + ' ' + session.sas.slice(3);
+        statusEl.textContent = 'Compare this code with the TV. Press Apply on the TV if they match…';
+        return waitConfirmed();
+      }).then(function () {
+        return crypto.subtle.deriveKey(
+          { name: 'ECDH', public: pcPub },
+          pair.privateKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt']
+        );
+      }).then(function (key) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, enc.encode(JSON.stringify(payload())))
+          .then(function (cipher) {
+            return api('POST', '/api/session/' + code + '/payload', {
+              pub: session.pub, iv: b64(iv), data: b64(cipher)
+            });
+          });
+      });
+    }).then(function (res) {
+      statusEl.textContent = res && res.approved
+        ? 'Sent encrypted. Press Apply on the TV once more to store it.'
+        : 'Upload failed: ' + ((res && res.error) || 'unknown');
+      if (!res || !res.approved) sendBtn.disabled = false;
+    }).catch(function (err) {
+      statusEl.textContent = (err && err.message) || 'Pairing failed.';
+      sendBtn.disabled = false;
+    });
+  });
+
+  function waitConfirmed(tries) {
+    var left = typeof tries === 'number' ? tries : 120;
+    return api('GET', '/api/session/' + code + '/commit').then(function (res) {
+      if (res && res.confirmed) return true;
+      if (left <= 0 || !res) throw new Error('Confirmation timed out.');
+      return new Promise(function (resolve) { setTimeout(resolve, 1500); }).then(function () {
+        return waitConfirmed(left - 1);
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

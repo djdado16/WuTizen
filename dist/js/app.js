@@ -358,11 +358,12 @@
     "settings.embyDisconnected": "Nije spojeno.",
     "settings.embyFailed": "Emby prijava nije uspjela.",
     "settings.conf": "Konfigurator s računala (PC/mobitel)",
-    "settings.confHost": "Adresa konfiguratora (npr. 192.168.1.20:8765)",
+    "settings.confHost": "Adresa konfiguratora (prazno = wutizen-config.pages.dev)",
     "settings.confCode": "Kod za uparivanje (6 znamenki)",
     "settings.confStart": "Poveži se",
     "settings.confApply": "Primijeni",
     "settings.confIdle": "Pokrenite konfigurator na računalu i upišite kod.",
+    "settings.confSas": "Kodovi se podudaraju? Potvrdite na televizoru:",
     "settings.confWaiting": "Čekam odobrenje na računalu…",
     "settings.confReceived": "Postavke su primljene. Pritisnite Primijeni.",
     "settings.confExpired": "Kod je istekao ili je već iskorišten.",
@@ -531,11 +532,12 @@
     "settings.embyDisconnected": "Not connected.",
     "settings.embyFailed": "Emby sign-in failed.",
     "settings.conf": "Configurator from PC/phone",
-    "settings.confHost": "Configurator address (e.g. 192.168.1.20:8765)",
+    "settings.confHost": "Configurator address (blank = wutizen-config.pages.dev)",
     "settings.confCode": "Pairing code (6 digits)",
     "settings.confStart": "Connect",
     "settings.confApply": "Apply",
     "settings.confIdle": "Start the configurator on your PC and enter the code.",
+    "settings.confSas": "Codes match? Confirm on the TV:",
     "settings.confWaiting": "Waiting for approval on your PC…",
     "settings.confReceived": "Settings received. Press Apply.",
     "settings.confExpired": "The code expired or was already used.",
@@ -1619,16 +1621,16 @@
     el.className = "toast";
     el.setAttribute("role", "status");
     el.setAttribute("aria-live", "polite");
-    var timer2 = 0;
+    var timer3 = 0;
     function show(message) {
       el.textContent = message;
       el.classList.add("is-visible");
-      if (timer2) {
-        clearTimeout(timer2);
+      if (timer3) {
+        clearTimeout(timer3);
       }
-      timer2 = setTimeout(function() {
+      timer3 = setTimeout(function() {
         el.classList.remove("is-visible");
-        timer2 = 0;
+        timer3 = 0;
       }, 2600);
     }
     return { el, show };
@@ -1915,12 +1917,12 @@
         sourceRowList.push({ el: row, stream: streamList[i2] || {}, index: i2 });
       }
     }
-    function setSourcesStatus(state2) {
+    function setSourcesStatus(state3) {
       while (sourcesInfo.firstChild) {
         sourcesInfo.removeChild(sourcesInfo.firstChild);
       }
       sourcesHeading.style.display = "";
-      if (state2 === "loading") {
+      if (state3 === "loading") {
         var line = document.createElement("div");
         line.className = "details__sourceSummary";
         line.textContent = t("details.loadingSources");
@@ -1980,14 +1982,14 @@
     }
     var http = /^HTTP (\d{3})/.exec(message);
     if (http) {
-      var status2 = parseInt(http[1], 10);
-      if (status2 === 401 || status2 === 403) {
+      var status3 = parseInt(http[1], 10);
+      if (status3 === 401 || status3 === 403) {
         return "auth";
       }
-      if (status2 === 404) {
+      if (status3 === 404) {
         return "notFound";
       }
-      return status2 >= 500 ? "server" : "http";
+      return status3 >= 500 ? "server" : "http";
     }
     if (/invalid JSON/i.test(message)) {
       return "notAddon";
@@ -2043,7 +2045,7 @@
     var started = Date.now();
     var xhr = new XMLHttpRequest();
     var finished = false;
-    var status2 = 0;
+    var status3 = 0;
     function finish(err, data) {
       if (finished) {
         return;
@@ -2067,7 +2069,7 @@
         type: ctx.type || "",
         id: ctx.id || "",
         skip: ctx.skip || 0,
-        status: status2,
+        status: status3,
         error: err ? err.message : "",
         items: items2,
         ms: Date.now() - started
@@ -2081,7 +2083,7 @@
         if (xhr.readyState !== 4) {
           return;
         }
-        status2 = xhr.status;
+        status3 = xhr.status;
         if (xhr.status >= 200 && xhr.status < 300) {
           var data = null;
           try {
@@ -2458,8 +2460,8 @@
     title.className = "details__title addons__title";
     var hint = document.createElement("p");
     hint.className = "details__desc addons__hint";
-    var status2 = document.createElement("div");
-    status2.className = "addons__status";
+    var status3 = document.createElement("div");
+    status3.className = "addons__status";
     var installedSection = document.createElement("div");
     var presetsSection = document.createElement("div");
     var customSection = document.createElement("div");
@@ -2470,7 +2472,7 @@
     customInput.setAttribute("placeholder", t("addons.urlPlaceholder"));
     content.appendChild(title);
     content.appendChild(hint);
-    content.appendChild(status2);
+    content.appendChild(status3);
     content.appendChild(installedSection);
     content.appendChild(presetsSection);
     content.appendChild(customSection);
@@ -2604,8 +2606,8 @@
       } });
     }
     function setStatus(message, isError) {
-      status2.textContent = message || "";
-      status2.className = "addons__status" + (isError ? " is-error" : "");
+      status3.textContent = message || "";
+      status3.className = "addons__status" + (isError ? " is-error" : "");
     }
     return {
       el: root,
@@ -2837,8 +2839,8 @@
     title.className = "details__title settings__title";
     var hint = document.createElement("p");
     hint.className = "details__desc addons__hint";
-    var status2 = document.createElement("div");
-    status2.className = "addons__status";
+    var status3 = document.createElement("div");
+    status3.className = "addons__status";
     var summary = document.createElement("div");
     summary.className = "settings__summary";
     var actions = document.createElement("div");
@@ -2915,6 +2917,43 @@
     var focusables = [];
     var handlers = { onImportUrl: null, onImportText: null, onClose: null };
     var importBtn = null;
+    var importFileBtn = null;
+    var closeBtn = null;
+    var embyConnectBtn = null;
+    var embyDisconnectBtn = null;
+    var confStartBtn = null;
+    var confApplyBtn = null;
+    function settingsOrder() {
+      return [
+        embyUrl,
+        embyUser,
+        embyPass,
+        embyConnectBtn,
+        embyDisconnectBtn,
+        urlInput,
+        importBtn,
+        importFileBtn,
+        closeBtn,
+        confHost,
+        confCode,
+        confStartBtn,
+        confApplyBtn
+      ];
+    }
+    function nextFrom(field, direction) {
+      var order = settingsOrder();
+      var idx = order.indexOf(field);
+      if (idx === -1) {
+        return null;
+      }
+      var step = direction === "up" ? -1 : 1;
+      for (var i = idx + step; i >= 0 && i < order.length; i += step) {
+        if (order[i]) {
+          return order[i];
+        }
+      }
+      return null;
+    }
     function button(label, id, handler, target) {
       var el = document.createElement("div");
       el.className = "btn";
@@ -2935,7 +2974,7 @@
     content.appendChild(title);
     content.appendChild(hint);
     content.appendChild(urlInput);
-    content.appendChild(status2);
+    content.appendChild(status3);
     content.appendChild(summary);
     content.appendChild(actions);
     content.appendChild(embySection);
@@ -2965,17 +3004,20 @@
           handlers.onImportUrl(value);
         }
       });
+      importBtn = focusables[focusables.length - 1].el;
       button(t("settings.importFile"), "import-file", function() {
         try {
           fileInput.click();
         } catch (err) {
         }
       });
+      importFileBtn = focusables[focusables.length - 1].el;
       button(t("settings.close"), "close", function() {
         if (handlers.onClose) {
           handlers.onClose();
         }
       });
+      closeBtn = focusables[focusables.length - 1].el;
       embyHeading.textContent = t("settings.emby");
       embyUrl.setAttribute("placeholder", t("settings.embyUrl"));
       embyUser.setAttribute("placeholder", t("settings.embyUser"));
@@ -3002,6 +3044,7 @@
         },
         embyActions
       );
+      embyConnectBtn = focusables[focusables.length - 1].el;
       button(
         t("settings.embyDisconnect"),
         "emby-disconnect",
@@ -3012,6 +3055,7 @@
         },
         embyActions
       );
+      embyDisconnectBtn = focusables[focusables.length - 1].el;
       var embyFields = [embyUrl, embyUser, embyPass];
       for (var f = 0; f < embyFields.length; f++) {
         (function(field) {
@@ -3056,6 +3100,16 @@
         },
         confActions
       );
+      var confButtons = focusables.filter(function(item) {
+        var id = item.el.getAttribute ? item.el.getAttribute("data-settings-action") : null;
+        return !!id && id.indexOf("conf-") === 0;
+      });
+      confStartBtn = confButtons.length > 0 ? confButtons[0].el : null;
+      confApplyBtn = confButtons.length > 1 ? confButtons[1].el : null;
+      content.appendChild(confHeading);
+      content.appendChild(confHost);
+      content.appendChild(confCode);
+      content.appendChild(confActions);
       var confFields = [confHost, confCode];
       for (var cf = 0; cf < confFields.length; cf++) {
         (function(field) {
@@ -3107,8 +3161,8 @@
         return importBtn;
       },
       setStatus: function(message, isError) {
-        status2.textContent = message || "";
-        status2.className = "addons__status" + (isError ? " is-error" : "");
+        status3.textContent = message || "";
+        status3.className = "addons__status" + (isError ? " is-error" : "");
       },
       setEmbyStatus: function(message, isError) {
         embyStatus.textContent = message || "";
@@ -3121,6 +3175,7 @@
         confStatus.textContent = message || "";
         confStatus.className = "addons__status";
       },
+      nextFrom,
       confFields: function() {
         return { host: confHost, code: confCode };
       },
@@ -3333,16 +3388,16 @@
   function loadCatalogRows(addons, maxAddons, maxCatalogs, done) {
     var rows = [];
     var failures = [];
-    var pending2 = 0;
+    var pending3 = 0;
     var startCount = 0;
     for (var a = 0; a < addons.length && a < maxAddons; a++) {
       var catalogs = addons[a].catalogs || [];
       for (var c = 0; c < catalogs.length && c < maxCatalogs; c++) {
         startCount += 1;
-        pending2 += 1;
+        pending3 += 1;
         (function(addon, catalog) {
           fetchCatalogPage(addon, catalog, 0, function(err, items2) {
-            pending2 -= 1;
+            pending3 -= 1;
             if (err) {
               failures.push({ addon, catalog, error: err.message });
             } else if (!items2.length) {
@@ -3350,7 +3405,7 @@
             } else {
               rows.push({ addon, catalog, items: items2 });
             }
-            if (pending2 === 0) {
+            if (pending3 === 0) {
               done({ rows, failures, attempted: startCount });
             }
           });
@@ -3461,7 +3516,7 @@
     var providerStreams = [];
     var streams = [];
     var seen = {};
-    var pending2 = providers.length;
+    var pending3 = providers.length;
     var logStart = Date.now() - 1;
     function statusFor(entry) {
       var log2 = diagnosticsList();
@@ -3525,11 +3580,11 @@
       });
       return;
     }
-    if (!pending2) {
+    if (!pending3) {
       finish();
       return;
     }
-    function settle(index, provider, status2, reason, list) {
+    function settle(index, provider, status3, reason, list) {
       var entry = provider.entry;
       var kept = [];
       var own = [];
@@ -3577,14 +3632,14 @@
         index,
         name: String(entry.name || "Add-on"),
         host: hostOf2(entry.url),
-        status: status2,
+        status: status3,
         reason: reason || "",
         httpStatus: logEntry ? logEntry.status : 0,
         count: kept.length,
         answered: own.length
       });
-      pending2 -= 1;
-      if (pending2 === 0) {
+      pending3 -= 1;
+      if (pending3 === 0) {
         finish();
       }
     }
@@ -3736,7 +3791,7 @@
     root.appendChild(video);
     root.appendChild(subtitleEl);
     root.appendChild(hud);
-    var state2 = {
+    var state3 = {
       open: false,
       backend: "",
       status: "idle",
@@ -3774,7 +3829,7 @@
         }
         return;
       }
-      var at = state2.position + cueOffset;
+      var at = state3.position + cueOffset;
       var text = "";
       for (var i = 0; i < cues.length; i++) {
         if (at >= cues[i].start && at <= cues[i].end) {
@@ -3786,34 +3841,34 @@
       }
     }
     function avplayActive() {
-      return state2.backend === "avplay";
+      return state3.backend === "avplay";
     }
     function rootClass() {
-      return "player" + (state2.open ? " is-open" : "") + (state2.error ? " has-error" : "") + (avplayActive() ? " is-avplay" : "") + (hud.className.indexOf("is-idle") > -1 ? " is-idle" : "");
+      return "player" + (state3.open ? " is-open" : "") + (state3.error ? " has-error" : "") + (avplayActive() ? " is-avplay" : "") + (hud.className.indexOf("is-idle") > -1 ? " is-idle" : "");
     }
     function paint() {
-      if (!state2.open) {
+      if (!state3.open) {
         return;
       }
-      var pct = state2.duration > 0 ? Math.min(100, state2.position / state2.duration * 100) : 0;
-      var bPct = state2.duration > 0 ? Math.min(100, state2.buffered / state2.duration * 100) : 0;
+      var pct = state3.duration > 0 ? Math.min(100, state3.position / state3.duration * 100) : 0;
+      var bPct = state3.duration > 0 ? Math.min(100, state3.buffered / state3.duration * 100) : 0;
       played.style.width = pct + "%";
       buffered.style.width = bPct + "%";
       knob.style.left = pct + "%";
-      bar.className = "player__bar" + (state2.duration > 0 ? "" : " is-live");
-      timeEl.textContent = formatTime(state2.position) + " / " + formatTime(state2.duration);
+      bar.className = "player__bar" + (state3.duration > 0 ? "" : " is-live");
+      timeEl.textContent = formatTime(state3.position) + " / " + formatTime(state3.duration);
       var statusText = "";
-      if (state2.status === "buffering" || state2.status === "loading") {
+      if (state3.status === "buffering" || state3.status === "loading") {
         statusText = t("player.loading");
-      } else if (state2.status === "ended") {
+      } else if (state3.status === "ended") {
         statusText = t("player.ended");
       }
       statusEl.textContent = statusText;
-      var busy = state2.status === "buffering" || state2.status === "loading";
-      spinner.className = "player__spinner" + (busy && !state2.error ? "" : " is-hidden");
-      errorBox.className = "player__error" + (state2.error ? " is-visible" : "");
+      var busy = state3.status === "buffering" || state3.status === "loading";
+      spinner.className = "player__spinner" + (busy && !state3.error ? "" : " is-hidden");
+      errorBox.className = "player__error" + (state3.error ? " is-visible" : "");
       root.className = rootClass();
-      backendEl.textContent = state2.backend === "avplay" ? t("player.backendAvplay") : t("player.backendHtml5");
+      backendEl.textContent = state3.backend === "avplay" ? t("player.backendAvplay") : t("player.backendHtml5");
     }
     function showHud() {
       hud.className = "player__hud";
@@ -3822,7 +3877,7 @@
         hudTimer = null;
       }
       root.className = rootClass();
-      if (state2.status === "playing") {
+      if (state3.status === "playing") {
         hudTimer = setTimeout(function() {
           hud.className = "player__hud is-idle";
           root.className = rootClass();
@@ -3892,45 +3947,45 @@
       }
     };
     video.addEventListener("loadedmetadata", function() {
-      state2.duration = html5.duration();
-      if (state2.status === "loading") {
-        state2.status = "buffering";
+      state3.duration = html5.duration();
+      if (state3.status === "loading") {
+        state3.status = "buffering";
       }
       paint();
     });
     video.addEventListener("playing", function() {
       clearOpenTimer();
-      state2.status = "playing";
+      state3.status = "playing";
       showHud();
       paint();
     });
     video.addEventListener("pause", function() {
-      if (state2.status === "ended" || state2.status === "error") {
+      if (state3.status === "ended" || state3.status === "error") {
         return;
       }
-      state2.status = "paused";
+      state3.status = "paused";
       showHud();
       paint();
     });
     video.addEventListener("waiting", function() {
-      if (state2.status === "playing") {
-        state2.status = "buffering";
+      if (state3.status === "playing") {
+        state3.status = "buffering";
         paint();
       }
     });
     video.addEventListener("progress", function() {
-      state2.buffered = html5.buffered();
+      state3.buffered = html5.buffered();
       paint();
     });
     video.addEventListener("ended", function() {
-      state2.status = "ended";
-      state2.position = state2.duration;
+      state3.status = "ended";
+      state3.position = state3.duration;
       stopTicker();
       showHud();
       paint();
     });
     video.addEventListener("error", function() {
-      if (!state2.open || avplayActive()) {
+      if (!state3.open || avplayActive()) {
         return;
       }
       fail(html5Reason(video.error), video.error ? String(video.error.message || "") : "");
@@ -3939,23 +3994,23 @@
       var rect = platform.displayRect ? platform.displayRect() : { x: 0, y: 0, w: 1920, h: 1080 };
       var listener = {
         onbufferingstart: function() {
-          state2.status = "buffering";
+          state3.status = "buffering";
           paint();
         },
         onbufferingprogress: function() {
-          state2.status = "buffering";
+          state3.status = "buffering";
         },
         onbufferingcomplete: function() {
-          state2.status = "playing";
+          state3.status = "playing";
           showHud();
           paint();
         },
         oncurrentplaytime: function(ms) {
-          state2.position = ms;
+          state3.position = ms;
         },
         onstreamcompleted: function() {
-          state2.status = "ended";
-          state2.position = state2.duration;
+          state3.status = "ended";
+          state3.position = state3.duration;
           stopTicker();
           showHud();
           paint();
@@ -3966,7 +4021,7 @@
         },
         onplaying: function() {
           clearOpenTimer();
-          state2.status = "playing";
+          state3.status = "playing";
           showHud();
           paint();
         }
@@ -4002,7 +4057,7 @@
                 settled = true;
                 clearTimeout(guard);
                 try {
-                  state2.duration = api.getDuration ? api.getDuration() : 0;
+                  state3.duration = api.getDuration ? api.getDuration() : 0;
                   api.play();
                 } catch (err) {
                   done(err);
@@ -4055,22 +4110,22 @@
         },
         time: function() {
           try {
-            return api.getCurrentTime ? api.getCurrentTime() : state2.position;
+            return api.getCurrentTime ? api.getCurrentTime() : state3.position;
           } catch (err) {
-            return state2.position;
+            return state3.position;
           }
         },
         duration: function() {
           try {
-            return api.getDuration ? api.getDuration() : state2.duration;
+            return api.getDuration ? api.getDuration() : state3.duration;
           } catch (err) {
-            return state2.duration;
+            return state3.duration;
           }
         },
         buffered: function() {
           try {
             if (api.getBufferedAmount) {
-              return api.getBufferedAmount() / 100 * state2.duration;
+              return api.getBufferedAmount() / 100 * state3.duration;
             }
           } catch (err) {
           }
@@ -4093,20 +4148,20 @@
     function startTicker() {
       stopTicker();
       ticker = setInterval(function() {
-        if (!backend || !state2.open || state2.status === "error") {
+        if (!backend || !state3.open || state3.status === "error") {
           return;
         }
         var time = backend.time();
         var duration = backend.duration();
         if (duration > 0) {
-          state2.duration = duration;
+          state3.duration = duration;
         }
         if (time >= 0) {
-          state2.position = time;
+          state3.position = time;
         }
         var bufferedAmount = backend.buffered();
         if (bufferedAmount > 0) {
-          state2.buffered = bufferedAmount;
+          state3.buffered = bufferedAmount;
         }
         renderCue();
         paint();
@@ -4136,8 +4191,8 @@
     function fail(reason, detail) {
       stopTicker();
       clearOpenTimer();
-      state2.status = "error";
-      state2.error = reason;
+      state3.status = "error";
+      state3.error = reason;
       errorText.textContent = reasonText(reason);
       errorHint.textContent = detail ? String(detail).slice(0, 120) : t("player.hint");
       spinner.className = "player__spinner is-hidden";
@@ -4150,7 +4205,7 @@
     }
     function tryBackend(index) {
       if (index >= backendOrder.length) {
-        fail(state2.error || "unsupported", "");
+        fail(state3.error || "unsupported", "");
         return;
       }
       var name = backendOrder[index];
@@ -4161,21 +4216,21 @@
           return;
         }
         backend = createAvPlay(api);
-        state2.backend = "avplay";
-        state2.lastBackend = "avplay";
+        state3.backend = "avplay";
+        state3.lastBackend = "avplay";
         video.setAttribute("data-backend", "avplay");
         video.removeAttribute("src");
         document.documentElement.className = (document.documentElement.className + " is-avplay").replace(/^\s+/, "");
       } else {
         backend = html5;
-        state2.backend = "html5";
-        state2.lastBackend = "html5";
+        state3.backend = "html5";
+        state3.lastBackend = "html5";
         video.setAttribute("data-backend", "html5");
       }
-      state2.status = "loading";
+      state3.status = "loading";
       paint();
-      backend.open(state2.url, state2.type, function(err) {
-        if (!state2.open) {
+      backend.open(state3.url, state3.type, function(err) {
+        if (!state3.open) {
           return;
         }
         if (err) {
@@ -4193,22 +4248,22 @@
       });
     }
     function open(source, meta) {
-      if (state2.open) {
+      if (state3.open) {
         close(false);
       }
       var info2 = meta || {};
-      state2.open = true;
-      state2.backend = "";
-      state2.status = "loading";
-      state2.position = 0;
-      state2.duration = 0;
-      state2.buffered = 0;
-      state2.error = "";
-      state2.url = source && source.url ? source.url : "";
-      state2.type = source && source.type ? source.type : "auto";
-      state2.title = info2.title || t("player.titleFallback");
-      state2.sourceIndex = typeof info2.sourceIndex === "number" ? info2.sourceIndex : -1;
-      titleEl.textContent = state2.title;
+      state3.open = true;
+      state3.backend = "";
+      state3.status = "loading";
+      state3.position = 0;
+      state3.duration = 0;
+      state3.buffered = 0;
+      state3.error = "";
+      state3.url = source && source.url ? source.url : "";
+      state3.type = source && source.type ? source.type : "auto";
+      state3.title = info2.title || t("player.titleFallback");
+      state3.sourceIndex = typeof info2.sourceIndex === "number" ? info2.sourceIndex : -1;
+      titleEl.textContent = state3.title;
       errorText.textContent = "";
       errorHint.textContent = "";
       hud.className = "player__hud";
@@ -4217,7 +4272,7 @@
       document.documentElement.className = (document.documentElement.className + " is-player").replace(/^\s+/, "");
       applyCueStyle();
       paint();
-      if (!source || source.ok !== true || !state2.url) {
+      if (!source || source.ok !== true || !state3.url) {
         fail(source && source.reason || "noUrl", "");
         return;
       }
@@ -4232,76 +4287,76 @@
         }
         backendOrder.push("html5");
       }
-      logInfo("player: engines " + backendOrder.join(",") + " type=" + state2.type);
+      logInfo("player: engines " + backendOrder.join(",") + " type=" + state3.type);
       clearOpenTimer();
       openTimer = setTimeout(function() {
-        if (state2.open && state2.status !== "playing" && state2.status !== "paused" && !state2.error) {
-          fail("timeout", state2.status);
+        if (state3.open && state3.status !== "playing" && state3.status !== "paused" && !state3.error) {
+          fail("timeout", state3.status);
         }
       }, OPEN_TIMEOUT_MS);
       tryBackend(0);
     }
     function play() {
-      if (!backend || state2.error) {
+      if (!backend || state3.error) {
         return;
       }
       backend.play();
-      state2.status = "playing";
+      state3.status = "playing";
       showHud();
       paint();
     }
     function pause() {
-      if (!backend || state2.error) {
+      if (!backend || state3.error) {
         return;
       }
       backend.pause();
-      state2.status = "paused";
+      state3.status = "paused";
       showHud();
       paint();
     }
     function toggle() {
-      if (!backend || state2.error) {
+      if (!backend || state3.error) {
         return;
       }
-      if (state2.status === "playing") {
+      if (state3.status === "playing") {
         pause();
       } else {
         play();
       }
     }
     function seekTo(ms) {
-      if (!backend || state2.error) {
+      if (!backend || state3.error) {
         return;
       }
-      var limit = state2.duration > 0 ? state2.duration - 1e3 : ms;
+      var limit = state3.duration > 0 ? state3.duration - 1e3 : ms;
       var target = Math.max(0, Math.min(ms || 0, limit));
       backend.seek(target);
-      state2.position = target;
+      state3.position = target;
       renderCue();
       showHud();
       paint();
     }
     function seekBy(deltaMs) {
-      seekTo(state2.position + deltaMs);
+      seekTo(state3.position + deltaMs);
     }
     function close(notify) {
-      var wasOpen = state2.open;
+      var wasOpen = state3.open;
       teardown();
-      state2.open = false;
-      state2.status = "idle";
-      state2.backend = "";
-      state2.error = "";
-      state2.position = 0;
-      state2.duration = 0;
-      state2.buffered = 0;
-      state2.url = "";
+      state3.open = false;
+      state3.status = "idle";
+      state3.backend = "";
+      state3.error = "";
+      state3.position = 0;
+      state3.duration = 0;
+      state3.buffered = 0;
+      state3.url = "";
       root.className = "player";
       hud.className = "player__hud";
       errorBox.className = "player__error";
       timeEl.textContent = "";
       statusEl.textContent = "";
       cues = [];
-      state2.subtitle = "";
+      state3.subtitle = "";
       subtitleEl.textContent = "";
       applyCueStyle();
       if (wasOpen && notify !== false && onClose) {
@@ -4309,7 +4364,7 @@
       }
     }
     function handleAction(action) {
-      if (!state2.open) {
+      if (!state3.open) {
         return false;
       }
       if (action === "enter") {
@@ -4354,7 +4409,7 @@
       el: root,
       video,
       isOpen: function() {
-        return state2.open;
+        return state3.open;
       },
       open,
       close,
@@ -4368,7 +4423,7 @@
       /** Attach parsed cues (engine independent overlay). */
       setCues: function(list, label) {
         cues = list || [];
-        state2.subtitle = label || "";
+        state3.subtitle = label || "";
         cueOffset = 0;
         applyCueStyle();
         renderCue();
@@ -4376,7 +4431,7 @@
       },
       clearCues: function() {
         cues = [];
-        state2.subtitle = "";
+        state3.subtitle = "";
         cueOffset = 0;
         subtitleEl.textContent = "";
         applyCueStyle();
@@ -4397,7 +4452,7 @@
       },
       cueState: function() {
         return {
-          label: state2.subtitle,
+          label: state3.subtitle,
           cues: cues.length,
           offset: cueOffset,
           size: cueSize,
@@ -4407,18 +4462,18 @@
       },
       state: function() {
         return {
-          open: state2.open,
-          backend: state2.backend,
-          lastBackend: state2.lastBackend || "",
-          status: state2.status,
-          position: Math.round(state2.position),
-          duration: Math.round(state2.duration),
-          buffered: Math.round(state2.buffered),
-          error: state2.error,
-          type: state2.type,
-          title: state2.title,
-          sourceIndex: state2.sourceIndex,
-          subtitle: state2.subtitle,
+          open: state3.open,
+          backend: state3.backend,
+          lastBackend: state3.lastBackend || "",
+          status: state3.status,
+          position: Math.round(state3.position),
+          duration: Math.round(state3.duration),
+          buffered: Math.round(state3.buffered),
+          error: state3.error,
+          type: state3.type,
+          title: state3.title,
+          sourceIndex: state3.sourceIndex,
+          subtitle: state3.subtitle,
           shellHidden: document.documentElement.className.indexOf("is-player") > -1
         };
       },
@@ -4446,12 +4501,12 @@
     if (!proxy) {
       return false;
     }
-    var request2 = proxy.request || proxy;
-    if (!request2 || typeof request2 !== "object") {
+    var request3 = proxy.request || proxy;
+    if (!request3 || typeof request3 !== "object") {
       return false;
     }
-    for (var key in request2) {
-      if (Object.prototype.hasOwnProperty.call(request2, key)) {
+    for (var key in request3) {
+      if (Object.prototype.hasOwnProperty.call(request3, key)) {
         return true;
       }
     }
@@ -4824,11 +4879,11 @@
         if (!match) {
           continue;
         }
-        var start3 = (parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseInt(match[3], 10)) * 1e3 + parseInt((match[4] + "00").slice(0, 3), 10);
+        var start4 = (parseInt(match[1], 10) * 3600 + parseInt(match[2], 10) * 60 + parseInt(match[3], 10)) * 1e3 + parseInt((match[4] + "00").slice(0, 3), 10);
         var end = (parseInt(match[5], 10) * 3600 + parseInt(match[6], 10) * 60 + parseInt(match[7], 10)) * 1e3 + parseInt((match[8] + "00").slice(0, 3), 10);
         var body = lines.slice(l + 1).join("\n").replace(/<[^>]+>/g, "").replace(/\{[^}]*\}/g, "").trim();
         if (body) {
-          cues.push({ start: start3, end, text: body });
+          cues.push({ start: start4, end, text: body });
         }
         break;
       }
@@ -4912,7 +4967,7 @@
       done({ items: items2, providers });
       return;
     }
-    var pending2 = targets.length;
+    var pending3 = targets.length;
     for (var t2 = 0; t2 < targets.length; t2++) {
       (function(entry) {
         addonClient.subtitles(entry.url, opts.type || "movie", opts.id, "", function(err, data) {
@@ -4928,8 +4983,8 @@
             status: err ? "error" : added ? "ok" : "empty",
             count: added
           });
-          pending2 -= 1;
-          if (pending2 === 0) {
+          pending3 -= 1;
+          if (pending3 === 0) {
             done({ items: items2, providers });
           }
         });
@@ -5487,6 +5542,288 @@
   }
   function clearPayload() {
     pending = null;
+  }
+
+  // app/js/data/cloudPair.js
+  var POLL_MS2 = 2500;
+  var MAX_MS2 = 9 * 60 * 1e3;
+  var timer2 = null;
+  var status2 = "idle";
+  var pending2 = null;
+  var keyPair = null;
+  var listeners3 = null;
+  var sasValue = null;
+  var sasChecked = false;
+  var ctxBase = "";
+  var ctxCode = "";
+  var myPubB64 = null;
+  var DEFAULT_BASE = "https://wutizen-config.pages.dev";
+  function defaultBase() {
+    return DEFAULT_BASE;
+  }
+  function normalizeBase2(input) {
+    var url = String(input || "").trim();
+    if (!url) {
+      return "";
+    }
+    if (!/^https?:\/\//i.test(url)) {
+      url = "https://" + url;
+    }
+    return url.replace(/\/+$/, "");
+  }
+  function state2() {
+    return {
+      status: status2,
+      sas: sasValue,
+      hasPayload: !!pending2,
+      crypto: !!(typeof window !== "undefined" && window.crypto && window.crypto.subtle)
+    };
+  }
+  function payload2() {
+    return pending2;
+  }
+  function stop2() {
+    if (timer2) {
+      clearInterval(timer2);
+      timer2 = null;
+    }
+    status2 = "idle";
+  }
+  function emit2(next) {
+    status2 = next;
+    if (listeners3 && listeners3.onStatus) {
+      listeners3.onStatus(next);
+    }
+  }
+  function request2(method, url, body, cb) {
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    function finish(err, data) {
+      if (done) {
+        return;
+      }
+      done = true;
+      cb(err, data);
+    }
+    try {
+      xhr.open(method, url, true);
+      xhr.timeout = 8e3;
+      if (body) {
+        xhr.setRequestHeader("Content-Type", "application/json");
+      }
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) {
+          return;
+        }
+        var data = null;
+        try {
+          data = JSON.parse(xhr.responseText);
+        } catch (err) {
+          data = null;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          finish(null, data);
+        } else if (xhr.status === 0) {
+          finish(new Error("unreachable"));
+        } else {
+          finish(new Error(String(data && (data.state || data.error) || "http " + xhr.status)));
+        }
+      };
+      xhr.ontimeout = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.onerror = function() {
+        finish(new Error("unreachable"));
+      };
+      xhr.send(body ? JSON.stringify(body) : void 0);
+    } catch (err2) {
+      finish(new Error("unreachable"));
+    }
+  }
+  function b64(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var text = "";
+    for (var i = 0; i < bytes.length; i++) {
+      text += String.fromCharCode(bytes[i]);
+    }
+    return btoa(text);
+  }
+  function unb64(value) {
+    var text = atob(String(value || ""));
+    var bytes = new Uint8Array(text.length);
+    for (var i = 0; i < text.length; i++) {
+      bytes[i] = text.charCodeAt(i);
+    }
+    return bytes;
+  }
+  function start2(options, handlers) {
+    var base = normalizeBase2(options && options.base);
+    var code = String(options && options.code || "").replace(/\D/g, "");
+    listeners3 = handlers || null;
+    pending2 = null;
+    sasValue = null;
+    sasChecked = false;
+    myPubB64 = null;
+    ctxBase = base;
+    ctxCode = code;
+    stop2();
+    if (!base || code.length !== 6) {
+      emit2("invalid");
+      return false;
+    }
+    if (!window.crypto || !window.crypto.subtle) {
+      emit2("noCrypto");
+      return false;
+    }
+    if (String(window.location.protocol) === "https:" && base.indexOf("https://") !== 0) {
+      emit2("mixedContent");
+      return false;
+    }
+    emit2("pairing");
+    window.crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, false, ["deriveKey", "deriveBits"]).then(function(pair) {
+      keyPair = pair;
+      return window.crypto.subtle.exportKey("spki", pair.publicKey);
+    }).then(function(spki) {
+      myPubB64 = b64(spki);
+      return new Promise(function(resolve, reject) {
+        var attempts = 0;
+        function attempt() {
+          attempts += 1;
+          request2("POST", base + "/api/session/" + code + "/device", { pub: myPubB64 }, function(err, data) {
+            if (!err) {
+              resolve(data);
+              return;
+            }
+            if (attempts < 5 && err.message === "expired") {
+              setTimeout(attempt, 900);
+              return;
+            }
+            reject(err);
+          });
+        }
+        attempt();
+      });
+    }).then(function() {
+      emit2("waiting");
+      poll(base, code, Date.now(), listeners3);
+    }).catch(function(err) {
+      stop2();
+      emit2(err && err.message === "unreachable" ? "unreachable" : "rejected");
+    });
+    return true;
+  }
+  function poll(base, code, started, handles) {
+    timer2 = setInterval(function() {
+      if (Date.now() - started > MAX_MS2) {
+        stop2();
+        emit2("expired");
+        return;
+      }
+      request2("GET", base + "/api/session/" + code, null, function(err, data) {
+        if (err) {
+          if (err.message === "expired" && Date.now() - started < 9e4) {
+            return;
+          }
+          emit2("unreachable");
+          return;
+        }
+        if (!data) {
+          return;
+        }
+        if (data.state === "confirm" && data.pub && !sasChecked) {
+          sasChecked = true;
+          verifySas(data, handles);
+          return;
+        }
+        if (data.state !== "ready" || !data.payload) {
+          return;
+        }
+        stop2();
+        decrypt(data.payload, handles);
+      });
+    }, POLL_MS2);
+  }
+  function decrypt(envelope, handles) {
+    window.crypto.subtle.importKey("spki", unb64(envelope.pub), { name: "ECDH", namedCurve: "P-256" }, false, []).then(function(browserPub) {
+      return window.crypto.subtle.deriveKey(
+        { name: "ECDH", public: browserPub },
+        keyPair.privateKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+    }).then(function(key) {
+      return window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: unb64(envelope.iv) },
+        key,
+        unb64(envelope.data)
+      );
+    }).then(function(plain) {
+      pending2 = JSON.parse(new TextDecoder("utf-8").decode(new Uint8Array(plain)));
+      keyPair = null;
+      emit2("ready");
+      if (handles && handles.onPayload) {
+        handles.onPayload(pending2);
+      }
+    }).catch(function() {
+      keyPair = null;
+      emit2("decryptFailed");
+    });
+  }
+  function shortAuthString(shared, tvPub, pcPub) {
+    var bits = new Uint8Array(shared);
+    var t2 = unb64(tvPub);
+    var p = unb64(pcPub);
+    var all = new Uint8Array(bits.length + t2.length + p.length);
+    all.set(bits, 0);
+    all.set(t2, bits.length);
+    all.set(p, bits.length + t2.length);
+    return window.crypto.subtle.digest("SHA-256", all).then(function(digest) {
+      var view = new DataView(digest);
+      return String(1e5 + view.getUint32(0) % 9e5);
+    });
+  }
+  function verifySas(data, handles) {
+    if (!keyPair) {
+      emit2("decryptFailed");
+      return;
+    }
+    window.crypto.subtle.importKey("spki", unb64(data.pub), { name: "ECDH", namedCurve: "P-256" }, false, []).then(function(pcPub) {
+      return window.crypto.subtle.deriveBits({ name: "ECDH", public: pcPub }, keyPair.privateKey, 256);
+    }).then(function(bits) {
+      return shortAuthString(bits, myPubB64, data.pub);
+    }).then(function(mine) {
+      sasValue = mine;
+      if (String(data.sas) !== mine) {
+        stop2();
+        emit2("sasMismatch");
+        request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm", { ok: false }, function() {
+        });
+        return;
+      }
+      emit2("confirm");
+      if (handles && handles.onSas) {
+        handles.onSas(mine);
+      }
+    }).catch(function() {
+      emit2("decryptFailed");
+    });
+  }
+  function confirmSas() {
+    if (!ctxBase || !ctxCode || sasValue === null) {
+      return false;
+    }
+    request2("POST", ctxBase + "/api/session/" + ctxCode + "/confirm", { ok: true }, function(err) {
+      if (err) {
+        emit2("rejected");
+        return;
+      }
+      emit2("confirmed");
+      if (listeners3 && listeners3.onStatus) {
+        listeners3.onStatus("confirmed");
+      }
+    });
+    return true;
   }
 
   // app/js/main.js
@@ -6128,17 +6465,17 @@
       findForItem(item, function(err, found, how) {
         var key = result.providers.length;
         var streams = [];
-        var status2 = "ok";
+        var status3 = "ok";
         var reason = "";
         if (err) {
-          status2 = "error";
+          status3 = "error";
           reason = err.message;
         } else if (!found) {
-          status2 = "empty";
+          status3 = "empty";
           reason = how === "ambiguous" ? "ambiguous" : "noMatch";
         } else {
           streams = streamsFor(found);
-          status2 = streams.length ? "ok" : "empty";
+          status3 = streams.length ? "ok" : "empty";
           if (!streams.length) {
             reason = "noSources";
           }
@@ -6149,7 +6486,7 @@
           index: key,
           name: "Emby Server",
           host: stateSummary().host,
-          status: status2,
+          status: status3,
           reason,
           httpStatus: 0,
           count: streams.length,
@@ -6454,14 +6791,20 @@
         loadStreams(selectedVideoId, false);
       },
       confHost: function() {
-        return savedHost();
+        return savedHost() || defaultBase();
+      },
+      cloudBase: function() {
+        return defaultBase();
       },
       confStatus: function() {
-        var st = state();
+        var st = cloudActive ? state2() : state();
         if (st.hasPayload) {
           return t("settings.confReceived");
         }
-        if (st.status === "waiting") {
+        if (st.status === "confirm") {
+          return t("settings.confSas") + " " + (st.sas || "");
+        }
+        if (st.status === "confirmed" || st.status === "waiting" || st.status === "pairing") {
           return t("settings.confWaiting");
         }
         if (st.status === "expired" || st.status === "delivered") {
@@ -6470,31 +6813,54 @@
         if (st.status === "invalid") {
           return t("settings.confInvalid");
         }
-        if (st.status === "unreachable" || st.status === "mixedContent") {
+        if (st.status === "noCrypto" || st.status === "mixedContent" || st.status === "rejected" || st.status === "unreachable") {
           return t("settings.confUnreachable");
+        }
+        if (st.status === "decryptFailed" || st.status === "sasMismatch") {
+          return t("settings.confInvalid");
         }
         return t("settings.confIdle");
       },
       onConfStart: function(host, code) {
         settingsView.setConfStatus(t("settings.confWaiting"));
-        start(
-          { host, code },
-          {
-            onStatus: function(next) {
-              settingsView.render();
-              registerSettings();
-            },
-            onPayload: function() {
-              settingsView.render();
-              registerSettings();
-            }
+        var handlers = {
+          onStatus: function() {
+            settingsView.render();
+            registerSettings();
+          },
+          onPayload: function() {
+            settingsView.render();
+            registerSettings();
           }
-        );
+        };
+        cloudActive = cloudRoute(host) === "cloud";
+        var base = normalizeBase2(host);
+        if (cloudActive) {
+          start2({ base, code }, handlers);
+          return;
+        }
+        start({ host, code }, handlers);
       },
       onConfApply: applyConfiguratorPayload
     });
+    var cloudActive = false;
+    function cloudRoute(host) {
+      return /^https?:\/\//i.test(String(host || "").trim()) ? "cloud" : "lan";
+    }
     function applyConfiguratorPayload() {
-      var data = payload();
+      if (cloudActive) {
+        var cloud = state2();
+        if (cloud.status === "confirm") {
+          confirmSas();
+          settingsView.setConfStatus(t("settings.confSas") + " " + cloud.sas);
+          return Promise.resolve(null);
+        }
+        if (cloud.status === "sasMismatch") {
+          settingsView.setConfStatus(t("settings.confInvalid"));
+          return Promise.resolve(null);
+        }
+      }
+      var data = payload() || payload2();
       if (!data) {
         settingsView.setConfStatus(t("settings.confNothing"));
         return Promise.resolve(null);
@@ -6935,7 +7301,7 @@
         return null;
       }
       var type = String(el.getAttribute("type") || "text").toLowerCase();
-      return type === "text" || type === "search" || type === "url" ? el : null;
+      return type === "text" || type === "search" || type === "url" || type === "password" ? el : null;
     }
     function commitField(field, moveFocus) {
       if (!field) {
@@ -6949,24 +7315,66 @@
         }
       }
       if (moveFocus && focusManager.getCurrent() === field) {
-        var target = settingsView.isOpen() ? settingsView.importButton() : null;
+        var target = settingsView.isOpen() && settingsView.nextFrom ? settingsView.nextFrom(field, moveFocus) : null;
         if (target) {
           focusManager.focus(target);
         } else {
-          focusManager.move("right");
+          focusManager.move(moveFocus === "up" ? "up" : "down");
         }
       }
+    }
+    function nextBelow(field) {
+      var panel = document.querySelector(".settings");
+      if (!panel) {
+        return null;
+      }
+      var box = field.getBoundingClientRect();
+      if (!box.height) {
+        return null;
+      }
+      var nodes = panel.querySelectorAll(
+        'button, [tabindex]:not([tabindex="-1"]), input:not([type="password"]), select, textarea'
+      );
+      var best = null;
+      var bestTop = Infinity;
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el === field || el.disabled || el.offsetParent === null) {
+          continue;
+        }
+        var rect = el.getBoundingClientRect();
+        if (!rect.height || rect.top < box.bottom - 1) {
+          continue;
+        }
+        if (rect.top < bestTop || rect.top === bestTop && best && rect.left < best.getBoundingClientRect().left) {
+          best = el;
+          bestTop = rect.top;
+        }
+      }
+      if (!best) {
+        var all = panel.querySelectorAll("button, input, select, textarea, [tabindex]");
+        var after = false;
+        for (var j = 0; j < all.length; j++) {
+          if (after && !all[j].disabled && all[j].offsetParent !== null && all[j].tabIndex !== -1) {
+            return all[j];
+          }
+          if (all[j] === field) {
+            after = true;
+          }
+        }
+      }
+      return best;
     }
     function handleFieldKey(event, field, action) {
       if (event.keyCode === 8 || event.which === 8 || event.key === "Backspace") {
         return true;
       }
-      if (action === "enter" || action === "down") {
+      if (action === "enter" || action === "down" || action === "up") {
         if (action === "enter" && event.repeat) {
           return true;
         }
         event.preventDefault();
-        commitField(field, true);
+        commitField(field, action === "up" ? "up" : "down");
         return true;
       }
       if (action === "back") {
@@ -6974,7 +7382,7 @@
         commitField(field, false);
         return true;
       }
-      if (action === "left" || action === "right" || action === "up") {
+      if (action === "left" || action === "right") {
         return true;
       }
       return false;
@@ -7408,6 +7816,16 @@
           return settingsView.embyFields().pass.value;
         }
       },
+      focusSelector: function(selector) {
+        var el = document.querySelector(selector);
+        return el ? focusManager.focus(el) : false;
+      },
+      confRoute: function(host) {
+        return cloudRoute(host);
+      },
+      cloudBase: function() {
+        return defaultBase();
+      },
       configurator: {
         start: function(host, code) {
           return start({ host, code }, {
@@ -7425,6 +7843,26 @@
         },
         savedHost: function() {
           return savedHost();
+        }
+      },
+      cloudPair: {
+        start: function(base, code) {
+          cloudActive = true;
+          return start2({ base, code }, { onStatus: function() {
+          }, onPayload: function() {
+          } });
+        },
+        state: function() {
+          return state2();
+        },
+        payload: function() {
+          return payload2();
+        },
+        apply: function() {
+          return applyConfiguratorPayload();
+        },
+        stop: function() {
+          stop2();
         }
       },
       player: {
@@ -7535,7 +7973,7 @@
     logInfo("boot complete", { cards: document.querySelectorAll(".card").length });
   }
   var booted = false;
-  function start2() {
+  function start3() {
     if (booted) {
       return;
     }
@@ -7546,5 +7984,5 @@
       logError("boot failed", err && err.stack ? err.stack : err);
     }
   }
-  start2();
+  start3();
 })();

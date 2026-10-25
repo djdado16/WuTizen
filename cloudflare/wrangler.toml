@@ -1,0 +1,13 @@
+# Cloudflare Pages project config for the WuTizen configurator.
+# Target project: wutizen-config (new project; existing projects are left untouched).
+name = "wutizen-config"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "public"
+
+# KV namespace for pairing sessions. Create it once in the dashboard
+# (Storage → KV → Create namespace) and paste its id here, or bind it in the
+# dashboard under Pages → Settings → Functions → KV namespace bindings.
+[[kv_namespaces]]
+binding = "PAIRING"
+id = "36ae3ae36b04448999c3531df6a37d63"
+

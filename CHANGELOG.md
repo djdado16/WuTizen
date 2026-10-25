@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.7.2 — 2026-10-25 — Cloudflare web configurator
+
+### Added
+- **Cloud web configurator** at `https://wutizen-config.pages.dev` (Cloudflare Pages, project `wutizen-config`, KV `wutizen-pairing`, binding `PAIRING`): the phone/PC page collects Emby, add-on URLs, a WuPlay profile export and preferences, then sends them **encrypted** to the TV — no LAN server needed.
+- **Authenticated ECDH pairing**: TV and browser exchange ephemeral P-256 keys and both derive a 6-digit **SAS** from the shared secret and the pairing transcript. The user must confirm the codes match (Apply on the TV) before the payload can be uploaded; a mismatch destroys the session server-side.
+- **TV integration**: Settings → configurator address is pre-filled with the deployed HTTPS URL, so pairing needs only the 6-digit code on the remote. The TV shows the code and SAS, polls for the encrypted payload, and saves only after a second explicit Apply.
+- Advanced-mode Pages Function (`cloudflare/public/_worker.js`) + session state machine (`_lib/session.js`); phone UI in `cloudflare/public/index.html`.
+
+### Changed
+- Configurator routing: any `http(s)://` address uses Cloudflare pairing, a bare host/IP keeps using the LAN configurator (`tools/configurator/`), which stays available as fallback.
+- Settings D-pad navigation now follows an explicit order (`settingsOrder`), so DOWN from every field reaches that block's own action row and the Samsung IME is released.
+
+### Security
+- Encryption: ECDH P-256 → AES-GCM-256, end-to-end; the relay stores only public keys and ciphertext (KV keys `m:`/`t:`/`p:`/`y:`, 600 s TTL).
+- Guards: 6-digit code, 10-minute expiry, single delivery (replay → `409`), per-code attempt cap (20 → `429`, session destroyed), payload accepted only after `confirmed === true` and only for the committed public key; a `{pub, iv, data}`-only body rule prevents plaintext from ever being stored.
+- The pairing code is never key material (a KV dump cannot be brute-forced offline). Limitations — no device attestation, no IP-level rate limiting yet, metadata visible to the relay — are documented in `docs/CLOUDFLARE_CONFIGURATOR.md`.
+
+### Tests
+- Browser smoke: 241/241 (includes default-URL, Cloudflare/LAN routing and Settings navigation regressions).
+- Cloud pairing E2E against the real handler: 23/23; production probe against the deployed worker: 12/12.
+
 ## v0.7.1 — 2026-10-25 — PC/Mobile configurator
 
 ### Added
